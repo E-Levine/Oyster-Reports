@@ -107,3 +107,82 @@ LW_Srvy_note <- if(Month == "03" | Month == "09") {paste0("During the biannual "
 
 LWR_Srvy_note <- if(Month == "03" | Month == "09") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else {paste("fall")}, " survey there were ", (Srvy_summary %>% filter(Site == "LW-R"))$meanLive, " live and ", (Srvy_summary %>% filter(Site == "LW-R"))$meanDead, " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 ```
+
+## Report summary
+Compiled by: `r Author` on `r format(Sys.Date(), "%d %B %Y")`.\
+This report details data for **Palm Beach County** in **`r MonYr`**.
+Analysis covers data occurring between *`r Start_date`* and *`r End_date`* at natural reef and restored reef stations.\
+
+##Lake Worth Lagoon summary
+
+Here is the monthly report with the data collected from the Lake Worth Lagoon stations on `r max(Sal$Date) %>% format("%B %d, %Y")`:
+
+*	Mean salinity 
+`r if((Sal_summary %>% filter(Site == "LW" & Month == min(Sal$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "LW" & Month == max(Sal$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "LW" & Month == min(Sal$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "LW" & Month == max(Sal$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sal_summary %>% filter(Site == "LW" & Month == min(Sal$Date) %>% format("%B")))$meanSal` 
+in 
+`r min(Sal$Date) %>% format("%B")` 
+to 
+`r (Sal_summary %>% filter(Site == "LW" & Month == max(Sal$Date) %>% format("%B")))$meanSal` 
+in 
+`r max(Sal$Date) %>% format("%B")`.
+*	The mean recruitment rate 
+`r if((Rcrt_summary %>% filter(Site == "LW" & Month == min(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "LW" & Month == max(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "LW" & Month == min(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "LW" & Month == max(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Rcrt_summary %>% filter(Site == "LW" & Month == min(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r min(Rcrt$Ret.Date) %>% format("%B")` 
+to 
+`r (Rcrt_summary %>% filter(Site == "LW" & Month == max(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r max(Rcrt$Ret.Date) %>% format("%B")`.
+*	Dermo prevalence 
+`r if((Dermo_summary %>% filter(Site == "LW" & Month == min(Dermo$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "LW" & Month == max(Dermo$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "LW" & Month == min(Dermo$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "LW" & Month == max(Dermo$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+from
+`r (Dermo_summary %>% filter(Site == "LW" & Month == min(Dermo$Date) %>% format("%B")))$Percent`% 
+in 
+`r min(Dermo$Date) %>% format("%B")` 
+to 
+`r (Dermo_summary %>% filter(Site == "LW" & Month == max(Dermo$Date) %>% format("%B")))$Percent`% 
+in
+`r max(Dermo$Date) %>% format("%B")`.
+* `r if(Month == "03" | Month == "09") {paste(LW_Srvy_note)} else {paste("Survey was not conducted this month.")}`
+
+\
+\
+##Lake Worth Restoration summary 
+
+Here is the monthly report with data collected from the Lake Worth Restoration stations on `r max(Sal$Date) %>% format("%B %d, %Y")`:
+
+*	Mean salinity 
+`r if((Sal_summary %>% filter(Site == "LW-R" & Month == min(Sal$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "LW-R" & Month == max(Sal$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "LW-R" & Month == min(Sal$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "LW-R" & Month == max(Sal$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sal_summary %>% filter(Site == "LW-R" & Month == min(Sal$Date) %>% format("%B")))$meanSal` 
+in 
+`r min(Sal$Date) %>% format("%B")` 
+to 
+`r (Sal_summary %>% filter(Site == "LW-R" & Month == max(Sal$Date) %>% format("%B")))$meanSal` 
+in 
+`r max(Sal$Date) %>% format("%B")`.
+*	The mean recruitment rate 
+`r if((Rcrt_summary %>% filter(Site == "LW-R" & Month == min(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "LW-R" & Month == max(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "LW-R" & Month == min(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "LW-R" & Month == max(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Rcrt_summary %>% filter(Site == "LW-R" & Month == min(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r min(Rcrt$Ret.Date) %>% format("%B")` 
+to 
+`r (Rcrt_summary %>% filter(Site == "LW-R" & Month == max(Rcrt$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r max(Rcrt$Ret.Date) %>% format("%B")`.
+*	Dermo prevalence 
+`r if((Dermo_summary %>% filter(Site == "LW-R" & Month == min(Dermo$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "LW-R" & Month == max(Dermo$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "LW-R" & Month == min(Dermo$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "LW-R" & Month == max(Dermo$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+from
+`r (Dermo_summary %>% filter(Site == "LW-R" & Month == min(Dermo$Date) %>% format("%B")))$Percent`% 
+in 
+`r min(Dermo$Date) %>% format("%B")` 
+to 
+`r (Dermo_summary %>% filter(Site == "LW-R" & Month == max(Dermo$Date) %>% format("%B")))$Percent`% 
+in
+`r max(Dermo$Date) %>% format("%B")`.
+*	`r if(Month == "03" | Month == "09") {paste(LWR_Srvy_note)} else {paste("Survey was not conducted this month.")}`
