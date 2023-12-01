@@ -7,5 +7,7 @@ Monthly reports consist of reporting obervations of mean salinity, recruitment, 
 
 
 CERP reports: St Lucie Estuary, CR-Iona Cove, CR-Bird Island
+Oysters\CERP\R\Reports
 
 PBC reports: LW Lagoon, LW Restoration, LW sedimentation north, LW sedimentation south
+Oysters\Palm Beach County\Analyses\Reports
