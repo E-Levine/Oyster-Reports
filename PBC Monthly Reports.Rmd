@@ -186,3 +186,57 @@ to
 in
 `r max(Dermo$Date) %>% format("%B")`.
 *	`r if(Month == "03" | Month == "09") {paste(LWR_Srvy_note)} else {paste("Survey was not conducted this month.")}`
+
+##Lake Worth sediment trap summary 
+
+Here is the monthly report with data collected from the Lake Worth Lagoon and Lake Worth Restoration stations on `r max(Sal$Date) %>% format("%B %d, %Y")`:
+
+* The mean monthly sedimentation rate at the stations north of the C-51 output 
+`r if((Sedi_NS_summary %>% filter(Position == "N" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Month_Rate > (Sedi_NS_summary %>% filter(Position == "N" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Month_Rate) {paste("decreased")} else if ((Sedi_NS_summary %>% filter(Position == "N" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Month_Rate < (Sedi_NS_summary %>% filter(Position == "N" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Month_Rate) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_NS_summary %>% filter(Position == "N" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Month_Rate`
+g/month in 
+`r min(Sedi$Ret.Date) %>% format("%B")` 
+to 
+`r (Sedi_NS_summary %>% filter(Position == "N" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Month_Rate`
+g/month in
+`r max(Sedi$Ret.Date) %>% format("%B")`,
+and the mean percent organic content
+`r if((Sedi_NS_summary %>% filter(Position == "N" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic > (Sedi_NS_summary %>% filter(Position == "N" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic) {paste("decreased")} else if ((Sedi_NS_summary %>% filter(Position == "N" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic < (Sedi_NS_summary %>% filter(Position == "N" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_NS_summary %>% filter(Position == "N" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic`%
+in 
+`r min(Sedi$Ret.Date) %>% format("%B")` 
+to 
+`r (Sedi_NS_summary %>% filter(Position == "N" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic`%
+in
+`r max(Sedi$Ret.Date) %>% format("%B")`.
+* The mean monthly sedimentation rate at the stations south of the C-51 output 
+`r if((Sedi_NS_summary %>% filter(Position == "S" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Month_Rate > (Sedi_NS_summary %>% filter(Position == "S" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Month_Rate) {paste("decreased")} else if ((Sedi_NS_summary %>% filter(Position == "S" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Month_Rate < (Sedi_NS_summary %>% filter(Position == "S" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Month_Rate) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_NS_summary %>% filter(Position == "S" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Month_Rate`
+g/month in 
+`r min(Sedi$Ret.Date) %>% format("%B")` 
+to 
+`r (Sedi_NS_summary %>% filter(Position == "S" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Month_Rate`
+g/month in
+`r max(Sedi$Ret.Date) %>% format("%B")`,
+and the mean percent organic content
+`r if((Sedi_NS_summary %>% filter(Position == "S" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic > (Sedi_NS_summary %>% filter(Position == "S" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic) {paste("decreased")} else if ((Sedi_NS_summary %>% filter(Position == "S" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic < (Sedi_NS_summary %>% filter(Position == "S" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_NS_summary %>% filter(Position == "S" & Month == min(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic`%
+in 
+`r min(Sedi$Ret.Date) %>% format("%B")` 
+to 
+`r (Sedi_NS_summary %>% filter(Position == "S" & Month == max(Sedi$Ret.Date) %>% format("%B")))$Mean_Pct_Organic`%
+in
+`r max(Sedi$Ret.Date) %>% format("%B")`.
+\
+\
+```{r echo=FALSE, restults = 'asis'}
+#Create base table
+Sedi_table <- Sedi_summary %>% rename("Monthly rate (g/month)" = Month_Rate, "Mean % Organic" = Mean_Pct_Organic) %>% pivot_wider(id_cols = Station, names_from = Month, values_from = c("Monthly rate (g/month)", "Mean % Organic"), names_glue = "{Month}_{.value}")
+
+flextable(Sedi_table) %>% separate_header() %>% align(align = "center") %>% 
+  hline(i = 3, border = officer::fp_border(style = "dashed")) %>% autofit()
+```
