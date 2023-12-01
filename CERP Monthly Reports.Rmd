@@ -117,3 +117,113 @@ CRE_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 
 CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Bird Island there were approximately ", (Srvy_summary %>% filter(Site == "CR-W"))$meanLive, " live and approximately ", (Srvy_summary %>% filter(Site == "CR-W"))$meanDead, " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 ```
+
+## Report summary
+Compiled by: `r Author` on `r format(Sys.Date(), "%d %B %Y")`.\
+This report details data for **CERP** sites in **`r MonYr`**.
+Analysis covers data occurring between *`r Start_date`* and *`r End_date`* at St. Lucie-Central and at Caloosahatchee River.\
+
+## St. Lucie Central summary
+
+Here is the monthly report with the data collected from the St. Lucie Estuary on `r max((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B %d, %Y")`:
+
+*	Mean salinity 
+`r if((Sal_summary %>% filter(Site == "SL-C" & Month == min((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "SL-C" & Month == max((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "SL-C" & Month == min((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "SL-C" & Month == max((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sal_summary %>% filter(Site == "SL-C" & Month == min((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$meanSal` 
+in 
+`r min((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")` 
+to 
+`r (Sal_summary %>% filter(Site == "SL-C" & Month == max((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$meanSal` 
+in 
+`r max((Sal %>% filter(Site == "SL-C"))$Date) %>% format("%B")`.
+*	The mean recruitment rate 
+`r if((Rcrt_summary %>% filter(Site == "SL-C" & Month == min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "SL-C" & Month == max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "SL-C" & Month == min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "SL-C" & Month == max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Rcrt_summary %>% filter(Site == "SL-C" & Month == min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")` 
+to 
+`r (Rcrt_summary %>% filter(Site == "SL-C" & Month == max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")`.
+*	Dermo prevalence 
+`r if((Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+from
+`r (Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent`% 
+in 
+`r min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")` 
+to 
+`r (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent`% 
+in
+`r max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")`.
+* `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(SLC_Srvy_note)} else {paste("Survey was not conducted this month")}`
+\
+
+## Caloosahatchee River summary 
+
+Here is the monthly report with data collected from Caloosahatchee on `r max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B %d, %Y")`:
+
+*	Mean salinity 
+`r if((Sal_summary %>% filter(Site == "CR-E" & Month == min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "CR-E" & Month == max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "CR-E" & Month == min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "CR-E" & Month == max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sal_summary %>% filter(Site == "CR-E" & Month == min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal` 
+in 
+`r min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")` 
+to 
+`r (Sal_summary %>% filter(Site == "CR-E" & Month == max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal` 
+in 
+`r max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")`
+at the Iona Cove station, and 
+`r if((Sal_summary %>% filter(Site == "CR-W" & Month == min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "CR-W" & Month == max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "CR-W" & Month == min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "CR-W" & Month == max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sal_summary %>% filter(Site == "CR-W" & Month == min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal` 
+in 
+`r min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
+to 
+`r (Sal_summary %>% filter(Site == "CR-W" & Month == max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal` 
+in 
+`r max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")`
+at the Bird Island station.
+*	The mean recruitment rate 
+`r if((Rcrt_summary %>% filter(Site == "CR-E" & Month == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "CR-E" & Month == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "CR-E" & Month == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "CR-E" & Month == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Rcrt_summary %>% filter(Site == "CR-E" & Month == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")` 
+to 
+`r (Rcrt_summary %>% filter(Site == "CR-E" & Month == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")`
+at the Iona Cove station, and
+`r if((Rcrt_summary %>% filter(Site == "CR-W" & Month == min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "CR-W" & Month == max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "CR-W" & Month == min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "CR-W" & Month == max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Rcrt_summary %>% filter(Site == "CR-W" & Month == min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")` 
+to 
+`r (Rcrt_summary %>% filter(Site == "CR-W" & Month == max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+spat/shell in 
+`r max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")`
+*	Dermo prevalence 
+`r if((Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+from
+`r (Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent`% 
+in 
+`r min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")` 
+to 
+`r (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent`% 
+in
+`r max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")`
+at the Iona Cove station, and 
+`r if((Dermo_summary %>% filter(Site == "CR-W" & Month == min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "CR-W" & Month == max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "CR-W" & Month == min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "CR-W" & Month == max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+from
+`r (Dermo_summary %>% filter(Site == "CR-W" & Month == min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent`% 
+in 
+`r min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
+to 
+`r (Dermo_summary %>% filter(Site == "CR-W" & Month == max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent`% 
+in
+`r max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
+at the Bird Island station.
+*	`r if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste(CRE_Srvy_note, CRW_Srvy_note, sep = " ")} else {paste("Survey was not conducted this month")}`
