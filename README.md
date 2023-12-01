@@ -1,5 +1,5 @@
 # Monthly-Reports
-R code for compiling monthly reports from Excel data files into Word doucument outputs on the Molluscs network. 
+R code for compiling monthly reports from Excel data files into Word doucument outputs on the Molluscs network using RMarkdown. 
 
 Code will need to be downloaded to the correct R Project folder assocaited with the desired oyster project to ensure file mappings are accurate. Currently code exists for CERP and PBC reports.
 
