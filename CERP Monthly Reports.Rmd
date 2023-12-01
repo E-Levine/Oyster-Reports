@@ -1,0 +1,119 @@
+---
+title: "CERP Monthly Report - `r params$Year`-`r params$Month`"
+output: word_document
+params: 
+  Month: "11"  #Enter 2-digit month
+  Year: "2023" #Enter 4-digit year
+
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Year, params$Month)), " - ", format(Sys.Date(), "%b %d %y"), '.docx')) 
+      })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+Author <- c("E Levine") #Change to your name
+Month <- params$Month 
+Year <- params$Year   
+
+
+Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
+                 ifelse(as.numeric(Month) > 2 & as.numeric(Month) < 6, paste0("Spring", Year),
+                        ifelse(as.numeric(Month) > 5 & as.numeric(Month) < 9, paste0("Summer", Year), paste0("Fall", Year))))
+```
+
+```{r Packages, base DFs, and time frame}
+#Load required packages
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, dplyr,  #DF manipulation
+               readxl,          #Excel
+               lubridate,         #Dates
+               knitr, here,
+               install = TRUE)
+
+#Load required data - salinity, recruitment, dermo, survey counts - all but WQ limited to 2023 data
+WaterQual <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/WaterQuality.xlsx", sheet = "RawData", skip = 3, col_names = TRUE, na = c("", "Z"), trim_ws = TRUE, .name_repair = "universal") %>% 
+  filter(!grepl('Proof', Date)) %>% drop_na(Date)
+
+Rcrt_df <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Recruitment/SL-CRcrt.xlsx", sheet = "Spat", skip = 22719, col_names = c("Ret.Date",	"Jul.Ret", "Jul.Dep",	"Num.Days",	"Site",	"Station",	"Rep", "Shell",	"..Bottom",	"..Top", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal")  %>%
+  mutate(Ret.Date = as.Date(as.numeric(Ret.Date), origin = "1899-12-30"),
+         Num.Days = as.numeric(Num.Days)) %>% drop_na(Ret.Date)
+
+Rcrt_df2 <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Recruitment/CRRcrt.xlsx", sheet = "Spat", skip = 2, col_names = c("Ret.Date",	"Jul.Ret", "Jul.Dep",	"Num.Days",	"Site",	"Station",	"Rep", "Shell",	"..Bottom",	"..Top", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% 
+  mutate(Ret.Date = as.Date(as.numeric(Ret.Date), origin = "1899-12-30"),
+         Num.Days = as.numeric(Num.Days)) %>% drop_na(Ret.Date)
+
+Dermo_df <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Repro Disease/SL-CReproDisease.xlsx", sheet = "Dermo2012", skip = 1724, col_names = c("Date",	"Site",	"Sample.Number",	"Station", 	"SH..mm.",	"Total.Weight..g.",	"Shell.Wet.Wt..g.",	"Dermo.Mantle",	"Dermo.Gill", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>% drop_na(Date)
+
+Dermo_df2 <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Repro Disease/CRReproDisease.xlsx", sheet = "Dermo", skip = 1364, col_names = c("Date",	"Site",	"Sample.Number",	"Station", 	"SH..mm.",	"Total.Weight..g.",	"Shell.Wet.Wt..g.",	"Dermo.Mantle",	"Dermo.Gill"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>% drop_na(Date)
+
+Survey_df <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {read_excel(paste0("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Survey/Survey",Survey, ".xlsx"), sheet = "Counts", skip = 3, col_names = TRUE, na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% drop_na()} else {"Survey was not conducted"}
+
+MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
+Start_date <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
+End_date <- format(ceiling_date(Start_date %m+% months(2)) - days(1), "%Y-%m-%d")
+```
+
+```{r Data filtering}
+Sal <- WaterQual %>% filter(Date >= Start_date & Date <= End_date) %>% 
+  mutate(Month = format(Date, "%B")) #Add month for summary output
+
+Rcrt <- rbind(Rcrt_df %>% filter(Ret.Date >= Start_date & Ret.Date <= End_date),
+              Rcrt_df2 %>% filter(Ret.Date >= Start_date & Ret.Date <= End_date) %>% mutate(Comments = NA)) %>% 
+  mutate(Station = as.factor(Station),
+         Month = format(Ret.Date, "%B"), #Add month for summary output
+         Shell = as.numeric(sub(" .*", "", Shell)), #Remove " - Top" from shell numbers
+         Bottom = as.numeric(ifelse((Site == "SL-C" & Shell > 1 & Shell < 6) | (Site == "SL-C" & Shell > 7 & Shell < 12), ..Bottom, 
+                         ifelse((Site == "CR-E" & Shell > 1 & Shell < 12) | (Site == "CR-W" & Shell > 1 & Shell < 12),..Bottom, NA)))) %>% #Drop 1, 6, 7, 12 from bottom shells SL-C and 1, 12 from bottom shells CR-E/CR-W
+  mutate(Bottom_Month = (Bottom/(Num.Days/28)))
+
+Dermo <- rbind(Dermo_df %>% filter(Date >= Start_date & Date <= End_date),
+               Dermo_df2 %>% filter(Date >= Start_date & Date <= End_date) %>% mutate(Comments = NA)) %>% 
+  mutate(Month = format(Date, "%B"), #Add month for summary output
+         DermoSum = ifelse(rowSums(select(., contains("Dermo"))) >0, 1, 0)) #Dermo presence(1)/absence(0)
+
+Srvy <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {Survey_df %>% 
+    mutate(Month = format(Date, "%B"),
+           Live = ..1.4.m2..Live*4,
+           Dead = ..1.4.m2..Dead*4)} else {"Survey was not conducted"} #Add month for summary output
+
+```
+
+```{r Data summary}
+Sal_summary <- rbind(Sal %>% filter(Site == "SL-C") %>% group_by(Month, Site) %>%
+                       summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)),
+                     Sal %>% filter(Site == "CR-E" | Site == "CR-W") %>% filter(Station == 2 | Station == 3) %>% group_by(Month, Site, Station) %>%
+                       summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)))  %>% #Monthly mean
+  dplyr::select(Month, Site, Station, meanSal) %>% arrange(Site, Station, Month)
+
+Rcrt_summary <- rbind(Rcrt %>% filter(Site == "SL-C") %>% group_by(Month, Site) %>% 
+                        summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2)), 
+                      Rcrt %>% filter(Site == "CR-E" | Site == "CR-W") %>% filter(Station == 2 | Station == 3)%>%
+                        group_by(Month, Site, Station) %>%
+                        summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),3))) %>% #Monthly mean
+  dplyr::select(Month, Site, Station, meanRcrt) %>% arrange(Site, Station, Month)
+
+Dermo_summary <- rbind(Dermo %>% filter(Site == "SL-C") %>% group_by(Month, Site) %>%
+                         summarise(Percent = round(sum(DermoSum, na.rm = T)/n()*100, 2)),
+                       Dermo %>% filter(Site == "CR-E" | Site == "CR-W") %>% filter(Station == 2 | Station == 3) %>% group_by(Month, Site, Station) %>% 
+                         summarise(Percent = round(sum(DermoSum, na.rm = T)/n()*100, 2))) %>%
+  dplyr::select(Month, Site, Station, Percent) %>% arrange(Site, Station, Month)
+
+Srvy_summary <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {rbind(
+  Srvy %>% filter(Site == "SL-C") %>% group_by(Month, Site) %>%
+    summarise(meanLive = round(mean(Live, na.rm = T),0),
+              meanDead = round(mean(Dead, na.rm = T),0)),
+  Srvy %>% filter(Site == "CR-E" | Site == "CR-W") %>% filter(Station == 2 | Station == 3) %>% group_by(Month, Site, Station) %>%
+    summarise(meanLive = round(mean(Live, na.rm = T),0),
+              meanDead = round(mean(Dead, na.rm = T),0))) %>%
+    dplyr::select(Month, Site, Station, everything()) %>% arrange(Site, Station, Month)} else {"Survey was not conducted."}
+
+SLC_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", (Srvy_summary %>% filter(Site == "SL-C"))$meanLive, " live and ", (Srvy_summary %>% filter(Site == "SL-C"))$meanDead, " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+
+CRE_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Iona Cove there were approximately ", (Srvy_summary %>% filter(Site == "CR-E"))$meanLive, " live and approximately ", (Srvy_summary %>% filter(Site == "CR-E"))$meanDead, " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+
+CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Bird Island there were approximately ", (Srvy_summary %>% filter(Site == "CR-W"))$meanLive, " live and approximately ", (Srvy_summary %>% filter(Site == "CR-W"))$meanDead, " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+```
