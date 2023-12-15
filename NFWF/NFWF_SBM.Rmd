@@ -1,0 +1,258 @@
+---
+output: 
+  word_document:
+  toc: true
+---
+
+```{r include = FALSE}
+# Set your variables
+REnd <- as.Date("2023-09-30")  # Report End Date
+```
+
+```{r include = FALSE}
+# Load necessary R packages
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(knitr)
+library(ggpubr) #Required for arranging multiple plots
+library(scales)
+
+EstuaryCode = "AB"  # Report Estuary Code. Use 2-letter code in Primary Keys
+REName = "Apalachicola Bay"  # Report Estuary Name. Use long name you want to appear in report
+SBMStart <- floor_date(REnd %m-% months(20), unit = "month") 
+QStart <- floor_date(REnd %m-% months(2), unit = "month")
+
+```
+
+```{r setup, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 10)
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver= "SQL Server", 
+                    Server = "localhost\\MATTLOCALSQL",
+                    Database= "OysterLocalMD20231019",
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary == EstuaryCode, ShellBudget == "Y")
+
+hsdbSBMQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
+  collect() 
+  
+dboSBMQuadrat <- tbl(con,in_schema("dbo", "ShellBudgetQuadrat")) %>%
+  collect() 
+
+hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
+  collect() 
+
+dboSBMSH <- tbl(con,in_schema("dbo", "ShellBudgetSH")) %>%
+  collect()
+
+DBI::dbDisconnect(con)
+
+```
+
+```{r DataFilters}
+# Filter data frames so that only data collected from Recruitment trips in the specified Estuary, in the correct date range, which have been Proofed, are present.
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber)) %>%
+  select(FixedLocationID,
+         Estuary,
+         StationName, 
+         StationNumber,
+         ParcelName) %>% 
+  distinct()
+          
+SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
+  filter(substring(QuadratID,1,2) == EstuaryCode) %>%
+  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+       FixedLocationID = substring(QuadratID, 19, 22),
+       Year = year(TripDate),
+       OtherWeight = DrillWeight + OtherBiotaWeight + BlackAndOtherSubstrateWeight) %>%
+  left_join(FixedLocations1, SampleEvent1, by = c("FixedLocationID")) %>%
+  arrange(TripDate, StationNumber) %>%
+  mutate(Survey = case_when(
+        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 3 ~ "Winter",
+        month(ymd(TripDate)) >= 4 & month(ymd(TripDate)) <= 6 ~ "Spring",
+        month(ymd(TripDate)) >= 7 & month(ymd(TripDate)) <= 9 ~ "Summer",
+        month(ymd(TripDate)) > 9 ~ "Fall",
+        TRUE ~ "Invalid")) %>%
+  select(QuadratID, SampleEventID, TripDate, FixedLocationID, StationNumber, StationName, ParcelName, Survey, Year, NumLiveOysters, NumDrills, TotalSampleWeight, LiveOysterWeight, OysterShellWeight, PlantedShellWeight, ShellHashWeight, OtherWeight, Comments)
+
+SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
+  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+       FixedLocationID = substring(QuadratID, 19, 22),
+       Year = year(TripDate)) %>%
+  left_join(FixedLocations1, SampleEvent1, by = c("FixedLocationID")) %>%
+  arrange(TripDate, StationName) %>%
+  mutate(Survey = case_when(
+        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 3 ~ "Winter",
+        month(ymd(TripDate)) >= 4 & month(ymd(TripDate)) <= 6 ~ "Spring",
+        month(ymd(TripDate)) >= 7 & month(ymd(TripDate)) <= 9 ~ "Summer",
+        month(ymd(TripDate)) > 9 ~ "Fall",
+        TRUE ~ "Invalid")) %>%
+  filter(ShellHeightID != "#N/A") %>% ### Remove line once hsdb has been repaired
+  select(ShellHeightID, QuadratID, TripDate, FixedLocationID, StationNumber, StationName, ParcelName, Survey, Year, LiveOrDead, ShellHeight)
+
+### Provide stats for mean number of live oys (Fig 4); mean number of drills (Fig 7); mean weight (Fig 8)
+SBM_QuadStats1 <- SBM_Quad1 %>%
+  filter(TripDate > SBMStart) %>%
+  mutate(OyDensity = NumLiveOysters * 4,
+         DrillDensity = NumDrills * 4,
+         WeightDensity = TotalSampleWeight * 4,
+         Survey_Year = paste(Survey, Year, sep = " ")) %>%
+  group_by(TripDate, Survey_Year, Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  summarise(OyDensityMean = mean(OyDensity, na.rm = TRUE),
+            OyDensitySD = sd(OyDensity, na.rm = TRUE),
+            DrillDensityMean = mean(DrillDensity, na.rm = TRUE),
+            DrillDensitySD = sd(DrillDensity, na.rm = TRUE),
+            WeightDensityMean = mean(WeightDensity, na.rm = TRUE),
+            WeightDensitySD = sd(WeightDensity, na.rm = TRUE)) %>%
+  arrange(TripDate)
+
+### Provide stats for mean weights of components (Fig 9)
+SBM_QuadStats2 <- SBM_Quad1 %>%
+  filter(TripDate > "2023-01-01") %>% ### This date needs to be changed to a variable!
+  mutate(LiveOysterWeightDensity = LiveOysterWeight * 4,
+         OysterShellWeightDensity = OysterShellWeight * 4,
+         PlantedShellWeightDensity = PlantedShellWeight * 4,
+         ShellHashWeightDensity = ShellHashWeight * 4,
+         OtherWeightDensity = OtherWeight * 4) %>%
+  group_by(Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  summarise(LiveOysterWeightMean = mean(LiveOysterWeightDensity, na.rm = TRUE),
+            LiveOysterWeightSD = sd(LiveOysterWeightDensity, na.rm = TRUE),
+            OysterShellWeightMean = mean(OysterShellWeightDensity, na.rm = TRUE),
+            OysterShellWeightSD = sd(OysterShellWeightDensity, na.rm = TRUE),
+            PlantedShellWeightMean = mean(PlantedShellWeightDensity, na.rm = TRUE),
+            PlantedShellWeightSD = sd(PlantedShellWeightDensity, na.rm = TRUE),
+            ShellHashWeightMean = mean(ShellHashWeightDensity, na.rm = TRUE),
+            ShellHashWeightSD = sd(ShellHashWeightDensity, na.rm = TRUE),
+            OtherWeightMean = mean(OtherWeightDensity, na.rm = TRUE),
+            OtherWeightSD = sd(OtherWeightDensity, na.rm = TRUE))
+
+### Provides stats for Mean Shell Height LIVE (Fig 5)
+SBM_SHStatsLive <- SBM_SH1 %>%
+  filter(TripDate > SBMStart & LiveOrDead == "Live") %>%
+  group_by(Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
+            SHSD = sd(ShellHeight, na.rm = TRUE))
+
+### Provides stats for Mean Shell Height DEAD (Fig 6)
+SBM_SHStatsDead <- SBM_SH1 %>%
+  filter(TripDate > SBMStart & LiveOrDead == "Dead") %>%
+  group_by(Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
+            SHSD = sd(ShellHeight, na.rm = TRUE))
+
+### Provides stats for report text
+SBM_QuadTextStats <- SBM_QuadStats1 %>%
+  filter(Year > 2022) ### This date needs to be changed to a variable!
+
+SBM_QuadWeightStats <- SBM_QuadStats2 %>%
+  mutate(TotalWt = LiveOysterWeightMean + OysterShellWeightMean + PlantedShellWeightMean + ShellHashWeightMean + OtherWeightMean)
+
+SBM_SHLiveTextStats <- SBM_SHStatsLive %>%
+  filter(Year > 2022) ### This date needs to be changed to a variable!
+
+SBM_SHDeadTextStats <- SBM_SHStatsDead %>%
+  filter(Year > 2022) ### This date needs to be changed to a variable!
+
+ReportTotalLive <- SBM_SH1 %>%
+  filter(ShellHeight > 0 & Year == 2023 & LiveOrDead == "Live")
+
+# SBM_SH2 <- SBM_SH1 %>%
+#   group_by(Survey, Year, StationName, ParcelName, QuadratID) %>%
+#   summarise(LegalCount = sum(ShellHeight > 74)) %>%
+#   right_join(SBM_Quad1, by = c("QuadratID", "Year", "Survey", "StationName", "ParcelName")) %>%
+#   filter(Year > 2020 & StationName != "SBM Normans" & StationName != "SBM Bulkhead" & StationName != "SBM Halfmoon" & ParcelName != "Cat Point Deep South" & ParcelName != "Cat Point Shallow" & ParcelName != "East Lumps South" & ParcelName != "Hotel West" & ParcelName != "Lighthouse South") %>%
+#   mutate(OysterDensity = NumLiveOysters * 4, 
+#          LegalTotal = ifelse(NumLiveOysters > 50, ((NumLiveOysters * LegalCount) / 50), LegalCount),
+#          LegalDensity = LegalTotal *4,
+#          BagsPerAcre = (LegalDensity * 4047) / 225)
+  
+# SBM_QuadStats2 <- SBM_SH2 %>%
+#   group_by(Survey, Year, StationName) %>%
+#   summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
+#             OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
+#             LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
+#             LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
+#             BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
+#             BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE))
+# 
+# AllStats <- right_join(SBM_SHStats, SBM_QuadStats2, by = c("Year", "Survey", "StationName")) %>%
+#   arrange(StationName, Year, desc(Survey)) 
+
+```
+
+Preliminary shell budget data is available through the end of `r format(max(SBM_Quad1$TripDate), "%B %Y")`.
+
+Live oysters were present at all stations in the most recent samples (Fig. XXX). Mean oyster densities ranged from `r round(min(SBM_QuadTextStats$OyDensityMean, na.rm = TRUE), 0)` oysters/m² at `r paste(SBM_QuadTextStats$StationName, SBM_QuadTextStats$StationNumber)[which.min(SBM_QuadTextStats$OyDensityMean)]` to `r round(max(SBM_QuadTextStats$OyDensityMean, na.rm = TRUE), 0)` oysters/m² at `r paste(SBM_QuadTextStats$StationName, SBM_QuadTextStats$StationNumber)[which.max(SBM_QuadTextStats$OyDensityMean)]`. Mean densities were generally highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point) though nearly all were recently settled spat. 
+
+Live oyster shell height means ranged from `r round(min(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 5) and an overall average shell height of `r round(mean(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm. There were `r sum(ReportTotalLive$ShellHeight > 30)` oysters larger than 30 mm measured (`r percent(sum(ReportTotalLive$ShellHeight > 30) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured), and there were `r sum(ReportTotalLive$ShellHeight > 75)` oyster of legal harvest size (SH>=76 mm) measured (`r percent(sum(ReportTotalLive$ShellHeight > 75) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured) during this quarter.
+
+Dead oysters were collected at most stations. Dead oyster shell heights averages ranged from `r round(min(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 6) and the overall average shell height of dead oysters was `r round(mean(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` mm.
+
+No oyster drills (Stramonita floridana) were found at any station this quarter. Mean oyster drill densities were very low ranging from 0 to 0 oyster drill/m² (Fig. 7).
+<!-- This needs to be updated next time as it won't always be true -->
+
+Substrate weights were measured for all parcels (Figure 8). Substrate weights were highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point). The main substrate components accounted for `r percent((sum(SBM_QuadWeightStats$TotalWt) - sum(SBM_QuadWeightStats$OtherWeightMean)) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight which were: cultch (`r percent(sum(SBM_QuadWeightStats$PlantedShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), shell hash (`r percent(sum(SBM_QuadWeightStats$ShellHashWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), live oysters (`r percent(sum(SBM_QuadWeightStats$LiveOysterWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight) and oyster shell (`r percent(sum(SBM_QuadWeightStats$OysterShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight). Proportions of substrate components differed between parcels with shell hash and cultch being the predominant substrate types (Figure 9). 
+
+
+```{r}
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 12), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 12), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 10),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
+
+#Color and shape to Fixed Locations
+FixedLocations <- c("0009" = "Halfmoon-6", "0017" = "Normans-8", "0022" = "Hotel-East", "0023" = "Hotel-West", "0103" = "Bulkhead-North", "0104" = "Bulkhead-South", "0309" = "Lighthouse-Rest", "0310" = "East Lumps-Rest", "0311" = "Cat Point-Rest", "0530" = "Cat Point-Shallow", "0095" = "Cat Point-Shallow")
+Stat_pal <- c(rgb(0, 64, 0, maxColorValue = 255), rgb(0, 255, 0, maxColorValue = 255), rgb(0, 128, 0, maxColorValue = 255), rgb(192, 255, 0, maxColorValue = 255), rgb(64, 192, 0, maxColorValue = 255),
+              rgb(128, 0, 0, maxColorValue = 255), rgb(192, 192, 0, maxColorValue = 255), rgb(96, 0, 0, maxColorValue = 255), rgb(255, 128, 0, maxColorValue = 255), rgb(128, 64, 0, maxColorValue = 255),
+              rgb(0, 0, 128, maxColorValue = 255), rgb(0, 128, 255, maxColorValue = 255), rgb(0, 0, 96, maxColorValue = 255), rgb(0, 128, 128, maxColorValue = 255), rgb(0, 64, 128, maxColorValue = 255))
+Station_fill <- scale_fill_manual("", labels = FixedLocations, values = setNames(Stat_pal, 1:11), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = FixedLocations, values = setNames(Stat_pal, 1:11), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = FixedLocations, values = setNames(c(21, 25, 22, 23, 24, 21, 25, 22, 23, 24, 21, 25, 22, 23, 24), 1:15))
+#
+```
+
+```{r}
+#Creating Shell Budget figures Mean Live Oysters
+#
+
+SBM_fig4 <- SBM_QuadStats1 %>% 
+  ggplot(aes(x = factor(Survey_Year), y = OyDensityMean, fill = FixedLocationID))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 0.5) + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(factor(Survey_Year), ymin = OyDensityMean, ymax = OyDensityMean + OyDensitySD), position = position_dodge(), width = 0.5)+ #Add error bars
+  scale_x_discrete("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Live oysters / m2", expand = c(0, 0))+
+  ggtitle("") + BaseForm + Station_fill
+
+SBM_fig4
+```
+
+
+```{r}
+library(openxlsx)
+
+mydatasets <- list('Sheet1' = SBM_QuadStats1, 'Sheet2' = SBM_QuadStats2, 'Sheet3' = SBM_SHStatsLive, 'Sheet4' = SBM_SHStatsDead)
+write.xlsx(mydatasets, "SBM_ReportStats.xlsx", colNames = TRUE, rowNames = FALSE)
+
+```
+

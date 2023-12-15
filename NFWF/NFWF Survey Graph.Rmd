@@ -1,0 +1,127 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-09-13"
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+CheckStart <- as.Date("2015-01-01")  # Start Date for Checks
+CheckEnd <- as.Date("2023-08-31")  # End Date for Checks
+EstuaryCode = "AB"  # Estuary Code. Use 2-letter code in Primary Keys
+DataManager = "Matthew Davis"
+```
+
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages and configure chunks
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(openxlsx)
+library(knitr)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver= "SQL Server", 
+                    Server = "localhost\\MATTLOCALSQL",
+                    Database= "OysterLocalMD20230913",
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary == EstuaryCode)
+
+hsdbSBMQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
+  collect() 
+  
+dboSBMQuadrat <- tbl(con,in_schema("dbo", "ShellBudgetQuadrat")) %>%
+  collect() 
+
+hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
+  collect() 
+
+dboSBMSH <- tbl(con,in_schema("dbo", "ShellBudgetSH")) %>%
+  collect()
+
+DBI::dbDisconnect(con)
+
+```
+
+```{r DataFilters}
+# Filter data frames so that only data collected from Recruitment trips in the specified Estuary, in the correct date range, which have been Proofed, are present.
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber)) %>%
+  select(FixedLocationID,
+         Estuary,
+         StationName, 
+         StationNumber,
+         ParcelName) %>% 
+  distinct()
+          
+SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
+  filter(substring(QuadratID,1,2) == EstuaryCode & LiveOrDead == "Live") %>%
+  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+       FixedLocationID = substring(QuadratID, 19, 22),
+       Year = year(TripDate)) %>%
+  left_join(FixedLocations1, SampleEvent1, by = c("FixedLocationID")) %>%
+  arrange(TripDate, StationName) %>%
+  mutate(Survey = ifelse(month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6, "Spring", "Fall")) %>%
+  select(ShellHeightID, QuadratID, LiveOrDead, ShellHeight, TripDate, StationName, ParcelName, Survey, Year)
+
+SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
+  filter(substring(QuadratID,1,2) == EstuaryCode) %>%
+  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+       FixedLocationID = substring(QuadratID, 19, 22),
+       Year = year(TripDate)) %>%
+  left_join(FixedLocations1, SampleEvent1, by = c("FixedLocationID")) %>%
+  arrange(TripDate, StationNumber) %>%
+  mutate(Survey = ifelse(month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6, "Spring", "Fall")) %>%
+  select(QuadratID, SampleEventID, TripDate, StationName, ParcelName, NumLiveOysters, Survey, Year)
+
+# tabs <- list("SHs" = SBM_SH1, "Quads" = SBM_Quad1)
+# write.xlsx(tabs, "SBM.xlsx", colNames = TRUE, rowNames = FALSE)
+
+# SBM_QuadStats <- SBM_Quad1 %>%
+#   mutate(OyDensity = NumLiveOysters * 4) %>%
+#   group_by(Survey, Year, ParcelName, StationName) %>%
+#   summarise(OyDensityMean = mean(OyDensity, na.rm = TRUE),
+#             OyDensitySD = sd(OyDensity, na.rm = TRUE)) 
+
+SBM_SHStats <- SBM_SH1 %>%
+  filter(Year > 2020 & StationName != "SBM Normans" & StationName != "SBM Bulkhead" & StationName != "SBM Halfmoon" & ParcelName != "Cat Point Deep South" & ParcelName != "Cat Point Shallow" & ParcelName != "East Lumps South" & ParcelName != "Hotel West" & ParcelName != "Lighthouse South") %>%
+  group_by(Survey, Year, StationName) %>%
+  summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
+            SHSD = sd(ShellHeight, na.rm = TRUE))
+
+SBM_SH2 <- SBM_SH1 %>%
+  group_by(Survey, Year, StationName, ParcelName, QuadratID) %>%
+  summarise(LegalCount = sum(ShellHeight > 74)) %>%
+  right_join(SBM_Quad1, by = c("QuadratID", "Year", "Survey", "StationName", "ParcelName")) %>%
+  filter(Year > 2020 & StationName != "SBM Normans" & StationName != "SBM Bulkhead" & StationName != "SBM Halfmoon" & ParcelName != "Cat Point Deep South" & ParcelName != "Cat Point Shallow" & ParcelName != "East Lumps South" & ParcelName != "Hotel West" & ParcelName != "Lighthouse South") %>%
+  mutate(OysterDensity = NumLiveOysters * 4, 
+         LegalTotal = ifelse(NumLiveOysters > 50, ((NumLiveOysters * LegalCount) / 50), LegalCount),
+         LegalDensity = LegalTotal *4,
+         BagsPerAcre = (LegalDensity * 4047) / 225)
+  
+SBM_QuadStats2 <- SBM_SH2 %>%
+  group_by(Survey, Year, StationName) %>%
+  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
+            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
+            LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
+            LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
+            BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
+            BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE))
+
+AllStats <- right_join(SBM_SHStats, SBM_QuadStats2, by = c("Year", "Survey", "StationName")) %>%
+  arrange(StationName, Year, desc(Survey)) 
+
+write.xlsx(AllStats, "SBM_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
+
+```
