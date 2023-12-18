@@ -25,8 +25,8 @@ FILE STRUCTURE: <br>
 /CERP - RMarkdown scripts for Comprehensive Everglades Restoration Plan project - Current versions: Monthly.<br>
 /PBC - RMarkdown scripts for Plam Beach County project - Current versions: Monthly.<br>
 /DMFM - RMarkdown scripts for sharing with the Division of Marine Fisheries Management  - Current versions: .<br>
-/FLTIG - RMarkdown scripts for the Florida Trustees Implementation Group Data Gaps project  - Current versions: .<br>
-/NFWF2 - RMarkdown scripts for the National Fish and Wildlife Foundation 2.0 project - Current versions: .<br>
+/FLTIG - RMarkdown scripts for the Florida Trustees Implementation Group Data Gaps project  - Current versions: Annually.<br>
+/NFWF2 - RMarkdown scripts for the National Fish and Wildlife Foundation 2.0 project - Current versions: Quarterly..<br>
 <br>
 FILE USE:<br>
 /CERP - Compiling monthly reports from Excel data files into Word doucument outputs on the Molluscs network using RMarkdown. Code will need to be downloaded Oysters\CERP\R\Reports to ensure file mappings are accurate.<br>
@@ -37,4 +37,9 @@ FILE USE:<br>
 <br>
 
 REPORT TYPES: <br>
-**CERP and PBC monthly reports consist of reporting obervations of mean salinity, recruitment, and dermo for the specified monthly and most recent month prior. PBC reports also include reporting of mean sedimentation rate and percent organic content for stations north and south of the C-51 output. When applicable, mean live and dead counts from oyster surveys are included. 
+**CERP and PBC monthly reports consist of reporting obervations of mean salinity, recruitment, and dermo for the specified monthly and most recent month prior. PBC reports also include reporting of mean sedimentation rate and percent organic content for stations north and south of the C-51 output. When applicable, mean live and dead counts from oyster surveys are included. <br>
+***FL-TIG Annual reports consist of reporting obervations of Recruitment rates, Sedimentation rates, and water quality (Temp, Sal, DO, pH, Secchi) for Pensacola (PE) and St Andrew (SA) stations. (ADD in SS, WC, TB, and CR here) <br>
+***NFWF Quarterly reports consist of reporting obervations of Recruitment rates, Sedimentation rates, and water quality (Temp, Sal, DO, pH, Secchi) for Apalachicola (AB) and Suwannee Sound (SS) stations. Data included is the past 15 months, though may not include the most recent month(s) depending on sample/data processing. <br>
+This report also includes semi-annual Shell Budget Model data for the past 15 months in Apalachicola; and quarterly Shell Budget Model data for the past 15 months in Suwannee Sound. <br>
+
+

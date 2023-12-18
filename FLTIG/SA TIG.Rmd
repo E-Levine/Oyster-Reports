@@ -1,0 +1,997 @@
+---
+output:
+  html_document:
+    df_print: paged
+  toc: yes
+  word_document: null
+---
+
+```{r include = FALSE}
+# Set your variables
+REnd <- as.Date("2023-06-30")  # Report End Date
+```
+
+```{r include = FALSE}
+# Load necessary R packages
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(knitr)
+library(ggpubr) #Required for arranging multiple plots
+library(scales)
+
+ECode1 = "SA"  # Report Estuary Code. Use 2-letter code in Primary Keys
+EName1 = "St. Andrew Bay"  # Report Estuary Name. Use long name you want to appear in report
+ECode2 = "AB"  # Report Estuary Code. Use 2-letter code in Primary Keys
+EName2 = "Apalachicola Bay"  # Report Estuary Name. Use long name you want to appear in report
+ECode3 = "PE"  # Report Estuary Code. Use 2-letter code in Primary Keys
+EName3 = "Pensacola Bay"  # Report Estuary Name. Use long name you want to appear in report
+RStart <- floor_date(REnd %m-% months(6), unit = "month") 
+
+```
+
+```{r setup, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 10)
+```
+
+```{r}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver= "SQL Server", 
+                    Server = "localhost\\MATTLOCALSQL",
+                    Database= "OysterLocalMD20230913",
+                    Authentication = "ActiveDirectoryIntegrated")
+
+FixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary == ECode1 | Estuary == ECode2 | Estuary == ECode3)
+
+dboWaterQuality <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventWQID,1,2) == ECode1 | substring(SampleEventWQID,1,2) == ECode2 | substring(SampleEventWQID,1,2) == ECode3)
+
+dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID,1,2) == ECode1 | substring(SampleEventID,1,2) == ECode2 | substring(SampleEventID,1,2) == ECode3)
+
+dboSedTrap <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID,1,2) == ECode1 | substring(SampleEventID,1,2) == ECode2 | substring(SampleEventID,1,2) == ECode3)
+DBI::dbDisconnect(con)
+
+```
+
+```{r include = FALSE}
+# Arrange data frames using data from the database, doing basic filters, adding necessary columns for statistics and performing statistics.
+FL1 <- FixedLocations %>% 
+  mutate(StationNumber = as.factor(StationNumber)) %>% #changed to factor based on EL's code
+  select(FixedLocationID,
+         Estuary,
+         SectionName, 
+         StationNumber) %>% 
+  distinct()
+          
+WQ1 <- dboWaterQuality %>% 
+  filter(str_detect(SampleEventWQID, 'RCRT|SDTP')) %>%
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14,
+         SecchiPercent = (Secchi / Depth) * 100) %>%
+  select(SampleEventWQID,
+         FixedLocationID,
+         SampleEventID,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         Temperature,
+         Salinity,
+         DissolvedOxygen,
+         pH,
+         TurbidityYSI,
+         SecchiPercent) %>% 
+  drop_na(Temperature) %>%
+  filter(RetDate >= RStart & RetDate < REnd) %>%
+  left_join(FL1, by = c("FixedLocationID")) 
+
+WQStats <- WQ1 %>% 
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(TempMean = mean(Temperature, na.rm = TRUE),
+            SalMean = mean(Salinity, na.rm = TRUE),
+            DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+            pHMean = mean(pH, na.rm = TRUE), 
+            TurbidityMean = mean(TurbidityYSI, na.rm = TRUE),
+            SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+
+WQStats2 <- WQ1 %>% 
+  group_by(AnalysisDate, Plot_Date, Estuary) %>% 
+  summarise(TempMean = mean(Temperature, na.rm = TRUE),
+            SalMean = mean(Salinity, na.rm = TRUE),
+            SalMax = max(Salinity, na.rm = TRUE),
+            SalMin = min(Salinity, na.rm = TRUE),
+            DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+            DOMax = max(DissolvedOxygen, na.rm = TRUE),
+            DOMin = min(DissolvedOxygen, na.rm = TRUE),
+            pHMean = mean(pH, na.rm = TRUE), 
+            TurbidityMean = mean(TurbidityYSI, na.rm = TRUE),
+            TurbidityMax = max(TurbidityYSI, na.rm = TRUE),
+            TurbidityMin = min(TurbidityYSI, na.rm = TRUE),
+            SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+
+R1 <- dboRecruitment %>% 
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(RetDate >= RStart & RetDate < REnd) %>%
+  distinct()
+
+R2 <- left_join(R1, FL1, by = c("FixedLocationID")) %>%
+  unique()
+
+ST1 <- dboSedTrap %>% 
+  filter(NumFish == 0 & NumCrabs < 2 & NumDrills < 2 & NumHermitCrabs < 5) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14,
+         SedWeight = (FilterDryWeight + PanDryWeight) - (FilterTareWeight + PanTareWeight),
+         SedRate = SedWeight / (NumDays/28)) %>%
+  select(CupSampleID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         SedWeight,
+         SedRate) %>% 
+  filter(RetDate >= RStart & RetDate < REnd) %>%
+  distinct()
+
+ST2 <- left_join(ST1, FL1, by = c("FixedLocationID")) %>%
+  unique()
+
+### SA specific data frames
+  # Water Quality
+# SA_WQStats <- WQStats %>% 
+#   filter(Estuary == ECode1) %>%
+#   group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+#   summarise(TempMean = mean(Temperature, na.rm = TRUE),
+#             SalMean = mean(Salinity, na.rm = TRUE),
+#             DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+#             pHMean = mean(pH, na.rm = TRUE), 
+#             TurbidityMean = mean(TurbidityYSI, na.rm = TRUE),
+#             SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+  # Recruitment
+SA_RStats <- R2 %>% 
+  filter(substring(SampleEventID,1,2) == ECode1) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
+
+SA_RW <- SA_RStats %>%
+  filter(SectionName == "W") %>%
+  dplyr::select(-Upper, -Plot_Date) %>% #Drop column as needed
+  group_by(StationNumber) 
+
+SA_RN <- SA_RStats %>%
+  filter(SectionName == "N") %>%
+  dplyr::select(-Upper, -Plot_Date) %>% #Drop column as needed
+  group_by(StationNumber) 
+
+SA_RE <- SA_RStats %>%
+  filter(SectionName == "E") %>%
+  dplyr::select(-Upper, -Plot_Date) %>% #Drop column as needed
+  group_by(StationNumber) 
+  # Sediment Traps
+SA_STStats <- ST2 %>% 
+  filter(substring(SampleEventID,1,2) == ECode1) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
+            SD = sd(SedRate, na.rm = TRUE),
+            Upper = SedMean + SD)
+  
+SA_STW <- SA_STStats %>%
+  filter(SectionName == "W") %>%
+  dplyr::select(-Upper, -Plot_Date) %>% #Drop column as needed
+  group_by(StationNumber) 
+
+SA_STN <- SA_STStats %>%
+  filter(SectionName == "N") %>%
+  dplyr::select(-Upper, -Plot_Date) %>% #Drop column as needed
+  group_by(StationNumber) 
+
+SA_STE <- SA_STStats %>%
+  filter(SectionName == "E") %>%
+  dplyr::select(-Upper, -Plot_Date) %>% #Drop column as needed
+  group_by(StationNumber)
+
+### AB specific data frames
+  # Water Quality
+AB_WQStats <- WQStats2 %>% 
+  filter(Estuary == ECode2)
+
+  # Recruitment
+AB_RStats <- R2 %>% 
+  filter(substring(SampleEventID,1,2) == ECode2) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
+
+AB_RStats2 <- AB_RStats %>%
+  group_by(AnalysisDate, Plot_Date, Estuary) %>% 
+  summarise(Lower = min(RecMean, na.rm = TRUE),
+            Upper = max(RecMean, na.rm = TRUE),
+            RecMed = median(RecMean, na.rm = TRUE))
+
+  # Sediment Traps
+AB_STStats <- ST2 %>% 
+  filter(substring(SampleEventID,1,2) == ECode2) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
+            SD = sd(SedRate, na.rm = TRUE),
+            Upper = SedMean + SD)
+
+AB_STStats2 <- AB_STStats %>%
+  group_by(AnalysisDate, Plot_Date, Estuary) %>% 
+  summarise(Lower = min(SedMean, na.rm = TRUE),
+            Upper = max(SedMean, na.rm = TRUE),
+            SedMed = median(SedMean, na.rm = TRUE))
+
+
+### PE specific data frames
+  # Water Quality
+PE_WQStats <- WQStats2 %>% 
+  filter(Estuary == ECode3) 
+
+  # Recruitment
+PE_RStats <- R2 %>% 
+  filter(substring(SampleEventID,1,2) == ECode3) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE))
+
+PE_RStats2 <- PE_RStats %>%
+  group_by(AnalysisDate, Plot_Date, Estuary) %>% 
+  summarise(Lower = min(RecMean, na.rm = TRUE),
+            Upper = max(RecMean, na.rm = TRUE),
+            RecMed = median(RecMean, na.rm = TRUE))
+
+
+  # Sediment Traps
+PE_STStats <- ST2 %>% 
+  filter(substring(SampleEventID,1,2) == ECode3) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
+            SD = sd(SedRate, na.rm = TRUE),
+            Upper = SedMean + SD)
+
+PE_STStats2 <- PE_STStats %>%
+  group_by(AnalysisDate, Plot_Date, Estuary) %>% 
+  summarise(Lower = min(SedMean, na.rm = TRUE),
+            Upper = max(SedMean, na.rm = TRUE),
+            SedMed = mean(SedMean, na.rm = TRUE))
+
+```
+
+```{r include = FALSE}
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 16), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 16), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 14),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 14)) #Adjust legend text
+
+#Color and shape to station number
+Stations <- c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Station 5",
+              "6" = "Station 6", "7" = "Station 7", "8" = "Station 8", "9" = "Station 9", "10" = "Station 10",
+              "11" = "Station 11", "12" = "Station 12", "13" = "Station 13", "14" = "Station 14", "15" = "Station 15")
+Stat_pal <- c(rgb(0, 64, 0, maxColorValue = 255), rgb(0, 255, 0, maxColorValue = 255), rgb(0, 128, 0, maxColorValue = 255), rgb(192, 255, 0, maxColorValue = 255), rgb(64, 192, 0, maxColorValue = 255),
+              rgb(128, 0, 0, maxColorValue = 255), rgb(192, 192, 0, maxColorValue = 255), rgb(96, 0, 0, maxColorValue = 255), rgb(255, 128, 0, maxColorValue = 255), rgb(128, 64, 0, maxColorValue = 255),
+              rgb(0, 0, 128, maxColorValue = 255), rgb(0, 128, 255, maxColorValue = 255), rgb(0, 0, 96, maxColorValue = 255), rgb(0, 128, 128, maxColorValue = 255), rgb(0, 64, 128, maxColorValue = 255))
+Station_fill <- scale_fill_manual("", labels = Stations, values = setNames(Stat_pal, 1:15), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = Stations, values = setNames(Stat_pal, 1:15), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21, 25, 22, 23, 24, 21, 25, 22, 23, 24, 21, 25, 22, 23, 24), 1:15))
+#
+```
+
+```{r echo = TRUE}
+#Creating SA Recruitment figures per section for better customization
+#
+##West
+SA_RW_fig <- SA_RStats %>% filter(SectionName == "W") %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = RecMean, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0,
+                                2*ceiling(max(ungroup(SA_RStats) %>% filter(SectionName == "W") %>% dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(SA_RStats) %>% filter(SectionName == "W") %>% dplyr::select(Upper), na.rm = T)/2), by = 40))+ #Change by = # to adjust number of breaks
+  ggtitle("St. Andrew West") + BaseForm + Station_fill
+#
+
+##Central
+SA_RN_fig <- SA_RStats %>% filter(SectionName == "N") %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Add bars
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = RecMean, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0,
+                                2*ceiling(max(ungroup(SA_RStats) %>% filter(SectionName == "N") %>% dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(SA_RStats) %>% filter(SectionName == "N") %>% dplyr::select(Upper), na.rm = T)/2), by = 5))+ #Change by = # to adjust number of breaks
+  ggtitle("St. Andrew North")+ BaseForm + Station_fill
+#
+
+##East
+SA_RE_fig <- SA_RStats %>% filter(SectionName == "E") %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Add bars
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = RecMean, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0,
+                                2*ceiling(max(ungroup(SA_RStats) %>% filter(SectionName == "E") %>% dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(SA_RStats) %>% filter(SectionName == "E") %>% dplyr::select(Upper), na.rm = T)/2), by = 3))+ #Change by = # to adjust number of breaks
+  ggtitle("St. Andrew East")+ BaseForm + Station_fill
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the sections of St. Andrew Bay during 2023. "}
+
+ggarrange(SA_RW_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          SA_RN_fig + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
+          SA_RE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1, heights = c(1, 1, 1))
+
+```
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in St. Andrew Bay during 2023. "}
+#Creating Sediment Trap figures per section for better customization
+#
+##ALL
+SA_ST_fig <- SA_STStats %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SedMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = SedMean, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("Date", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Sediment rate (g / month)", expand = c(0, 0),
+                     limits = c(0,
+                                2.1*ceiling(max(ungroup(SA_STStats) %>% dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(SA_STStats) %>% dplyr::select(Upper), na.rm = T)/2), by = 50))+ #Change by = # to adjust number of breaks
+  ggtitle("All") + BaseForm + Station_fill
+
+# 
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in St. Andrew Bay during 2023. "}
+
+ggarrange(SA_ST_fig + theme(plot.margin = unit(c(0,0.2,0,0.1), "lines")),
+          nrow = 1, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating Temperature figures per section for better customization
+#
+##West
+SA_TW_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "W") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (C)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("St. Andrew West") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##North
+SA_TN_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "N") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (C)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("St. Andrew North") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##East
+SA_TE_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "E") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (C)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("St. Andrew East") + BaseForm + Station_color + Station_fill + Station_shape
+
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 4. Monthly mean temperature at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(SA_TW_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          SA_TN_fig + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
+          SA_TE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating Salinity figures per section for better customization
+#
+##West
+SA_SW_fig <-  WQStats %>% filter(Estuary == ECode1, SectionName == "W") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SalMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Salinity", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("St. Andrew West") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##North
+SA_SN_fig <-  WQStats %>% filter(Estuary == ECode1, SectionName == "N") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SalMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Salinity", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("St. Andrew North") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##East
+SA_SE_fig <-  WQStats %>% filter(Estuary == ECode1, SectionName == "E") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SalMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Salinity", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("St. Andrew East") + BaseForm + Station_color + Station_fill + Station_shape
+
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 5. Monthly mean salinity at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(SA_SW_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          SA_SN_fig + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
+          SA_SE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating DO figures per section for better customization
+#
+##West
+SA_DOW_fig <- WQStats %>% 
+  filter(Estuary == ECode1, SectionName == "W") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("DO (mg/L)", expand = c(0, 0),
+                     limits = c(0, 12), pretty_breaks())+
+  ggtitle("St. Andrew West") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##North
+SA_DON_fig <- WQStats %>% 
+  filter(Estuary == ECode1, SectionName == "N") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("DO (mg/L)", expand = c(0, 0),
+                     limits = c(0, 12), pretty_breaks())+
+  ggtitle("St. Andrew North") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##East
+SA_DOE_fig <- WQStats %>% 
+  filter(Estuary == ECode1, SectionName == "E") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("DO (mg/L)", expand = c(0, 0),
+                     limits = c(0, 12), pretty_breaks())+
+  ggtitle("St. Andrew East") + BaseForm + Station_color + Station_fill + Station_shape
+
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 6. Monthly mean dissolved oxygen (DO) concentration at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(SA_DOW_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          SA_DON_fig + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
+          SA_DOE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+```{r include = FALSE}
+#Creating Secchi pentration figures per section for better customization
+#
+##West
+SA_SeW_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "W") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Edit first 2 digits of width to change (talk to EL for more in depth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle("St. Andrew West") + BaseForm + Station_fill
+#
+
+##North
+SA_SeN_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "N") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Mess with first 2 digits of width to change (talk to EL for more indepth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle("St. Andrew North") + BaseForm + Station_fill
+#
+
+##East
+SA_SeE_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "E") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Mess with first 2 digits of width to change (talk to EL for more indepth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle("St. Andrew East") + BaseForm + Station_fill
+
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 8. Monthly mean Secchi penetration (percentage of water depth through which the Secchi disk could be seen) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(SA_SeW_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          SA_SeN_fig + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
+          SA_SeE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating Turbidity figures per section for better customization
+#
+##West
+SA_TuW_fig <- WQStats %>% 
+  filter(Estuary == ECode1, SectionName == "W") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TurbidityMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Turbidity (NTU)", expand = c(0, 0),
+                     limits = c(-3, 50), pretty_breaks())+
+  ggtitle("St. Andrew West") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##North
+SA_TuN_fig <- WQStats %>% 
+  filter(Estuary == ECode1, SectionName == "N") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TurbidityMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Turbidity (NTU)", expand = c(0, 0),
+                     limits = c(-3, 50), pretty_breaks())+
+  ggtitle("St. Andrew North") + BaseForm + Station_color + Station_fill + Station_shape
+#
+
+##East
+SA_TuE_fig <- WQStats %>% 
+  filter(Estuary == ECode1, SectionName == "E") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TurbidityMean, color = StationNumber, group = StationNumber))+ #Set base data to present
+  geom_line(aes(group=StationNumber), color = "black") + #Add connecting lines
+  geom_point(aes(shape = StationNumber, fill = StationNumber), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Turbidity (NTU)", expand = c(0, 0),
+                     limits = c(-3, 50), pretty_breaks())+
+  ggtitle("St. Andrew East") + BaseForm + Station_color + Station_fill + Station_shape
+
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 6. Monthly mean dissolved oxygen (DO) concentration at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(SA_TuW_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          SA_TuN_fig + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
+          SA_TuE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+########################
+########################
+########################
+##### PE and AB figs ###
+########################
+########################
+########################
+
+```{r echo = TRUE}
+#Creating Recruitment figures per section for better customization
+#
+##PE
+PE_R_fig <- PE_RStats2 %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMed, fill = Estuary))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200, fill = "lightblue") + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = Lower, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0,
+                                1.2*ceiling(max(ungroup(PE_RStats2) %>% 
+                                                dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(PE_RStats2) %>% 
+                                                dplyr::select(Upper), na.rm = T)/2), by = 0.2))+ #Change by = # to adjust number of breaks
+  ggtitle("Pensacola Bay") + BaseForm + Station_fill
+#
+
+##AB
+AB_R_fig <- AB_RStats2 %>%  
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMed, fill = Estuary))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200, fill = "darkgreen") + #Add bars
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = Lower, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0,
+                                1.5*ceiling(max(ungroup(AB_RStats2) %>% 
+                                                dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(AB_RStats2) %>% 
+                                                dplyr::select(Upper), na.rm = T)/2), by = 0.2))+ #Change by = # to adjust number of breaks
+  ggtitle("Apalachicola Bay")+ BaseForm + Station_fill
+#
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the sections of St. Andrew Bay during 2023. "}
+
+ggarrange(PE_R_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_R_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1, heights = c(1,1,1))
+
+```
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in St. Andrew Bay during 2023. "}
+#Creating Sediment Trap figures per section for better customization
+#
+##PE
+PE_ST_fig <- PE_STStats2 %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SedMed, fill = Estuary))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200, fill = "lightblue") + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = Lower, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Sediment rate (g / month)", expand = c(0, 0),
+                     limits = c(0,
+                                2.1*ceiling(max(ungroup(PE_STStats2) %>% dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(PE_STStats2) %>% dplyr::select(Upper), na.rm = T)/2), by = 50))+ #Change by = # to adjust number of breaks
+  ggtitle("Pensacola Bay") + BaseForm + Station_fill
+
+##AB
+AB_ST_fig <- AB_STStats2 %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SedMed, fill = Estuary))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200, fill = "darkgreen") + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = Lower, ymax = Upper), position = position_dodge(), width = 1565200)+ #Add error bars
+  scale_x_datetime("Date", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Sediment rate (g / month)", expand = c(0, 0),
+                     limits = c(0,
+                                2.1*ceiling(max(ungroup(AB_STStats2) %>% dplyr::select(Upper), na.rm = T)/2)), #Round to next highest even number for limits and breaks
+                     breaks = seq(0, 2*ceiling(max(ungroup(AB_STStats2) %>% dplyr::select(Upper), na.rm = T)/2), by = 50))+ #Change by = # to adjust number of breaks
+  ggtitle("Apalachicola Bay") + BaseForm + Station_fill
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in St. Andrew Bay during 2023. "}
+
+# ggarrange(SA_ST_fig + theme(plot.margin = unit(c(0,0.2,0,0.1), "lines")),
+#           nrow = 1, ncol = 1)
+
+ggarrange(PE_ST_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_ST_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+```
+
+
+```{r include = FALSE}
+#Creating Temperature figures per section for better customization
+#
+##PE
+PE_T_fig <- WQStats2 %>% filter(Estuary == ECode3) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "2", fill = "lightblue"), color = "lightblue", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (C)", expand = c(0, 0),
+                     limits = c(0, 40), breaks = pretty_breaks())+
+  ggtitle("Pensacola Bay") + BaseForm #+ Station_color + Station_fill + Station_shape
+#
+
+##AB
+AB_T_fig <- WQStats2 %>% filter(Estuary == ECode2) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "1", fill = "darkgreen"), color = "darkgreen", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (C)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("Apalachicola Bay") + BaseForm 
+
+#print(PE_T_fig)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 4. Monthly mean temperature at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(PE_T_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_T_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating Salinity figures per section for better customization
+#
+##PE
+PE_S_fig <- WQStats2 %>% filter(Estuary == ECode3) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SalMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "2", fill = "lightblue"), color = "lightblue", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = SalMin, ymax = SalMax), position = position_dodge(), width = 782600)+ #Add error bars
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Salinity (ppt)", expand = c(0, 0),
+                     limits = c(0, 40), breaks = pretty_breaks())+
+  ggtitle("Pensacola Bay") + BaseForm #+ Station_color + Station_fill + Station_shape
+#
+
+##AB
+AB_S_fig <- WQStats2 %>% filter(Estuary == ECode2) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SalMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "1", fill = "darkgreen"), color = "darkgreen", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = SalMin, ymax = SalMax), position = position_dodge(), width = 782600)+ #Add error bars
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Salinity (ppt)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("Apalachicola Bay") + BaseForm 
+
+print(AB_S_fig)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 5. Monthly mean salinity at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(PE_S_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_S_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating DO figures per section for better customization
+#
+##PE
+PE_DO_fig <- WQStats2 %>% filter(Estuary == ECode3) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "2", fill = "lightblue"), color = "lightblue", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = DOMin, ymax = DOMax), position = position_dodge(), width = 782600)+ #Add error bars
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0, 0),
+                     limits = c(0, 12), breaks = pretty_breaks())+
+  ggtitle("Pensacola Bay") + BaseForm #+ Station_color + Station_fill + Station_shape
+#
+
+##AB
+AB_DO_fig <- WQStats2 %>% filter(Estuary == ECode2) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "1", fill = "darkgreen"), color = "darkgreen", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = DOMin, ymax = DOMax), position = position_dodge(), width = 782600)+ #Add error bars
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0, 0),
+                     limits = c(0, 12), pretty_breaks())+
+  ggtitle("Apalachicola Bay") + BaseForm 
+
+#print(AB_DO_fig)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 6. Monthly mean dissolved oxygen (DO) concentration at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(PE_DO_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_DO_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+```{r include = FALSE}
+#Creating Secchi pentration figures per section for better customization
+#
+##East
+SA_SeE_fig <- WQStats %>% filter(Estuary == ECode1, SectionName == "E") %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = StationNumber))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Mess with first 2 digits of width to change (talk to EL for more indepth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle("St. Andrew East") + BaseForm + Station_fill
+#Creating Recruitment figures per section for better customization
+#
+##PE
+PE_SE_fig <- WQStats2 %>% filter(Estuary == ECode3) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = Estuary))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200, fill = "lightblue") + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle("Pensacola Bay") + BaseForm + Station_fill
+#
+
+##AB
+AB_SE_fig <- WQStats2 %>% filter(Estuary == ECode2) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = Estuary))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200, fill = "lightblue") + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle("Apalachicola Bay") + BaseForm + Station_fill
+#
+
+
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 8. Monthly mean Secchi penetration (percentage of water depth through which the Secchi disk could be seen) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(PE_SE_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_SE_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
+
+
+```{r include = FALSE}
+#Creating Turbidity figures per section for better customization
+##PE
+PE_Tu_fig <- WQStats2 %>% filter(Estuary == ECode3) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TurbidityMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "2", fill = "lightblue"), color = "lightblue", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = TurbidityMin, ymax = TurbidityMax), position = position_dodge(), width = 782600)+ #Add error bars
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Turbidity (NTU)", expand = c(0, 0),
+                     limits = c(-3, 50), breaks = pretty_breaks())+
+  ggtitle("Pensacola Bay") + BaseForm #+ Station_color + Station_fill + Station_shape
+#
+
+##AB
+AB_Tu_fig <- WQStats2 %>% filter(Estuary == ECode2) %>%  #Filter to one section
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TurbidityMean, fill = Estuary))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = "1", fill = "darkgreen"), color = "darkgreen", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = TurbidityMin, ymax = TurbidityMax), position = position_dodge(), width = 782600)+ #Add error bars
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Turbidity (NTU)", expand = c(0, 0),
+                     limits = c(-3, 50), pretty_breaks())+
+  ggtitle("Apalachicola Bay") + BaseForm 
+
+print(PE_Tu_fig)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 6. Monthly mean dissolved oxygen (DO) concentration at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+
+ggarrange(PE_Tu_fig + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
+          AB_Tu_fig + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
+          nrow = 3, ncol = 1)
+
+```
