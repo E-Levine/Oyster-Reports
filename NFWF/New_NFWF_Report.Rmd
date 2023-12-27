@@ -1,0 +1,10 @@
+---
+output: 
+  word_document:
+  toc: true
+---
+
+```{r include = FALSE}
+# Set your variables
+ReportEnd <- as.Date("2023-12-31")  # Report End Date
+```
