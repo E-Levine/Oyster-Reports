@@ -4,7 +4,141 @@ output:
   toc: true
 ---
 
-```{r include = FALSE}
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportEnd <- as.Date("2023-12-31")  # Report End Date
+Database = "OysterLocalMD20231227"  # Set the local database to use
+```
+
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(knitr)
+library(ggpubr) #Required for arranging multiple plots
+library(scales)
+```
+
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+
+ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") 
+QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month")
+Estuaries <- c("AB", "SS")
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = "localhost\\MATTLOCALSQL",
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSedimentTrap <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+DBI::dbDisconnect(con)
+```
+
+```{r DataFilters}
+# Filter data frames so that only data collected for inclusion in the NFWF Report are present.
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber)) %>% 
+  select(FixedLocationID,
+         Estuary,
+         SectionName, 
+         StationNumber) %>% 
+  distinct()  # NOTE This does not include Parcel Name which is needed for SBM
+
+### WATER QUALITY ###
+WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>% 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14,
+         SecchiPercent = (Secchi / Depth) * 100) %>%
+  select(SampleEventWQID,
+         FixedLocationID,
+         SampleEventID,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         Temperature,
+         Salinity,
+         DissolvedOxygen,
+         pH,
+         SecchiPercent) %>% 
+  drop_na(Temperature) %>%
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) 
+
+AB_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'RCRT|SDTP') & Estuary == "AB") %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(TempMean = mean(Temperature, na.rm = TRUE),
+            SalMean = mean(Salinity, na.rm = TRUE),
+            DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+            pHMean = mean(pH, na.rm = TRUE), 
+            SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+
+SS_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'RCRT|SDTP') & Estuary == "SS") %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(TempMean = mean(Temperature, na.rm = TRUE),
+            SalMean = mean(Salinity, na.rm = TRUE),
+            DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+            pHMean = mean(pH, na.rm = TRUE), 
+            SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+
+AB_WQText <- AB_WQStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
+
+SS_WQText <- SS_WQStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
+
+### RECRITMENT ###
+
+
+
+
+
+### SEDIMENT TRAP ###
+
 ```
