@@ -134,11 +134,120 @@ SS_WQText <- SS_WQStats %>%
   filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
 
 ### RECRITMENT ###
+R1 <- union(hsdbRecruitment, dboRecruitment) %>% 
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+  
+AB_RecruitStats <- R1 %>% 
+  filter(Estuary == "AB") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
 
+SS_RecruitStats <- R1 %>% 
+  filter(Estuary == "SS") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
 
+AB_RecruitText <- AB_RecruitStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
 
+SS_RecruitText <- SS_RecruitStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
 
+# Creates data frames for each section in each estuary by listing the variations and looping through those variations
+lv1 <- list("AB_W", "AB_C", "AB_E", "SS_N", "SS_C", "SS_S")
+lv2 <- list("AB", "AB", "AB", "SS", "SS", "SS")
+lv3 <- list("W", "C", "E", "N", "C", "S")
+
+for (i in seq_along(lv1)) {
+  df_name <- paste0(lv1[i], "_RecruitStats")
+  df_source <- get(paste0(lv2[i], "_RecruitStats")) 
+  assign(df_name, df_source %>%
+           filter(SectionName == lv3[i]) %>%
+           select(-Upper, -Plot_Date) %>%
+           group_by(StationNumber),
+         envir = .GlobalEnv)
+}
 
 ### SEDIMENT TRAP ###
+# Note that traps with excessive biota are excluded from analysis
+ST1 <- union(hsdbSedimentTrap, dboSedimentTrap) %>% 
+  filter(NumFish == 0 & NumCrabs < 2 & NumDrills < 2 & NumHermitCrabs < 5) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14,
+         SedWeight = (FilterDryWeight + PanDryWeight) - (FilterTareWeight + PanTareWeight),
+         SedRate = SedWeight / (NumDays/28)) %>%
+  select(CupSampleID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         SedWeight,
+         SedRate) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+
+AB_SedimentStats <- ST1 %>% 
+  filter(Estuary == "AB") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
+            SD = sd(SedRate, na.rm = TRUE),
+            Upper = SedMean + SD)
+
+SS_SedimentStats <- ST1 %>% 
+  filter(Estuary == "SS") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
+            SD = sd(SedRate, na.rm = TRUE),
+            Upper = SedMean + SD)
+
+AB_SedimentText <- AB_SedimentStats %>%
+  filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
+
+SS_SedimentText <- SS_SedimentStats %>%
+  filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
+
+# Creates data frames for each section in each estuary by looping through the variations listed in Recruitment
+for (i in seq_along(lv1)) {
+  df_name <- paste0(lv1[i], "_SedimentStats")
+  df_source <- get(paste0(lv2[i], "_SedimentStats")) 
+  assign(df_name, df_source %>%
+           filter(SectionName == lv3[i]) %>%
+           select(-Upper, -Plot_Date) %>%
+           group_by(StationNumber),
+         envir = .GlobalEnv)
+}
 
 ```
+
+
