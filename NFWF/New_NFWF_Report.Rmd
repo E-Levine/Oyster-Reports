@@ -187,7 +187,6 @@ for (i in seq_along(lv1)) {
   df_source <- get(paste0(lv2[i], "_RecruitStats")) 
   assign(df_name, df_source %>%
            filter(SectionName == lv3[i]) %>%
-           select(-Upper, -Plot_Date) %>%
            group_by(StationNumber),
          envir = .GlobalEnv)
 }
@@ -243,7 +242,6 @@ for (i in seq_along(lv1)) {
   df_source <- get(paste0(lv2[i], "_SedimentStats")) 
   assign(df_name, df_source %>%
            filter(SectionName == lv3[i]) %>%
-           select(-Upper, -Plot_Date) %>%
            group_by(StationNumber),
          envir = .GlobalEnv)
 }
@@ -277,4 +275,38 @@ Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21
 #
 ```
 
+```{r RecruitmentFigures}
+#Creating Recruitment figures per section for better customization
+#
+lv4 <- list("AB West", "AB Central", "AB East", "SS North", "SS Central", "SS South")
+
+recruit_plot_list <- list()
+
+for (i in seq_along(lv1)) {
+  fig_name <- paste0("Recruit_", lv1[i], "_fig")
+  df_source <- get(paste0(lv1[i], "_RecruitStats")) 
+  max_upper <- max(ungroup(df_source) %>%  
+                     dplyr::select(Upper), na.rm = TRUE)
+# Add a 5% buffer on top of the max_upper
+  buffer_percentage <- 1.05
+  buffered_upper_limit <- ceiling(max_upper * buffer_percentage)
+  
+  fig_name <- df_source %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMean, fill = factor(StationNumber)))+ 
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + 
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = RecMean, ymax = Upper), position = position_dodge(), width = 1565200)+ 
+  scale_x_datetime("", expand = c(0.005, 0), 
+                   date_breaks = "1 month", date_labels = "%b %Y", 
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0, buffered_upper_limit),
+                     breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
+                                                       dplyr::select(Upper), na.rm = TRUE) / 2))) + 
+  ggtitle(lv4[i]) + BaseForm + Station_fill
+  
+  recruit_plot_list[[i]] <- fig_name
+  }
+
+print(recruit_plot_list)
+```
 
