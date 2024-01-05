@@ -321,3 +321,32 @@ plot_layout(ncol = 1)
 )
 ```
 
+
+
+
+```{r SedimentFigures}
+#Creating Sediment figures per section for better customization
+lv5 <- list("AB", "SS")
+sediment_plot_list <- list()
+
+for (i in seq_along(lv5)) {
+  df_source <- get(paste0(lv5[i], "_SedimentStats")) 
+  max_upper <- max(ungroup(df_source) %>%  
+                     dplyr::select(Upper), na.rm = TRUE)
+
+  sediment_plot_list[[i]] <- df_source %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SedMean, fill = factor(StationNumber)))+ 
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + 
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = SedMean, ymax = Upper), position = position_dodge(), width = 1565200)+ 
+  scale_x_datetime("", expand = c(0.005, 0), 
+                   date_breaks = "1 month", date_labels = "%b %Y", 
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Sediment rate (g / month)", expand = c(0, 0),
+                     limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
+                     breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
+                                                       dplyr::select(Upper), na.rm = TRUE) / 2))) + 
+  ggtitle(lv5[i]) + BaseForm + Station_fill
+}
+# You can access individual plots using sediment_plot_list[[i]]. For example: print(sediment_plot_list[1])
+print(sediment_plot_list)
+```
