@@ -407,3 +407,43 @@ wqsal_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) 
 plot_layout(ncol = 1)
 )
 ```
+
+```{r }
+#Creating Dissolved Oxygen figures per section for better customization
+wqDO_plot_list <- list()
+
+for (i in seq_along(lv2)) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqDO_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, color = as.factor(StationNumber), group = as.factor(StationNumber)))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = as.factor(StationNumber), fill = as.factor(StationNumber)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("DO (mg/L)", expand = c(0, 0),
+                     limits = c(0, 15), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+print(wqDO_plot_list)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+print(
+wqDO_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+print(
+wqDO_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+)
+```
