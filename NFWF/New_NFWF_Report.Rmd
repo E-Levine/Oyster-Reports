@@ -224,28 +224,8 @@ AB_SedimentStats <- ST1 %>%
             SD = sd(SedRate, na.rm = TRUE),
             Upper = SedMean + SD)
 
-SS_SedimentStats <- ST1 %>% 
-  filter(Estuary == "SS") %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
-  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
-            SD = sd(SedRate, na.rm = TRUE),
-            Upper = SedMean + SD)
-
 AB_SedimentText <- AB_SedimentStats %>%
   filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
-
-SS_SedimentText <- SS_SedimentStats %>%
-  filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
-
-# Creates data frames for each section in each estuary by looping through the variations listed in Recruitment
-for (i in seq_along(lv1)) {
-  df_name <- paste0(lv1[i], "_SedimentStats")
-  df_source <- get(paste0(lv2[i], "_SedimentStats")) 
-  assign(df_name, df_source %>%
-           filter(SectionName == lv3[i]) %>%
-           group_by(StationNumber),
-         envir = .GlobalEnv)
-}
 
 ```
 
@@ -321,20 +301,14 @@ plot_layout(ncol = 1)
 )
 ```
 
+```{r SedimentFigure}
+#lv5 <- list("AB", "SS")
+#sediment_plot_list <- list()
 
-
-
-```{r SedimentFigures}
-#Creating Sediment figures per section for better customization
-lv5 <- list("AB", "SS")
-sediment_plot_list <- list()
-
-for (i in seq_along(lv5)) {
-  df_source <- get(paste0(lv5[i], "_SedimentStats")) 
-  max_upper <- max(ungroup(df_source) %>%  
+max_upper <- max(ungroup(AB_SedimentStats) %>%  
                      dplyr::select(Upper), na.rm = TRUE)
 
-  sediment_plot_list[[i]] <- df_source %>% 
+AB_SedimentPlot <- AB_SedimentStats %>% 
   ggplot(aes(x = as.POSIXct(Plot_Date), y = SedMean, fill = factor(StationNumber)))+ 
   geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + 
   geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = SedMean, ymax = Upper), position = position_dodge(), width = 1565200)+ 
@@ -343,21 +317,22 @@ for (i in seq_along(lv5)) {
                    guide = guide_axis(angle = 45))+
   scale_y_continuous("Sediment rate (g / month)", expand = c(0, 0),
                      limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                     breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
+                     breaks = pretty(0:2 * ceiling(max(ungroup(AB_SedimentStats) %>% 
                                                        dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle(lv5[i]) + BaseForm + Station_fill
-}
+  ggtitle("Apalachicola Bay Sedimentation") + BaseForm + Station_fill
+
 # You can access individual plots using sediment_plot_list[[i]]. For example: print(sediment_plot_list[1])
-print(sediment_plot_list)
+print(AB_SedimentPlot)
 ```
 
 
 ```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in Apalachicola Bay over the past fifteen months (five quarters). "}
 
-ggarrange(sediment_plot_list[[1]] + theme(plot.margin = unit(c(0,0.2,0,0.1), "lines")),
+ggarrange(AB_SedimentPlot + theme(plot.margin = unit(c(0,0.2,0,0.1), "lines")),
           nrow = 1, ncol = 1)
 
 ```
+
 
 
 
