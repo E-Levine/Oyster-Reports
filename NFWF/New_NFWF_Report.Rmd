@@ -487,3 +487,33 @@ wqpH_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
 )
 ```
+
+```{r }
+#Creating secchi figures per section for better customization
+wqsecchi_plot_list <- list()
+
+for (i in seq_along(lv2[1:3])) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqsecchi_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = as.factor(StationNumber)))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Edit first 2 digits of width to change (talk to EL for more in depth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_fill
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+print(wqsecchi_plot_list)
+```
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean Secchi penetration (percentage of water depth through which the Secchi disk could be seen) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+print(
+wqsecchi_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqsecchi_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqsecchi_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+)
+```
