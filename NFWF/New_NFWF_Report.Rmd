@@ -18,7 +18,8 @@ library(DBI)
 library(dbplyr)
 library(lubridate)
 library(knitr)
-library(ggpubr) #Required for arranging multiple plots
+library(ggpubr)
+library(patchwork) #Required for arranging multiple plots, more flexible
 library(scales)
 ```
 
@@ -302,15 +303,21 @@ for (i in seq_along(lv1)) {
 print(recruit_plot_list)
 ```
 
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+print(
+recruit_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+)
+```
 
-
-
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure 3. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
-
-ggarrange(recruit_plot_list[4] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")),
-          recruit_plot_list[5] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")),
-          recruit_plot_list[6] + theme(plot.margin = unit(c(-0.5,0.2,0,0.1), "lines")),
-          nrow = 3, ncol = 1)
-
+```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+print(
+recruit_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+)
 ```
 
