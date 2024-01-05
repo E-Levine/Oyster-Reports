@@ -6,7 +6,7 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2023-12-31")  # Report End Date
+ReportEnd <- as.Date("2023-09-30")  # Report End Date
 Database = "OysterLocalMD20231227"  # Set the local database to use
 ```
 
@@ -84,8 +84,8 @@ FixedLocations1 <- dboFixedLocations %>%
 WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>% 
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
          FixedLocationID = substring(SampleEventID, 19, 22), 
-         AnalysisDate = floor_date(RetDate, unit = "month"),
-         Plot_Date = AnalysisDate + 14,
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14),
          SecchiPercent = (Secchi / Depth) * 100) %>%
   select(SampleEventWQID,
          FixedLocationID,
@@ -142,8 +142,8 @@ R1 <- union(hsdbRecruitment, dboRecruitment) %>%
          FixedLocationID = substring(ShellID, 19, 22), 
          NumDays = as.numeric(RetDate-DeployedDate),
          BottomMonth= NumBottom/(NumDays/28),
-         AnalysisDate = floor_date(RetDate, unit = "month"),
-         Plot_Date = AnalysisDate + 14) %>%
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
   select(ShellID,
          FixedLocationID,
          SampleEventID,
@@ -200,8 +200,8 @@ ST1 <- union(hsdbSedimentTrap, dboSedimentTrap) %>%
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
          FixedLocationID = substring(SampleEventID, 19, 22), 
          NumDays = as.numeric(RetDate-DeployedDate),
-         AnalysisDate = floor_date(RetDate, unit = "month"),
-         Plot_Date = AnalysisDate + 14,
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14),
          SedWeight = (FilterDryWeight + PanDryWeight) - (FilterTareWeight + PanTareWeight),
          SedRate = SedWeight / (NumDays/28)) %>%
   select(CupSampleID,
@@ -228,6 +228,29 @@ AB_SedimentText <- AB_SedimentStats %>%
   filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
 
 ```
+
+```{r ReportText}
+#Report Text in area below
+```
+
+APALACHICOLA BAY <br><br>
+Data reported in this section is preliminary as it has not been subjected to the full QA/QC process.
+
+Preliminary recruitment data is available through the end of `r format(max(AB_RecruitText$AnalysisDate), "%B %Y")`. Recruitment rates ranged from `r round(min(AB_RecruitText$RecMean, na.rm = TRUE), 1)` to `r round(max(AB_RecruitText$RecMean, na.rm = TRUE), 1)` spat per shell in the last quarter. The maximum rate of `r round(max(AB_RecruitText$RecMean, na.rm = TRUE), 1)` was observed at Station `r AB_RecruitText$StationNumber[which.max(AB_RecruitText$RecMean)]` during sampling in `r format(AB_RecruitText$AnalysisDate[which.max(AB_RecruitText$RecMean)], "%B %Y")`. 
+
+Preliminary sediment trap data is available through the end of `r format(max(AB_SedimentText$AnalysisDate), "%B %Y")`. Sediment rates ranged from `r round(min(AB_SedimentText$SedMean, na.rm = TRUE), 1)` to `r round(max(AB_SedimentText$SedMean, na.rm = TRUE), 1)` grams (dry weight) of sediment in the last quarter. The maximum rate of `r round(max(AB_SedimentText$SedMean, na.rm = TRUE), 1)` was observed at Station `r AB_SedimentText$StationNumber[which.max(AB_SedimentText$SedMean)]` during sampling in `r format(AB_SedimentText$AnalysisDate[which.max(AB_SedimentText$SedMean)], "%B %Y")`. 
+
+Preliminary water quality data is available through the end of `r format(max(AB_WQText$AnalysisDate), "%B %Y")`. Water temperature, salinity, dissolved oxygen concentration, pH, water depth and Secchi depth were recorded during sampling (Figs. 10 – 14). Over the past quarter, water temperatures ranged from `r round(min(AB_WQText$TempMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$TempMean, na.rm = TRUE), 1)`°C; Salinities ranged from `r round(min(AB_WQText$SalMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$SalMean, na.rm = TRUE), 1)`; dissolved oxygen  ranged from `r round(min(AB_WQText$DOMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$DOMean, na.rm = TRUE), 1)` mg/L; pH values ranged from `r round(min(AB_WQText$pHMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$pHMean, na.rm = TRUE), 1)`; and secchi penetration values (percentage of the water column through which the Secchi disk could be seen) ranged from `r round(min(AB_WQText$SecchiMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$SecchiMean, na.rm = TRUE), 1)`%.
+
+
+SUWANNEE SOUND <br><br>
+Data reported in this section is preliminary as it has not been subjected to the full QA/QC process.
+
+Preliminary recruitment data is available through the end of `r format(max(SS_RecruitText$AnalysisDate), "%B %Y")`. Recruitment rates ranged from `r round(min(SS_RecruitText$RecMean, na.rm = TRUE), 1)` to `r round(max(SS_RecruitText$RecMean, na.rm = TRUE), 1)` spat per shell in the last quarter. The maximum rate of `r round(max(SS_RecruitText$RecMean, na.rm = TRUE), 1)` was observed at Station `r SS_RecruitText$StationNumber[which.max(SS_RecruitText$RecMean)]` during sampling in `r format(SS_RecruitText$AnalysisDate[which.max(SS_RecruitText$RecMean)], "%B %Y")`. 
+
+Preliminary water quality data is available through the end of `r format(max(SS_WQText$AnalysisDate), "%B %Y")`. Water temperature, salinity, dissolved oxygen concentration, pH, water depth and Secchi depth were recorded during sampling (Figs. 10 – 14). Over the past quarter, water temperatures ranged from `r round(min(SS_WQText$TempMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$TempMean, na.rm = TRUE), 1)`°C; Salinities ranged from `r round(min(SS_WQText$SalMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$SalMean, na.rm = TRUE), 1)`; dissolved oxygen  ranged from `r round(min(SS_WQText$DOMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$DOMean, na.rm = TRUE), 1)` mg/L; pH values ranged from `r round(min(SS_WQText$pHMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$pHMean, na.rm = TRUE), 1)`.
+
+
 
 ```{r FigureFormatting}
 #Base formatting for figure consistency
@@ -492,3 +515,5 @@ wqsecchi_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2
 wqsecchi_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
 ```
+
+
