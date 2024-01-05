@@ -280,25 +280,21 @@ for (i in seq_along(lv1)) {
   ggtitle(lv4[i]) + BaseForm + Station_fill
 }
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
-print(recruit_plot_list)
+#print(recruit_plot_list)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
-print(
+```{r ABRecruitmentFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
 recruit_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 recruit_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 recruit_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
-print(
+```{r SSRecruitmentFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
 recruit_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 recruit_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 recruit_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
 ```{r SedimentFigure}
@@ -317,18 +313,15 @@ AB_SedimentPlot <- AB_SedimentStats %>%
                      breaks = pretty(0:2 * ceiling(max(ungroup(AB_SedimentStats) %>% 
                                                        dplyr::select(Upper), na.rm = TRUE) / 2))) + 
   ggtitle("Apalachicola Bay Sedimentation") + BaseForm + Station_fill
-
-print(AB_SedimentPlot)
+#print(AB_SedimentPlot)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in Apalachicola Bay over the past fifteen months (five quarters). "}
-
+```{r ABSedimentFigure, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in Apalachicola Bay over the past fifteen months (five quarters). "}
 ggarrange(AB_SedimentPlot + theme(plot.margin = unit(c(0,0.2,0,0.1), "lines")),
           nrow = 1, ncol = 1)
-
 ```
 
-```{r }
+```{r TempFigs}
 #Creating Temperature figures per section for better customization
 wqtemp_plot_list <- list()
 
@@ -347,28 +340,24 @@ for (i in seq_along(lv2)) {
   ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
 }
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
-print(wqtemp_plot_list)
+#print(wqtemp_plot_list)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean temperature at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
-print(
+```{r ABTempFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean temperature at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
 wqtemp_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqtemp_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqtemp_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean temperature at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
-print(
+```{r SSTempFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean temperature at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
 wqtemp_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqtemp_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqtemp_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r }
+```{r SalinityFigs}
 #Creating Salinity figures per section for better customization
 wqsal_plot_list <- list()
 
@@ -387,28 +376,24 @@ for (i in seq_along(lv2)) {
   ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
 }
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
-print(wqsal_plot_list)
+#print(wqsal_plot_list)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
-print(
+```{r ABSalinityFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
 wqsal_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqsal_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqsal_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
-print(
+```{r SSSalinityFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
 wqsal_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqsal_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqsal_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r }
+```{r DOFigs}
 #Creating Dissolved Oxygen figures per section for better customization
 wqDO_plot_list <- list()
 
@@ -427,28 +412,24 @@ for (i in seq_along(lv2)) {
   ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
 }
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
-print(wqDO_plot_list)
+#print(wqDO_plot_list)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
-print(
+```{r ABDOFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
 wqDO_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqDO_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqDO_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
-print(
+```{r SSDOFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
 wqDO_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqDO_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqDO_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r }
+```{r phFigs}
 #Creating pH figures per section for better customization
 wqpH_plot_list <- list()
 
@@ -467,28 +448,24 @@ for (i in seq_along(lv2)) {
   ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
 }
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
-print(wqpH_plot_list)
+#print(wqpH_plot_list)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean pH at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
-print(
+```{r ABphFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean pH at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
 wqpH_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqpH_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqpH_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean pH at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
-print(
+```{r SSphFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean pH at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
 wqpH_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqpH_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqpH_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
 
-```{r }
+```{r SecchiFigs}
 #Creating secchi figures per section for better customization
 wqsecchi_plot_list <- list()
 
@@ -506,14 +483,12 @@ for (i in seq_along(lv2[1:3])) {
   ggtitle(lv4[i]) + BaseForm + Station_fill
 }
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
-print(wqsecchi_plot_list)
+#print(wqsecchi_plot_list)
 ```
 
-```{r, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean Secchi penetration (percentage of water depth through which the Secchi disk could be seen) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
-print(
+```{r ABSecchiFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean Secchi penetration (percentage of water depth through which the Secchi disk could be seen) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
 wqsecchi_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 wqsecchi_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 wqsecchi_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 plot_layout(ncol = 1)
-)
 ```
