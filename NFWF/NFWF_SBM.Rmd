@@ -4,12 +4,13 @@ output:
   toc: true
 ---
 
-```{r include = FALSE}
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-REnd <- as.Date("2023-09-30")  # Report End Date
+ReportEnd <- as.Date("2023-09-30")  # Report End Date
+Database = "OysterLocalMD20231227"  # Set the local database to use
 ```
 
-```{r include = FALSE}
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
 # Load necessary R packages
 library(tidyverse)
 library(odbc)
@@ -17,44 +18,53 @@ library(DBI)
 library(dbplyr)
 library(lubridate)
 library(knitr)
-library(ggpubr) #Required for arranging multiple plots
+library(ggpubr)
+library(patchwork) #Required for arranging multiple plots, more flexible
 library(scales)
-
-EstuaryCode = "AB"  # Report Estuary Code. Use 2-letter code in Primary Keys
-REName = "Apalachicola Bay"  # Report Estuary Name. Use long name you want to appear in report
-SBMStart <- floor_date(REnd %m-% months(20), unit = "month") 
-QStart <- floor_date(REnd %m-% months(2), unit = "month")
-
 ```
 
-```{r setup, include=FALSE}
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
 # Configure chunks
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 10)
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+
+ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") 
+QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month")
+Estuaries <- c("AB", "SS")
 ```
 
 ```{r DatabaseDownload}
 # Connect to Local database server and pull all necessary data, then close connection 
 con <- dbConnect(odbc(),
-                    Driver= "SQL Server", 
+                    Driver = "SQL Server", 
                     Server = "localhost\\MATTLOCALSQL",
-                    Database= "OysterLocalMD20231019",
+                    Database = Database,
                     Authentication = "ActiveDirectoryIntegrated")
 
 dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   collect() %>% 
-  filter(Estuary == EstuaryCode, ShellBudget == "Y")
+  filter(Estuary %in% Estuaries)
 
 hsdbSBMQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
-  collect() 
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
   
 dboSBMQuadrat <- tbl(con,in_schema("dbo", "ShellBudgetQuadrat")) %>%
-  collect() 
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
-  collect() 
+  collect() %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
 
 dboSBMSH <- tbl(con,in_schema("dbo", "ShellBudgetSH")) %>%
-  collect()
+  collect()%>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
 
 DBI::dbDisconnect(con)
 
