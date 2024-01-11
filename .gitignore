@@ -50,4 +50,7 @@ rsconnect/
 
 # RMarkdown output
 *.html
+
+# Excel output
+*.xlsx
 *.docx
