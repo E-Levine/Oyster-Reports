@@ -71,18 +71,18 @@ DBI::dbDisconnect(con)
 ```
 
 ```{r DataFilters}
-# Filter data frames so that only data collected from Recruitment trips in the specified Estuary, in the correct date range, which have been Proofed, are present.
+# Filter data frames so that only data collected for inclusion in the NFWF Report are present.
 FixedLocations1 <- dboFixedLocations %>% 
+  filter(ShellBudget == "Y") %>% #Remove filter if combining with New Report
   mutate(StationNumber = as.numeric(StationNumber)) %>%
   select(FixedLocationID,
          Estuary,
-         StationName, 
-         StationNumber,
-         ParcelName) %>% 
+         StationNameNumber,
+         StationNumber) %>% 
   distinct()
-          
+     
+### QUADRATS ###     
 SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
-  filter(substring(QuadratID,1,2) == EstuaryCode) %>%
   mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
        FixedLocationID = substring(QuadratID, 19, 22),
        Year = year(TripDate),
@@ -95,48 +95,60 @@ SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
         month(ymd(TripDate)) >= 7 & month(ymd(TripDate)) <= 9 ~ "Summer",
         month(ymd(TripDate)) > 9 ~ "Fall",
         TRUE ~ "Invalid")) %>%
-  select(QuadratID, SampleEventID, TripDate, FixedLocationID, StationNumber, StationName, ParcelName, Survey, Year, NumLiveOysters, NumDrills, TotalSampleWeight, LiveOysterWeight, OysterShellWeight, PlantedShellWeight, ShellHashWeight, OtherWeight, Comments)
-
-SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, SampleEvent1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationName) %>%
-  mutate(Survey = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 3 ~ "Winter",
-        month(ymd(TripDate)) >= 4 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) >= 7 & month(ymd(TripDate)) <= 9 ~ "Summer",
-        month(ymd(TripDate)) > 9 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  filter(ShellHeightID != "#N/A") %>% ### Remove line once hsdb has been repaired
-  select(ShellHeightID, QuadratID, TripDate, FixedLocationID, StationNumber, StationName, ParcelName, Survey, Year, LiveOrDead, ShellHeight)
+  select(QuadratID, 
+         SampleEventID, 
+         TripDate, 
+         Estuary,
+         FixedLocationID, 
+         StationNameNumber,
+         StationNumber,
+         Survey, 
+         Year, 
+         NumLiveOysters, 
+         NumDrills, 
+         TotalSampleWeight, 
+         LiveOysterWeight, 
+         OysterShellWeight, 
+         PlantedShellWeight, 
+         ShellHashWeight, 
+         OtherWeight, 
+         Comments)
 
 ### Provide stats for mean number of live oys (Fig 4); mean number of drills (Fig 7); mean weight (Fig 8)
 SBM_QuadStats1 <- SBM_Quad1 %>%
-  filter(TripDate > SBMStart) %>%
-  mutate(OyDensity = NumLiveOysters * 4,
+  filter(TripDate > ReportStart) %>%
+  mutate(OysterDensity = NumLiveOysters * 4,
          DrillDensity = NumDrills * 4,
          WeightDensity = TotalSampleWeight * 4,
          Survey_Year = paste(Survey, Year, sep = " ")) %>%
-  group_by(TripDate, Survey_Year, Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
-  summarise(OyDensityMean = mean(OyDensity, na.rm = TRUE),
-            OyDensitySD = sd(OyDensity, na.rm = TRUE),
+  group_by(TripDate, 
+           Survey_Year, 
+           Survey, 
+           Year, 
+           FixedLocationID,
+           StationNameNumber,
+           StationNumber) %>%
+  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
+            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
             DrillDensityMean = mean(DrillDensity, na.rm = TRUE),
             DrillDensitySD = sd(DrillDensity, na.rm = TRUE),
             WeightDensityMean = mean(WeightDensity, na.rm = TRUE),
             WeightDensitySD = sd(WeightDensity, na.rm = TRUE)) %>%
-  arrange(TripDate)
+  arrange(Year, TripDate, StationNumber)
 
 ### Provide stats for mean weights of components (Fig 9)
 SBM_QuadStats2 <- SBM_Quad1 %>%
-  filter(TripDate > "2023-01-01") %>% ### This date needs to be changed to a variable!
+  filter(TripDate > QuarterStart) %>% 
   mutate(LiveOysterWeightDensity = LiveOysterWeight * 4,
          OysterShellWeightDensity = OysterShellWeight * 4,
          PlantedShellWeightDensity = PlantedShellWeight * 4,
          ShellHashWeightDensity = ShellHashWeight * 4,
          OtherWeightDensity = OtherWeight * 4) %>%
-  group_by(Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  group_by(Survey, 
+           Year, 
+           FixedLocationID, 
+           StationNameNumber,
+           StationNumber) %>%
   summarise(LiveOysterWeightMean = mean(LiveOysterWeightDensity, na.rm = TRUE),
             LiveOysterWeightSD = sd(LiveOysterWeightDensity, na.rm = TRUE),
             OysterShellWeightMean = mean(OysterShellWeightDensity, na.rm = TRUE),
@@ -146,59 +158,77 @@ SBM_QuadStats2 <- SBM_Quad1 %>%
             ShellHashWeightMean = mean(ShellHashWeightDensity, na.rm = TRUE),
             ShellHashWeightSD = sd(ShellHashWeightDensity, na.rm = TRUE),
             OtherWeightMean = mean(OtherWeightDensity, na.rm = TRUE),
-            OtherWeightSD = sd(OtherWeightDensity, na.rm = TRUE))
+            OtherWeightSD = sd(OtherWeightDensity, na.rm = TRUE)) %>%
+  arrange(StationNumber)
+
+### SHELL HEIGHTS ###
+SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
+  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+       FixedLocationID = substring(QuadratID, 19, 22),
+       Year = year(TripDate)) %>%
+  left_join(FixedLocations1, SampleEvent1, by = c("FixedLocationID")) %>%
+  arrange(TripDate, StationNumber) %>%
+  mutate(Survey = case_when(
+        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 3 ~ "Winter",
+        month(ymd(TripDate)) >= 4 & month(ymd(TripDate)) <= 6 ~ "Spring",
+        month(ymd(TripDate)) >= 7 & month(ymd(TripDate)) <= 9 ~ "Summer",
+        month(ymd(TripDate)) > 9 ~ "Fall",
+        TRUE ~ "Invalid")) %>%
+  filter(ShellHeightID != "#N/A") %>% ### Remove line once hsdb has been repaired
+  mutate(Survey_Year = paste(Survey, Year, sep = " ")) %>%
+  select(ShellHeightID, 
+         QuadratID, 
+         TripDate, 
+         FixedLocationID, 
+         StationNameNumber,
+         StationNumber,
+         Survey_Year,
+         Survey, 
+         Year, 
+         LiveOrDead, 
+         ShellHeight)
 
 ### Provides stats for Mean Shell Height LIVE (Fig 5)
 SBM_SHStatsLive <- SBM_SH1 %>%
-  filter(TripDate > SBMStart & LiveOrDead == "Live") %>%
-  group_by(Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  filter(TripDate > ReportStart & LiveOrDead == "Live") %>%
+  group_by(Survey_Year,
+           Survey,
+           Year,
+           TripDate,
+           FixedLocationID, 
+           StationNameNumber, 
+           StationNumber) %>%
   summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
             SHSD = sd(ShellHeight, na.rm = TRUE))
 
 ### Provides stats for Mean Shell Height DEAD (Fig 6)
 SBM_SHStatsDead <- SBM_SH1 %>%
-  filter(TripDate > SBMStart & LiveOrDead == "Dead") %>%
-  group_by(Survey, Year, FixedLocationID, StationNumber, StationName, ParcelName) %>%
+  filter(TripDate > ReportStart & LiveOrDead == "Live") %>%
+  group_by(Survey_Year,
+           Survey,
+           Year,
+           TripDate,
+           FixedLocationID, 
+           StationNameNumber, 
+           StationNumber) %>%
   summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
             SHSD = sd(ShellHeight, na.rm = TRUE))
 
 ### Provides stats for report text
 SBM_QuadTextStats <- SBM_QuadStats1 %>%
-  filter(Year > 2022) ### This date needs to be changed to a variable!
+  filter(TripDate > QuarterStart) 
 
 SBM_QuadWeightStats <- SBM_QuadStats2 %>%
   mutate(TotalWt = LiveOysterWeightMean + OysterShellWeightMean + PlantedShellWeightMean + ShellHashWeightMean + OtherWeightMean)
 
 SBM_SHLiveTextStats <- SBM_SHStatsLive %>%
-  filter(Year > 2022) ### This date needs to be changed to a variable!
+  filter(TripDate > QuarterStart)
 
 SBM_SHDeadTextStats <- SBM_SHStatsDead %>%
-  filter(Year > 2022) ### This date needs to be changed to a variable!
+  filter(TripDate > QuarterStart)
 
 ReportTotalLive <- SBM_SH1 %>%
-  filter(ShellHeight > 0 & Year == 2023 & LiveOrDead == "Live")
-
-# SBM_SH2 <- SBM_SH1 %>%
-#   group_by(Survey, Year, StationName, ParcelName, QuadratID) %>%
-#   summarise(LegalCount = sum(ShellHeight > 74)) %>%
-#   right_join(SBM_Quad1, by = c("QuadratID", "Year", "Survey", "StationName", "ParcelName")) %>%
-#   filter(Year > 2020 & StationName != "SBM Normans" & StationName != "SBM Bulkhead" & StationName != "SBM Halfmoon" & ParcelName != "Cat Point Deep South" & ParcelName != "Cat Point Shallow" & ParcelName != "East Lumps South" & ParcelName != "Hotel West" & ParcelName != "Lighthouse South") %>%
-#   mutate(OysterDensity = NumLiveOysters * 4, 
-#          LegalTotal = ifelse(NumLiveOysters > 50, ((NumLiveOysters * LegalCount) / 50), LegalCount),
-#          LegalDensity = LegalTotal *4,
-#          BagsPerAcre = (LegalDensity * 4047) / 225)
-  
-# SBM_QuadStats2 <- SBM_SH2 %>%
-#   group_by(Survey, Year, StationName) %>%
-#   summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
-#             OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
-#             LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
-#             LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
-#             BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
-#             BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE))
-# 
-# AllStats <- right_join(SBM_SHStats, SBM_QuadStats2, by = c("Year", "Survey", "StationName")) %>%
-#   arrange(StationName, Year, desc(Survey)) 
+  filter(ShellHeight > 0 & TripDate > QuarterStart & LiveOrDead == "Live")
 
 ```
 
