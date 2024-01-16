@@ -1,0 +1,519 @@
+---
+output: 
+  word_document:
+  toc: true
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportEnd <- as.Date("2023-09-30")  # Report End Date
+Database = "OysterLocalMD20231227"  # Set the local database to use
+```
+
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(knitr)
+library(ggpubr)
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales)
+```
+
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+
+ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") 
+QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month")
+Estuaries <- c("AB", "SS")
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = "localhost\\MATTLOCALSQL",
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSedimentTrap <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+DBI::dbDisconnect(con)
+```
+
+```{r DataFilters}
+# Filter data frames so that only data collected for inclusion in the NFWF Report are present.
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber)) %>% 
+  select(FixedLocationID,
+         Estuary,
+         SectionName, 
+         StationNumber) %>% 
+  distinct()  # NOTE This does not include Parcel Name which is needed for SBM
+
+### WATER QUALITY ###
+WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>% 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14),
+         SecchiPercent = (Secchi / Depth) * 100) %>%
+  select(SampleEventWQID,
+         FixedLocationID,
+         SampleEventID,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         Temperature,
+         Salinity,
+         DissolvedOxygen,
+         pH,
+         SecchiPercent) %>% 
+  drop_na(Temperature) %>%
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) 
+
+AB_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'RCRT|SDTP') & Estuary == "AB") %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(TempMean = mean(Temperature, na.rm = TRUE),
+            SalMean = mean(Salinity, na.rm = TRUE),
+            DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+            pHMean = mean(pH, na.rm = TRUE), 
+            SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+
+SS_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'RCRT|SDTP') & Estuary == "SS") %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(TempMean = mean(Temperature, na.rm = TRUE),
+            SalMean = mean(Salinity, na.rm = TRUE),
+            DOMean = mean(DissolvedOxygen, na.rm = TRUE), 
+            pHMean = mean(pH, na.rm = TRUE), 
+            SecchiMean = mean(SecchiPercent, na.rm = TRUE))
+
+AB_WQText <- AB_WQStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
+
+SS_WQText <- SS_WQStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
+
+### RECRITMENT ###
+R1 <- union(hsdbRecruitment, dboRecruitment) %>% 
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+  
+AB_RecruitStats <- R1 %>% 
+  filter(Estuary == "AB") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
+
+SS_RecruitStats <- R1 %>% 
+  filter(Estuary == "SS") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
+
+AB_RecruitText <- AB_RecruitStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
+
+SS_RecruitText <- SS_RecruitStats %>%
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
+
+# Creates data frames for each section in each estuary by listing the variations and looping through those variations
+lv1 <- list("AB_W", "AB_C", "AB_E", "SS_N", "SS_C", "SS_S")
+lv2 <- list("AB", "AB", "AB", "SS", "SS", "SS")
+lv3 <- list("W", "C", "E", "N", "C", "S")
+
+for (i in seq_along(lv1)) {
+  df_name <- paste0(lv1[i], "_RecruitStats")
+  df_source <- get(paste0(lv2[i], "_RecruitStats")) 
+  assign(df_name, df_source %>%
+           filter(SectionName == lv3[i]) %>%
+           group_by(StationNumber),
+         envir = .GlobalEnv)
+}
+
+### SEDIMENT TRAP ###
+# Note that traps with excessive biota are excluded from analysis
+ST1 <- union(hsdbSedimentTrap, dboSedimentTrap) %>% 
+  filter(NumFish == 0 & NumCrabs < 2 & NumDrills < 2 & NumHermitCrabs < 5) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14),
+         SedWeight = (FilterDryWeight + PanDryWeight) - (FilterTareWeight + PanTareWeight),
+         SedRate = SedWeight / (NumDays/28)) %>%
+  select(CupSampleID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         SedWeight,
+         SedRate) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+
+AB_SedimentStats <- ST1 %>% 
+  filter(Estuary == "AB") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(SedMean = mean(SedRate, na.rm = TRUE), 
+            SD = sd(SedRate, na.rm = TRUE),
+            Upper = SedMean + SD)
+
+AB_SedimentText <- AB_SedimentStats %>%
+  filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
+
+```
+
+```{r ReportText}
+#Report Text in area below
+```
+
+APALACHICOLA BAY <br><br>
+Data reported in this section is preliminary as it has not been subjected to the full QA/QC process.
+
+Preliminary recruitment data is available through the end of `r format(max(AB_RecruitText$AnalysisDate), "%B %Y")`. Recruitment rates ranged from `r round(min(AB_RecruitText$RecMean, na.rm = TRUE), 1)` to `r round(max(AB_RecruitText$RecMean, na.rm = TRUE), 1)` spat per shell in the last quarter. The maximum rate of `r round(max(AB_RecruitText$RecMean, na.rm = TRUE), 1)` was observed at Station `r AB_RecruitText$StationNumber[which.max(AB_RecruitText$RecMean)]` during sampling in `r format(AB_RecruitText$AnalysisDate[which.max(AB_RecruitText$RecMean)], "%B %Y")`. 
+
+Preliminary sediment trap data is available through the end of `r format(max(AB_SedimentText$AnalysisDate), "%B %Y")`. Sediment rates ranged from `r round(min(AB_SedimentText$SedMean, na.rm = TRUE), 1)` to `r round(max(AB_SedimentText$SedMean, na.rm = TRUE), 1)` grams (dry weight) of sediment in the last quarter. The maximum rate of `r round(max(AB_SedimentText$SedMean, na.rm = TRUE), 1)` was observed at Station `r AB_SedimentText$StationNumber[which.max(AB_SedimentText$SedMean)]` during sampling in `r format(AB_SedimentText$AnalysisDate[which.max(AB_SedimentText$SedMean)], "%B %Y")`. 
+
+Preliminary water quality data is available through the end of `r format(max(AB_WQText$AnalysisDate), "%B %Y")`. Water temperature, salinity, dissolved oxygen concentration, pH, water depth and Secchi depth were recorded during sampling (Figs. 10 – 14). Over the past quarter, water temperatures ranged from `r round(min(AB_WQText$TempMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$TempMean, na.rm = TRUE), 1)`°C; Salinities ranged from `r round(min(AB_WQText$SalMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$SalMean, na.rm = TRUE), 1)`; dissolved oxygen  ranged from `r round(min(AB_WQText$DOMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$DOMean, na.rm = TRUE), 1)` mg/L; pH values ranged from `r round(min(AB_WQText$pHMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$pHMean, na.rm = TRUE), 1)`; and secchi penetration values (percentage of the water column through which the Secchi disk could be seen) ranged from `r round(min(AB_WQText$SecchiMean, na.rm = TRUE), 1)` to `r round(max(AB_WQText$SecchiMean, na.rm = TRUE), 1)`%.
+
+
+SUWANNEE SOUND <br><br>
+Data reported in this section is preliminary as it has not been subjected to the full QA/QC process.
+
+Preliminary recruitment data is available through the end of `r format(max(SS_RecruitText$AnalysisDate), "%B %Y")`. Recruitment rates ranged from `r round(min(SS_RecruitText$RecMean, na.rm = TRUE), 1)` to `r round(max(SS_RecruitText$RecMean, na.rm = TRUE), 1)` spat per shell in the last quarter. The maximum rate of `r round(max(SS_RecruitText$RecMean, na.rm = TRUE), 1)` was observed at Station `r SS_RecruitText$StationNumber[which.max(SS_RecruitText$RecMean)]` during sampling in `r format(SS_RecruitText$AnalysisDate[which.max(SS_RecruitText$RecMean)], "%B %Y")`. 
+
+Preliminary water quality data is available through the end of `r format(max(SS_WQText$AnalysisDate), "%B %Y")`. Water temperature, salinity, dissolved oxygen concentration, pH, water depth and Secchi depth were recorded during sampling (Figs. 10 – 14). Over the past quarter, water temperatures ranged from `r round(min(SS_WQText$TempMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$TempMean, na.rm = TRUE), 1)`°C; Salinities ranged from `r round(min(SS_WQText$SalMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$SalMean, na.rm = TRUE), 1)`; dissolved oxygen  ranged from `r round(min(SS_WQText$DOMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$DOMean, na.rm = TRUE), 1)` mg/L; pH values ranged from `r round(min(SS_WQText$pHMean, na.rm = TRUE), 1)` to `r round(max(SS_WQText$pHMean, na.rm = TRUE), 1)`.
+
+
+
+```{r FigureFormatting}
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 12), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 12), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 10),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
+
+#Color and shape to station number
+Stations <- c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Station 5",
+              "6" = "Station 6", "7" = "Station 7", "8" = "Station 8", "9" = "Station 9", "10" = "Station 10",
+              "11" = "Station 11", "12" = "Station 12", "13" = "Station 13", "14" = "Station 14", "15" = "Station 15")
+Stat_pal <- c(rgb(0, 64, 0, maxColorValue = 255), rgb(0, 255, 0, maxColorValue = 255), rgb(0, 128, 0, maxColorValue = 255), rgb(192, 255, 0, maxColorValue = 255), rgb(64, 192, 0, maxColorValue = 255),
+              rgb(128, 0, 0, maxColorValue = 255), rgb(192, 192, 0, maxColorValue = 255), rgb(96, 0, 0, maxColorValue = 255), rgb(255, 128, 0, maxColorValue = 255), rgb(128, 64, 0, maxColorValue = 255),
+              rgb(0, 0, 128, maxColorValue = 255), rgb(0, 128, 255, maxColorValue = 255), rgb(0, 0, 96, maxColorValue = 255), rgb(0, 128, 128, maxColorValue = 255), rgb(0, 64, 128, maxColorValue = 255))
+Station_fill <- scale_fill_manual("", labels = Stations, values = setNames(Stat_pal, 1:15), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = Stations, values = setNames(Stat_pal, 1:15), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21, 25, 22, 23, 24, 21, 25, 22, 23, 24, 21, 25, 22, 23, 24), 1:15))
+#
+```
+
+```{r RecruitmentFigures}
+#Creating Recruitment figures per section for better customization
+lv4 <- list("AB West", "AB Central", "AB East", "SS North", "SS Central", "SS South")
+recruit_plot_list <- list()
+
+for (i in seq_along(lv1)) {
+  df_source <- get(paste0(lv1[i], "_RecruitStats")) 
+  max_upper <- max(ungroup(df_source) %>%  
+                     dplyr::select(Upper), na.rm = TRUE)
+
+  recruit_plot_list[[i]] <- df_source %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = RecMean, fill = factor(StationNumber)))+ 
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + 
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = RecMean, ymax = Upper), position = position_dodge(), width = 1565200)+ 
+  scale_x_datetime("", expand = c(0.005, 0), 
+                   date_breaks = "1 month", date_labels = "%b %Y", 
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Spat / Shell", expand = c(0, 0),
+                     limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
+                     breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
+                                                       dplyr::select(Upper), na.rm = TRUE) / 2))) + 
+  ggtitle(lv4[i]) + BaseForm + Station_fill
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(recruit_plot_list)
+```
+
+```{r ABRecruitmentFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+recruit_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SSRecruitmentFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean number (± S.D.) of spat (oyster recruits) per shell collected at stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+recruit_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+recruit_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SedimentFigure}
+max_upper <- max(ungroup(AB_SedimentStats) %>%  
+                     dplyr::select(Upper), na.rm = TRUE)
+
+AB_SedimentPlot <- AB_SedimentStats %>% 
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SedMean, fill = factor(StationNumber)))+ 
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + 
+  geom_errorbar(aes(as.POSIXct(Plot_Date), ymin = SedMean, ymax = Upper), position = position_dodge(), width = 1565200)+ 
+  scale_x_datetime("", expand = c(0.005, 0), 
+                   date_breaks = "1 month", date_labels = "%b %Y", 
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Sediment rate (g / month)", expand = c(0, 0),
+                     limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
+                     breaks = pretty(0:2 * ceiling(max(ungroup(AB_SedimentStats) %>% 
+                                                       dplyr::select(Upper), na.rm = TRUE) / 2))) + 
+  ggtitle("Apalachicola Bay Sedimentation") + BaseForm + Station_fill
+#print(AB_SedimentPlot)
+```
+
+```{r ABSedimentFigure, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean grams (± S.D.) of sediment per trap per month collected at stations in Apalachicola Bay over the past fifteen months (five quarters). "}
+ggarrange(AB_SedimentPlot + theme(plot.margin = unit(c(0,0.2,0,0.1), "lines")),
+          nrow = 1, ncol = 1)
+```
+
+```{r TempFigs}
+#Creating Temperature figures per section for better customization
+wqtemp_plot_list <- list()
+
+for (i in seq_along(lv2)) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqtemp_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, color = as.factor(StationNumber), group = as.factor(StationNumber)))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = as.factor(StationNumber), fill = as.factor(StationNumber)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (°C)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(wqtemp_plot_list)
+```
+
+```{r ABTempFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean temperature at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+wqtemp_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqtemp_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqtemp_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SSTempFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean temperature at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+wqtemp_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqtemp_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqtemp_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SalinityFigs}
+#Creating Salinity figures per section for better customization
+wqsal_plot_list <- list()
+
+for (i in seq_along(lv2)) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqsal_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SalMean, color = as.factor(StationNumber), group = as.factor(StationNumber)))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = as.factor(StationNumber), fill = as.factor(StationNumber)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Salinity", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(wqsal_plot_list)
+```
+
+```{r ABSalinityFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+wqsal_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqsal_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqsal_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SSSalinityFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean salinity at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+wqsal_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqsal_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqsal_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r DOFigs}
+#Creating Dissolved Oxygen figures per section for better customization
+wqDO_plot_list <- list()
+
+for (i in seq_along(lv2)) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqDO_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = DOMean, color = as.factor(StationNumber), group = as.factor(StationNumber)))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = as.factor(StationNumber), fill = as.factor(StationNumber)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("DO (mg/L)", expand = c(0, 0),
+                     limits = c(0, 15), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(wqDO_plot_list)
+```
+
+```{r ABDOFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+wqDO_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SSDOFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean dissolved oxygen (DO) at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+wqDO_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqDO_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r phFigs}
+#Creating pH figures per section for better customization
+wqpH_plot_list <- list()
+
+for (i in seq_along(lv2)) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqpH_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = pHMean, color = as.factor(StationNumber), group = as.factor(StationNumber)))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = as.factor(StationNumber), fill = as.factor(StationNumber)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("pH", expand = c(0, 0),
+                     limits = c(0, 15), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_color + Station_fill + Station_shape
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(wqpH_plot_list)
+```
+
+```{r ABphFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean pH at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+wqpH_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqpH_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqpH_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SSphFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean pH at recruitment monitoring stations in the North, Central, and South sections of Suwannee Sound over the past fifteen months (five quarters). "}
+wqpH_plot_list[[4]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqpH_plot_list[[5]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqpH_plot_list[[6]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+```{r SecchiFigs}
+#Creating secchi figures per section for better customization
+wqsecchi_plot_list <- list()
+
+for (i in seq_along(lv2[1:3])) {
+  df_source <- get(paste0(lv2[i], "_WQStats")) 
+  wqsecchi_plot_list[[i]] <- df_source %>% 
+  filter(SectionName == lv3[i]) %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = SecchiMean, fill = as.factor(StationNumber)))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + #Edit first 2 digits of width to change (talk to EL for more in depth)
+  scale_x_datetime("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_reverse("% Secchi Penetration", expand = c(0, 0),
+                     limits = c(100, 0), pretty_breaks())+
+  ggtitle(lv4[i]) + BaseForm + Station_fill
+}
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(wqsecchi_plot_list)
+```
+
+```{r ABSecchiFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Monthly mean Secchi penetration (percentage of water depth through which the Secchi disk could be seen) at recruitment and sedimentation monitoring stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+wqsecchi_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
+wqsecchi_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+wqsecchi_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
+plot_layout(ncol = 1)
+```
+
+

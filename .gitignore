@@ -47,3 +47,10 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# RMarkdown output
+*.html
+
+# Excel output
+*.xlsx
+*.docx
