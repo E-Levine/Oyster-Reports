@@ -7,7 +7,7 @@ output:
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportEnd <- as.Date("2023-12-30")  # Report End Date
-Database = "OysterLocalMD20240112"  # Set the local database to use
+Database = "OystersEL_240111"  # Set the local database to use
 ```
 
 ```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
@@ -42,7 +42,7 @@ Estuaries <- c("AB", "SS")
 # Connect to Local database server and pull all necessary data, then close connection 
 con <- dbConnect(odbc(),
                     Driver = "SQL Server", 
-                    Server = "localhost\\MATTLOCALSQL",
+                    Server = "localhost\\ERICALOCALSQL",
                     Database = Database,
                     Authentication = "ActiveDirectoryIntegrated")
 
@@ -444,7 +444,7 @@ SBM_plot_list <- df_source %>%
                 width = 0.25, color = "black")+ 
   scale_x_discrete("Survey", expand = c(0.005, 0), 
                  guide = guide_axis(angle = -45))+
-  scale_y_continuous(expression("Mean Weight (kg / m"^2), expand = c(0, 0),
+  scale_y_continuous(expression("Mean Weight (kg / m"^2*")"), expand = c(0, 0),
                    limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
                    breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
                                                      dplyr::select(Upper), na.rm = TRUE) / 2))) + 
@@ -467,37 +467,33 @@ datalonag <- SBM_QuadStats2 %>%
   rename_at(vars(ends_with("SD")), ~gsub("SD$", "_SD", .)) %>%
   rename_at(vars(ends_with("Mean")), ~gsub("Mean$", "_Mean", .))
 
+#Combining df of mean values with df of SD values - can remove SD section if desired (left_join() & 475-478)
+df_source <- left_join(SBM_QuadStats2 %>% dplyr::select(Survey:StationNumber, ends_with("Mean")) %>% 
+                         mutate(StationNameNumber = gsub("SBM ", "", StationNameNumber)) %>%
+                         rename_at(vars(ends_with("Mean")), ~gsub("Mean$", "", .)) %>%
+                         pivot_longer(cols = ends_with("Weight"), names_to = c("Metric"), values_to = "Mean"),
+                       SBM_QuadStats2 %>% dplyr::select(Survey:StationNumber, ends_with("SD")) %>%
+                         mutate(StationNameNumber = gsub("SBM ", "", StationNameNumber)) %>%
+                         rename_at(vars(ends_with("SD")), ~gsub("SD$", "", .)) %>%
+                         pivot_longer(cols = ends_with("Weight"), names_to = c("Metric"), values_to = "SD"))
 
-  
-
-df_source <- SBM_QuadStats2 %>%
-  rename_at(vars(ends_with("SD")), ~gsub("SD$", "_SD", .)) %>%
-  rename_at(vars(ends_with("Mean")), ~gsub("Mean$", "_Mean", .)) %>%
-  pivot_longer(cols = -StationNameNumber, names_to = c(".value", "Y"), names_sep = "_") 
-
-
-  mutate(Upper = LiveOysterWeightMean + LiveOysterWeightSD)### if using a loop, this is a variable 
-max_upper <- max(ungroup(df_source) %>%  
-                   dplyr::select(Upper), na.rm = TRUE)
+#max_upper <- max(SBM_QuadStats2 %>%  mutate(Upper = LiveOysterWeightMean + LiveOysterWeightSD) %>% ungroup() %>% dplyr::select(Upper), na.rm = T) ### Based on previous/existing code. Modifying for stacked bar range in next line.
+max_upper <- max(df_source %>% group_by(StationNameNumber) %>% summarise(Total = sum(Mean))%>% ungroup() %>% dplyr::select(Total), na.rm = T)
 
 SBM_plot_list <- df_source %>% 
   ggplot(aes(x = factor(StationNameNumber, levels = unique(StationNameNumber)), 
-             y = OysterDensityMean, 
-             color = StationNameNumber, 
-             fill = as.factor(StationNameNumber)))+ 
+             y = Mean, 
+             color = Metric, 
+             fill = as.factor(Metric)))+ 
   geom_bar(stat = "identity", 
-           position = position_dodge(width = 0.9),
+           position = "stack",
            color = "black") + 
-  geom_errorbar(aes(ymin = OysterDensityMean, ymax = Upper), 
-                position = position_dodge(width = 0.9), 
-                width = 0.25, color = "black")+ 
-  scale_x_discrete("Survey", expand = c(0.005, 0), 
-                 guide = guide_axis(angle = -45))+
-  scale_y_continuous(expression("Live oysters / m"^2), expand = c(0, 0),
+  scale_x_discrete("Station", expand = c(0.005, 0), 
+                 guide = guide_axis(angle = 45))+
+  scale_y_continuous(expression("Component Weight (kg/m"^2*")"), expand = c(0, 0),
                    limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
-                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle("AB SBM Oy Density") + 
+                   breaks = pretty(0:2 * ceiling(max_upper/2))) + 
+  ggtitle("AB SBM Oy Weights") + 
   BaseForm +
   theme(legend.position = "bottom",
         plot.title = element_text(hjust = 0, vjust = 0))
