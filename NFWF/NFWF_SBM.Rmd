@@ -252,7 +252,6 @@ Oyster drills (Stramonita floridana) were found at some station this quarter. Me
 Substrate weights were measured for all parcels (Figure 8). Substrate weights were highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point). The main substrate components accounted for `r percent((sum(SBM_QuadWeightStats$TotalWt) - sum(SBM_QuadWeightStats$OtherWeightMean)) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight which were: cultch (`r percent(sum(SBM_QuadWeightStats$PlantedShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), shell hash (`r percent(sum(SBM_QuadWeightStats$ShellHashWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), live oysters (`r percent(sum(SBM_QuadWeightStats$LiveOysterWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight) and oyster shell (`r percent(sum(SBM_QuadWeightStats$OysterShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight). Proportions of substrate components differed between parcels with shell hash and cultch being the predominant substrate types (Figure 9). 
 
 ```{r FigureFormatting}
-
 #Base formatting for figure consistency
 BaseForm <- theme_classic() +
   theme(panel.border = element_rect(color = "black", fill = NA), #Add border
@@ -266,209 +265,9 @@ BaseForm <- theme_classic() +
         legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
         legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
 
-
-
-knit_exit()
 ```
 
-```{r}
-#Creating Shell Budget figures Mean Live Oysters
-#
-
-df_source <- SBM_QuadStats1 %>%
-  mutate(Upper = OysterDensityMean + OysterDensitySD)### if using a loop, this is a variable 
-max_upper <- max(ungroup(df_source) %>%  
-                   dplyr::select(Upper), na.rm = TRUE)
-
-SBM_plot_list <- df_source %>% 
-  ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
-             y = OysterDensityMean, 
-             color = StationNameNumber, 
-             fill = as.factor(StationNameNumber)))+ 
-  geom_bar(stat = "identity", 
-           position = position_dodge(width = 0.9),
-           color = "black") + 
-  geom_errorbar(aes(ymin = OysterDensityMean, ymax = Upper), 
-                position = position_dodge(width = 0.9), 
-                width = 0.25, color = "black")+ 
-  scale_x_discrete("Survey", expand = c(0.005, 0), 
-                 guide = guide_axis(angle = -45))+
-  scale_y_continuous(expression("Live oysters / m"^2), expand = c(0, 0),
-                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
-                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle("AB SBM Oy Density") + 
-  BaseForm +
-  theme(legend.position = "bottom",
-        plot.title = element_text(hjust = 0, vjust = 0))
-
-
-print(SBM_plot_list)
-
-
-```
-
-
-```{r}
-#Creating Shell Budget figures Mean live shell heights
-#
-
-df_source <- SBM_SHStatsLive %>%
-  mutate(Upper = SHMean + SHSD)### if using a loop, this is a variable 
-max_upper <- max(ungroup(df_source) %>%  
-                   dplyr::select(Upper), na.rm = TRUE)
-
-SBM_plot_list <- df_source %>% 
-  ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
-             y = SHMean, 
-             color = StationNameNumber, 
-             fill = as.factor(StationNameNumber)))+ 
-  geom_bar(stat = "identity", 
-           position = position_dodge(width = 0.9),
-           color = "black") + 
-  geom_errorbar(aes(ymin = SHMean, ymax = Upper), 
-                position = position_dodge(width = 0.9), 
-                width = 0.25, color = "black")+ 
-  scale_x_discrete("Survey", expand = c(0.005, 0), 
-                 guide = guide_axis(angle = -45))+
-  scale_y_continuous("Live Shell Height (mm)", expand = c(0, 0),
-                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
-                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle("AB SBM Live Shell Heights") + 
-  BaseForm +
-  theme(legend.position = "bottom",
-        plot.title = element_text(hjust = 0, vjust = 0))
-
-
-print(SBM_plot_list)
-
-```
-
-
-```{r}
-#Creating Shell Budget figures Mean dead shell heights
-#
-
-df_source <- SBM_SHStatsDead %>%
-  mutate(Upper = SHMean + SHSD)### if using a loop, this is a variable 
-max_upper <- max(ungroup(df_source) %>%  
-                   dplyr::select(Upper), na.rm = TRUE)
-
-SBM_plot_list <- df_source %>% 
-  ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
-             y = SHMean, 
-             color = StationNameNumber, 
-             fill = as.factor(StationNameNumber)))+ 
-  geom_bar(stat = "identity", 
-           position = position_dodge(width = 0.9),
-           color = "black") + 
-  geom_errorbar(aes(ymin = SHMean, ymax = Upper), 
-                position = position_dodge(width = 0.9), 
-                width = 0.25, color = "black")+ 
-  scale_x_discrete("Survey", expand = c(0.005, 0), 
-                 guide = guide_axis(angle = -45))+
-  scale_y_continuous("Live Shell Height (mm)", expand = c(0, 0),
-                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
-                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle("AB SBM Dead Shell Heights") + 
-  BaseForm +
-  theme(legend.position = "bottom",
-        plot.title = element_text(hjust = 0, vjust = 0))
-
-
-print(SBM_plot_list)
-
-
-```
-
-
-```{r}
-#Creating Shell Budget figures Mean Oyster drill density
-#
-
-df_source <- SBM_QuadStats1 %>%
-  mutate(Upper = DrillDensityMean + DrillDensitySD)### if using a loop, this is a variable 
-max_upper <- max(ungroup(df_source) %>%  
-                   dplyr::select(Upper), na.rm = TRUE)
-
-SBM_plot_list <- df_source %>% 
-  ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
-             y = DrillDensityMean, 
-             color = StationNameNumber, 
-             fill = as.factor(StationNameNumber)))+ 
-  geom_bar(stat = "identity", 
-           position = position_dodge(width = 0.9),
-           color = "black") + 
-  geom_errorbar(aes(ymin = DrillDensityMean, ymax = Upper), 
-                position = position_dodge(width = 0.9), 
-                width = 0.25, color = "black")+ 
-  scale_x_discrete("Survey", expand = c(0.005, 0), 
-                 guide = guide_axis(angle = -45))+
-  scale_y_continuous(expression("Live drills / m"^2), expand = c(0, 0),
-                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
-                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle("AB SBM Drill Density") + 
-  BaseForm +
-  theme(legend.position = "bottom",
-        plot.title = element_text(hjust = 0, vjust = 0))
-
-
-print(SBM_plot_list)
-
-
-```
-
-
-```{r}
-#Creating Shell Budget figures Mean Weights
-#
-
-df_source <- SBM_QuadStats1 %>%
-  mutate(Upper = WeightDensityMean + WeightDensitySD)### if using a loop, this is a variable 
-max_upper <- max(ungroup(df_source) %>%  
-                   dplyr::select(Upper), na.rm = TRUE)
-
-SBM_plot_list <- df_source %>% 
-  ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
-             y = WeightDensityMean, 
-             color = StationNameNumber, 
-             fill = as.factor(StationNameNumber)))+ 
-  geom_bar(stat = "identity", 
-           position = position_dodge(width = 0.9),
-           color = "black") + 
-  geom_errorbar(aes(ymin = WeightDensityMean, ymax = Upper), 
-                position = position_dodge(width = 0.9), 
-                width = 0.25, color = "black")+ 
-  scale_x_discrete("Survey", expand = c(0.005, 0), 
-                 guide = guide_axis(angle = -45))+
-  scale_y_continuous("Mean Weight (kg / m2)", expand = c(0, 0),
-                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
-                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
-                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-  ggtitle("AB SBM Mean Weight") + 
-  BaseForm +
-  theme(legend.position = "bottom",
-        plot.title = element_text(hjust = 0, vjust = 0))
-
-
-print(SBM_plot_list)
-
-
-```
-
-```{r}
-#Creating Shell Budget figures Component Weight
-#
-
-
-
-
-```
-
-```{r}
+```{r PlotFunction}
 # Function to generate plots
 generate_plot <- function(df, y_variable, y_label, y_SD, title) {
   
@@ -497,14 +296,14 @@ generate_plot <- function(df, y_variable, y_label, y_SD, title) {
     ggtitle(title) + 
     BaseForm +
     theme(legend.position = "bottom",
-          plot.title = element_text(hjust = 0, vjust = 0))
+          plot.title = element_text(hjust = 0, vjust = 0)) 
   
   return(plot_list)
 }
 
 ```
 
-``` {r}
+``` {r Figures}
 # Creating SBM Figures
 # Creating Shell Budget figures Mean Live Oysters
 SBM_OyDensity <- generate_plot(SBM_QuadStats1, "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "AB SBM Oyster Density")
@@ -532,10 +331,12 @@ print(SBM_WeightMean)
 
 
 ```{r}
-library(openxlsx)
+# library(openxlsx)
+# 
+knit_exit()
 
-mydatasets <- list('Sheet1' = SBM_QuadStats1, 'Sheet2' = SBM_QuadStats2, 'Sheet3' = SBM_SHStatsLive, 'Sheet4' = SBM_SHStatsDead)
-write.xlsx(mydatasets, "SBM_ReportStats.xlsx", colNames = TRUE, rowNames = FALSE)
-
+# mydatasets <- list('Sheet1' = SBM_QuadStats1, 'Sheet2' = SBM_QuadStats2, 'Sheet3' = SBM_SHStatsLive, 'Sheet4' = SBM_SHStatsDead)
+# write.xlsx(mydatasets, "SBM_ReportStats.xlsx", colNames = TRUE, rowNames = FALSE)
+# 
 ```
 
