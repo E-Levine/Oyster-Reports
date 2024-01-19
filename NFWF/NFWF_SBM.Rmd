@@ -6,8 +6,8 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2023-12-30")  # Report End Date
-Database = "OysterLocalMD20240112"  # Set the local database to use
+ReportEnd <- as.Date("2023-09-30")  # Report End Date
+Database = "OysterLocalMD20231227"  # Set the local database to use
 ```
 
 ```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
@@ -199,8 +199,7 @@ SBM_SHStatsLive <- SBM_SH1 %>%
            StationNameNumber, 
            StationNumber) %>%
   summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
-            SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
+            SHSD = sd(ShellHeight, na.rm = TRUE))
 
 ### Provides stats for Mean Shell Height DEAD (Fig 6)
 SBM_SHStatsDead <- SBM_SH1 %>%
@@ -213,8 +212,7 @@ SBM_SHStatsDead <- SBM_SH1 %>%
            StationNameNumber, 
            StationNumber) %>%
   summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
-            SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
+            SHSD = sd(ShellHeight, na.rm = TRUE))
 
 ### Provides stats for report text
 SBM_QuadTextStats <- SBM_QuadStats1 %>%
@@ -241,7 +239,7 @@ ReportTotalLive <- SBM_SH1 %>%
 APALACHICOLA BAY  
 Preliminary shell budget data is available through the end of `r format(max(SBM_Quad1$TripDate), "%B %Y")`.
 
-Live oysters were present at all stations in the most recent samples (Fig. XXX). Mean oyster densities ranged from `r round(min(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r SBM_QuadTextStats$StationNameNumber[which.min(SBM_QuadTextStats$OysterDensityMean)]` to `r round(max(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r SBM_QuadTextStats$StationNameNumber [which.max(SBM_QuadTextStats$OysterDensityMean)]`. Mean densities were generally highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point) though nearly all were recently settled spat. 
+Live oysters were present at all stations in the most recent samples (Fig. XXX). Mean oyster densities ranged from `r round(min(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r paste(SBM_QuadTextStats$StationNameNumber, SBM_QuadTextStats$StationNumber)[which.min(SBM_QuadTextStats$OysterDensityMean)]` to `r round(max(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r paste(SBM_QuadTextStats$StationName, SBM_QuadTextStats$StationNumber)[which.max(SBM_QuadTextStats$OysterDensityMean)]`. Mean densities were generally highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point) though nearly all were recently settled spat. 
 
 Live oyster shell height means ranged from `r round(min(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 5) and an overall average shell height of `r round(mean(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm. There were `r sum(ReportTotalLive$ShellHeight > 30)` oysters larger than 30 mm measured (`r percent(sum(ReportTotalLive$ShellHeight > 30) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured), and there were `r sum(ReportTotalLive$ShellHeight > 75)` oyster of legal harvest size (SH>=76 mm) measured (`r percent(sum(ReportTotalLive$ShellHeight > 75) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured) during this quarter.
 
@@ -252,6 +250,7 @@ Oyster drills (Stramonita floridana) were found at some station this quarter. Me
 Substrate weights were measured for all parcels (Figure 8). Substrate weights were highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point). The main substrate components accounted for `r percent((sum(SBM_QuadWeightStats$TotalWt) - sum(SBM_QuadWeightStats$OtherWeightMean)) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight which were: cultch (`r percent(sum(SBM_QuadWeightStats$PlantedShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), shell hash (`r percent(sum(SBM_QuadWeightStats$ShellHashWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), live oysters (`r percent(sum(SBM_QuadWeightStats$LiveOysterWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight) and oyster shell (`r percent(sum(SBM_QuadWeightStats$OysterShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight). Proportions of substrate components differed between parcels with shell hash and cultch being the predominant substrate types (Figure 9). 
 
 ```{r FigureFormatting}
+
 #Base formatting for figure consistency
 BaseForm <- theme_classic() +
   theme(panel.border = element_rect(color = "black", fill = NA), #Add border
@@ -265,66 +264,55 @@ BaseForm <- theme_classic() +
         legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
         legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
 
+#Color and shape to Fixed Locations
+FixedLocations <- c("0009" = "Halfmoon-6", "0017" = "Normans-8", "0022" = "Hotel-East", "0023" = "Hotel-West", "0103" = "Bulkhead-North", "0104" = "Bulkhead-South", "0309" = "Lighthouse-Rest", "0310" = "East Lumps-Rest", "0311" = "Cat Point-Rest", "0530" = "Cat Point-Shallow", "0095" = "Cat Point-Shallow")
+Stat_pal <- c(rgb(0, 64, 0, maxColorValue = 255), rgb(0, 255, 0, maxColorValue = 255), rgb(0, 128, 0, maxColorValue = 255), rgb(192, 255, 0, maxColorValue = 255), rgb(64, 192, 0, maxColorValue = 255),
+              rgb(128, 0, 0, maxColorValue = 255), rgb(192, 192, 0, maxColorValue = 255), rgb(96, 0, 0, maxColorValue = 255), rgb(255, 128, 0, maxColorValue = 255), rgb(128, 64, 0, maxColorValue = 255),
+              rgb(0, 0, 128, maxColorValue = 255), rgb(0, 128, 255, maxColorValue = 255), rgb(0, 0, 96, maxColorValue = 255), rgb(0, 128, 128, maxColorValue = 255), rgb(0, 64, 128, maxColorValue = 255))
+Station_fill <- scale_fill_manual("", labels = FixedLocations, values = setNames(Stat_pal, 1:11), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = FixedLocations, values = setNames(Stat_pal, 1:11), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = FixedLocations, values = setNames(c(21, 25, 22, 23, 24, 21, 25, 22, 23, 24, 21, 25, 22, 23, 24), 1:15))
+#
+
+knit_exit()
 ```
 
-```{r PlotFunction}
-# Function to generate plots
-generate_plot <- function(df, y_variable, y_label, y_SD, title) {
-  
-  df <- df %>%
-    mutate(Upper = !!sym(y_variable) + !!sym(y_SD))
-  max_upper <- max(ungroup(df) %>%
-                     dplyr::select(Upper), na.rm = TRUE)
-  
-  plot_list <- df %>% 
-    ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
-               y = !!sym(y_variable), 
-               color = StationNameNumber, 
-               fill = as.factor(StationNameNumber))) + 
-    geom_bar(stat = "identity", 
-             position = position_dodge(width = 0.9),
-             color = "black") + 
-    geom_errorbar(aes(ymin = !!sym(y_variable), ymax = Upper), 
-                  position = position_dodge(width = 0.9), 
-                  width = 0.25, color = "black") + 
-    scale_x_discrete("Survey", expand = c(0.005, 0), 
-                     guide = guide_axis(angle = -45)) +
-    scale_y_continuous(y_label, expand = c(0, 0),
-                       limits = c(0, ceiling(max_upper * 1.05)),
-                       breaks = pretty(0:2 * ceiling(max(ungroup(df) %>% 
-                                                         dplyr::select(Upper), na.rm = TRUE) / 2))) + 
-    ggtitle(title) + 
-    BaseForm +
-    theme(legend.position = "bottom",
-          plot.title = element_text(hjust = 0, vjust = 0)) 
-  
-  return(plot_list)
-}
+```{r}
+#Creating Shell Budget figures Mean Live Oysters
+#
 
-```
+#### adjust below to work
+df_source <- SBM_QuadStats1 %>%
+  mutate(Upper = OysterDensityMean + OysterDensitySD)### if using a loop, this is a variable 
+max_upper <- max(ungroup(df_source) %>%  
+                   dplyr::select(Upper), na.rm = TRUE)
 
-``` {r Figures}
-# Creating SBM Figures
-# Creating Shell Budget figures Mean Live Oysters
-SBM_OyDensity <- generate_plot(SBM_QuadStats1, "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "AB SBM Oyster Density")
-print(SBM_OyDensity)
+SBM_plot_list <- df_source %>% 
+  ggplot(aes(x = as.factor(Survey_Year), y = OysterDensityMean, fill = factor(Station_fill)))+ 
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 1565200) + 
+  geom_errorbar(aes(Survey_Year, ymin = OysterDensityMean, ymax = Upper), position = position_dodge(), width = 1565200)+ 
+scale_x_discrete("", expand = c(0.005, 0), 
+                 guide = guide_axis(angle = 45))+
+scale_y_continuous("Live oysters / m2", expand = c(0, 0),
+                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
+                   breaks = pretty(0:2 * ceiling(max(ungroup(df_source) %>% 
+                                                     dplyr::select(Upper), na.rm = TRUE) / 2))) + 
+ggtitle("AB SBM Oy Density") + BaseForm + Station_fill
 
-# Creating Shell Budget figures Mean live shell heights
-SBM_SHLiveMean <- generate_plot(SBM_SHStatsLive, "SHMean", "Live Shell Height (mm)", "SHSD", "AB SBM Live Shell Heights")
-print(SBM_SHLiveMean)
+print(SBM_plot_list)
 
-# Creating Shell Budget figures Mean dead shell heights
-SBM_SHDeadMean <- generate_plot(SBM_SHStatsDead, "SHMean", "Dead Shell Height (mm)", "SHSD", "AB SBM Dead Shell Heights")
-print(SBM_SHDeadMean)
 
-# Creating Shell Budget figures Mean Oyster drill density
-SBM_DrillDensity <- generate_plot(SBM_QuadStats1, "DrillDensityMean", "Live drills / m2)", "DrillDensitySD", "AB SBM Drill Density")
-print(SBM_DrillDensity)
+#### original below
+SBM_fig4 <- SBM_QuadStats1 %>% 
+  ggplot(aes(x = factor(Survey_Year), y = OyDensityMean, fill = FixedLocationID))+ #Set base data to present
+  geom_bar(stat = "identity", position = "dodge",  color = "black", width = 0.5) + #Add bars. Deafult = 2365200. Edit first 2 digits of width to change (talk to EL for more in depth)
+  geom_errorbar(aes(factor(Survey_Year), ymin = OyDensityMean, ymax = OyDensityMean + OyDensitySD), position = position_dodge(), width = 0.5)+ #Add error bars
+  scale_x_discrete("", expand = c(0.005, 0), #Set axis title and remove spacing
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Live oysters / m2", expand = c(0, 0))+
+  ggtitle("") + BaseForm + Station_fill
 
-#Creating Shell Budget figures Mean Weights
-SBM_WeightMean <- generate_plot(SBM_QuadStats1, "WeightDensityMean", "Mean Weight (kg / m2)", "WeightDensitySD", "AB SBM Weight Density")
-print(SBM_WeightMean)
-
+SBM_fig4
 ```
 
 ```{r Component Weights}
@@ -369,15 +357,11 @@ SBM_plot_list <- df_source %>%
 
 print(SBM_plot_list)
 
-```
-
 
 ```{r}
-# library(openxlsx)
-# 
-knit_exit()
+library(openxlsx)
 
-# mydatasets <- list('Sheet1' = SBM_QuadStats1, 'Sheet2' = SBM_QuadStats2, 'Sheet3' = SBM_SHStatsLive, 'Sheet4' = SBM_SHStatsDead)
-# write.xlsx(mydatasets, "SBM_ReportStats.xlsx", colNames = TRUE, rowNames = FALSE)
-# 
+mydatasets <- list('Sheet1' = SBM_QuadStats1, 'Sheet2' = SBM_QuadStats2, 'Sheet3' = SBM_SHStatsLive, 'Sheet4' = SBM_SHStatsDead)
+write.xlsx(mydatasets, "SBM_ReportStats.xlsx", colNames = TRUE, rowNames = FALSE)
+
 ```
