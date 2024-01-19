@@ -327,7 +327,49 @@ print(SBM_WeightMean)
 
 ```
 
+```{r Component Weights}
+#Creating Shell Budget figures Component Weight
+#
 
+datalonag <- SBM_QuadStats2 %>%
+  rename_at(vars(ends_with("SD")), ~gsub("SD$", "_SD", .)) %>%
+  rename_at(vars(ends_with("Mean")), ~gsub("Mean$", "_Mean", .))
+
+#Combining df of mean values with df of SD values - can remove SD section if desired (left_join() & 475-478)
+df_source <- left_join(SBM_QuadStats2 %>% dplyr::select(Survey:StationNumber, ends_with("Mean")) %>% 
+                         mutate(StationNameNumber = gsub("SBM ", "", StationNameNumber)) %>%
+                         rename_at(vars(ends_with("Mean")), ~gsub("Mean$", "", .)) %>%
+                         pivot_longer(cols = ends_with("Weight"), names_to = c("Metric"), values_to = "Mean"),
+                       SBM_QuadStats2 %>% dplyr::select(Survey:StationNumber, ends_with("SD")) %>%
+                         mutate(StationNameNumber = gsub("SBM ", "", StationNameNumber)) %>%
+                         rename_at(vars(ends_with("SD")), ~gsub("SD$", "", .)) %>%
+                         pivot_longer(cols = ends_with("Weight"), names_to = c("Metric"), values_to = "SD"))
+
+#max_upper <- max(SBM_QuadStats2 %>%  mutate(Upper = LiveOysterWeightMean + LiveOysterWeightSD) %>% ungroup() %>% dplyr::select(Upper), na.rm = T) ### Based on previous/existing code. Modifying for stacked bar range in next line.
+max_upper <- max(df_source %>% group_by(StationNameNumber) %>% summarise(Total = sum(Mean))%>% ungroup() %>% dplyr::select(Total), na.rm = T)
+
+SBM_plot_list <- df_source %>% 
+  mutate(Metric= factor(Metric, levels = unique(Metric))) %>%
+  ggplot(aes(x = factor(StationNameNumber, levels = unique(StationNameNumber)), 
+             y = Mean, 
+             color = Metric, 
+             fill = as.factor(Metric)))+ 
+  geom_bar(stat = "identity", 
+           position = "stack",
+           color = "black") + 
+  scale_x_discrete("Station", expand = c(0.005, 0), 
+                 guide = guide_axis(angle = 45))+
+  scale_y_continuous(expression("Component Weight (kg/m"^2*")"), expand = c(0, 0),
+                   limits = c(0, ceiling(max_upper * 1.05)), #Provides a 5% buffer to the top of bars
+                   breaks = pretty(0:2 * ceiling(max_upper/2))) + 
+  ggtitle("AB SBM Oy Weights") + 
+  BaseForm +
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = 0, vjust = 0))
+
+print(SBM_plot_list)
+
+```
 
 
 ```{r}
@@ -339,4 +381,3 @@ knit_exit()
 # write.xlsx(mydatasets, "SBM_ReportStats.xlsx", colNames = TRUE, rowNames = FALSE)
 # 
 ```
-
