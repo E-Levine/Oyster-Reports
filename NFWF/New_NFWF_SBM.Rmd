@@ -6,8 +6,9 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2023-12-30")  # Report End Date
-Database = "OysterLocalMD20240112"  # Set the local database to use
+ReportEnd <- as.Date("2023-12-31")  # Report End Date
+Database = "OysterLocalMD20240123"  # Set the local database to use
+Server = "localhost\\MATTLOCALSQL" # Set the local Server to use
 ```
 
 ```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
@@ -42,7 +43,7 @@ Estuaries <- c("AB", "SS")
 # Connect to Local database server and pull all necessary data, then close connection 
 con <- dbConnect(odbc(),
                     Driver = "SQL Server", 
-                    Server = "localhost\\MATTLOCALSQL",
+                    Server = Server,
                     Database = Database,
                     Authentication = "ActiveDirectoryIntegrated")
 
@@ -241,15 +242,15 @@ ReportTotalLive <- SBM_SH1 %>%
 APALACHICOLA BAY  
 Preliminary shell budget data is available through the end of `r format(max(SBM_Quad1$TripDate), "%B %Y")`.
 
-Live oysters were present at all stations in the most recent samples (Fig. XXX). Mean oyster densities ranged from `r round(min(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r SBM_QuadTextStats$StationNameNumber[which.min(SBM_QuadTextStats$OysterDensityMean)]` to `r round(max(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r SBM_QuadTextStats$StationNameNumber [which.max(SBM_QuadTextStats$OysterDensityMean)]`. Mean densities were generally highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point) though nearly all were recently settled spat. 
+Live oysters were present at all stations in the most recent samples (Fig. 6). Mean oyster densities ranged from `r round(min(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r SBM_QuadTextStats$StationNameNumber[which.min(SBM_QuadTextStats$OysterDensityMean)]` to `r round(max(SBM_QuadTextStats$OysterDensityMean, na.rm = TRUE), 0)` oysters/m² at `r SBM_QuadTextStats$StationNameNumber [which.max(SBM_QuadTextStats$OysterDensityMean)]`. Mean densities were generally highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point) though nearly all were recently settled spat. 
 
-Live oyster shell height means ranged from `r round(min(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 5) and an overall average shell height of `r round(mean(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm. There were `r sum(ReportTotalLive$ShellHeight > 30)` oysters larger than 30 mm measured (`r percent(sum(ReportTotalLive$ShellHeight > 30) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured), and there were `r sum(ReportTotalLive$ShellHeight > 75)` oyster of legal harvest size (SH>=76 mm) measured (`r percent(sum(ReportTotalLive$ShellHeight > 75) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured) during this quarter.
+Live oyster shell height means ranged from `r round(min(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 7) and an overall average shell height of `r round(mean(SBM_SHLiveTextStats$SHMean, na.rm = TRUE), 0)` mm. There were `r sum(ReportTotalLive$ShellHeight > 30)` oysters larger than 30 mm measured (`r percent(sum(ReportTotalLive$ShellHeight > 30) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured), and there were `r sum(ReportTotalLive$ShellHeight > 75)` oyster of legal harvest size (SH>=76 mm) measured (`r percent(sum(ReportTotalLive$ShellHeight > 75) / nrow(ReportTotalLive), accuracy = 0.1)` of total measured) during this quarter.
 
-Dead oysters were collected at most stations. Dead oyster shell heights averages ranged from `r round(min(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 6) and the overall average shell height of dead oysters was `r round(mean(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` mm.
+Dead oysters were collected at most stations. Dead oyster shell heights averages ranged from `r round(min(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` to `r round(max(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` mm (Fig. 8) and the overall average shell height of dead oysters was `r round(mean(SBM_SHDeadTextStats$SHMean, na.rm = TRUE), 0)` mm.
 
-Oyster drills (Stramonita floridana) were found at some station this quarter. Mean oyster drill densities ranged from `r round(min(SBM_QuadTextStats$DrillDensityMean, na.rm = TRUE), 0)` to `r round(max(SBM_QuadTextStats$DrillDensityMean, na.rm = TRUE), 0)` oyster drill/m² (Fig. 7).
+Oyster drills (Stramonita floridana) were found at some station this quarter. Mean oyster drill densities ranged from `r round(min(SBM_QuadTextStats$DrillDensityMean, na.rm = TRUE), 0)` to `r round(max(SBM_QuadTextStats$DrillDensityMean, na.rm = TRUE), 0)` oyster drill/m² (Fig. 9).
 
-Substrate weights were measured for all parcels (Figure 8). Substrate weights were highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point). The main substrate components accounted for `r percent((sum(SBM_QuadWeightStats$TotalWt) - sum(SBM_QuadWeightStats$OtherWeightMean)) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight which were: cultch (`r percent(sum(SBM_QuadWeightStats$PlantedShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), shell hash (`r percent(sum(SBM_QuadWeightStats$ShellHashWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), live oysters (`r percent(sum(SBM_QuadWeightStats$LiveOysterWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight) and oyster shell (`r percent(sum(SBM_QuadWeightStats$OysterShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight). Proportions of substrate components differed between parcels with shell hash and cultch being the predominant substrate types (Figure 9). 
+Substrate weights were measured for all parcels (Figure 10). Substrate weights were highest at stations which were recently cultched (Lighthouse, East Lumps, and Cat Point). The main substrate components accounted for `r percent((sum(SBM_QuadWeightStats$TotalWt) - sum(SBM_QuadWeightStats$OtherWeightMean)) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight which were: cultch (`r percent(sum(SBM_QuadWeightStats$PlantedShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), shell hash (`r percent(sum(SBM_QuadWeightStats$ShellHashWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight), live oysters (`r percent(sum(SBM_QuadWeightStats$LiveOysterWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight) and oyster shell (`r percent(sum(SBM_QuadWeightStats$OysterShellWeightMean) / sum(SBM_QuadWeightStats$TotalWt), accuracy = 0.1)` of total weight). Proportions of substrate components differed between parcels with shell hash and cultch being the predominant substrate types (Figure 11). 
 
 ```{r FigureFormatting}
 #Base formatting for figure consistency
