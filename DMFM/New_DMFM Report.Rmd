@@ -190,6 +190,39 @@ Survey_SHStatsLive <- Survey_SH1 %>%
             SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
   arrange(Year, TripDate, StationNumber)
 
+### Provide fisheries calculations
+Survey_FishStats1 <- Survey_SH1 %>%
+  group_by(Survey_Year,
+           Survey,
+           Year,
+           TripDate,
+           FixedLocationID, 
+           StationNameNumber, 
+           StationNumber, 
+           QuadratID) %>%
+  summarise(LegalCount = replace_na(sum(ShellHeight > 74), 0)) %>%
+  right_join(Survey_Quad1, by = c("QuadratID", "Survey", "Year", "TripDate", "FixedLocationID", "StationNumber", "StationNameNumber")) %>%
+  mutate(OysterDensity = NumLive * 4, 
+         LegalTotal = ifelse(NumLive > 50, ((NumLive * LegalCount) / 50), LegalCount),
+         LegalDensity = LegalTotal *4,
+         BagsPerAcre = (LegalDensity * 4047) / 225)
+  
+Survey_FishStats2 <- Survey_FishStats1 %>%
+  group_by(Survey_Year,
+           Survey,
+           Year,
+           TripDate,
+           FixedLocationID, 
+           StationNameNumber, 
+           StationNumber) %>%
+  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
+            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
+            LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
+            LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
+            BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
+            BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE)) %>%
+  arrange(Year, TripDate, StationNumber)
+
 ### SBM QUADRATS ###     
 SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
   mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
@@ -311,23 +344,69 @@ SBM_SHStatsLive <- SBM_SH1 %>%
             SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
   arrange(Year, TripDate, StationNumber)
 
-### Provides stats for Mean Shell Height DEAD 
-SBM_SHStatsDead <- SBM_SH1 %>%
-  filter(TripDate > ReportStart & LiveOrDead == "Dead") %>%
+### Provide fisheries calculations
+SBM_FishStats1 <- SBM_SH1 %>%
   group_by(Survey_Year,
            Survey,
            Year,
            TripDate,
            FixedLocationID, 
            StationNameNumber, 
+           StationNumber, 
+           QuadratID) %>%
+  summarise(LegalCount = replace_na(sum(ShellHeight > 74), 0)) %>%
+  right_join(SBM_Quad1, by = c("QuadratID", "Survey", "Year", "TripDate", "FixedLocationID", "StationNumber", "StationNameNumber")) %>%
+  mutate(OysterDensity = NumLiveOysters * 4, 
+         LegalTotal = ifelse(NumLiveOysters > 50, ((NumLiveOysters * LegalCount) / 50), LegalCount),
+         LegalDensity = LegalTotal *4,
+         BagsPerAcre = (LegalDensity * 4047) / 225)
+  
+SBM_FishStats2 <- SBM_FishStats1 %>%
+  group_by(TripDate, 
+           Survey_Year, 
+           Survey, 
+           Year, 
+           FixedLocationID,
+           StationNameNumber,
            StationNumber) %>%
-  summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
-            SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
+  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
+            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
+            LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
+            LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
+            BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
+            BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE)) %>%
+  arrange(Year, TripDate, StationNumber)
+
+
+### ALL DATA ###
+# Quadrats #
+ALL_QuadStats1 <- union_all(SBM_QuadStats1, Survey_QuadStats1) %>%
+  arrange(Year, TripDate, StationNumber)
+
+# Shell Heights #
+ALL_SHStats1 <- union_all(SBM_SHStatsLive, Survey_SHStatsLive) %>%
+  arrange(Year, TripDate, StationNumber)
+
+# Fisheries Stats #
+ALL_FishStats1 <- union_all(SBM_FishStats2, Survey_FishStats2) %>%
   arrange(Year, TripDate, StationNumber)
 
 rm(dboFixedLocations,dboSBMQuadrat, dboSBMSH, dboSurveyQuadrat, dboSurveySH, hsdbSBMQuadrat, hsdbSBMSH, hsdbSurveyQuadrat, hsdbSurveySH) # remove dataframes no longer in use
 
 ```
+
+
+
+```{r DataFiltersAdvanced}
+#Change dataframes here to adjust Figures in chunks below
+
+
+
+
+
+```
+
+
 
 ```{r FigureFormatting}
 #Base formatting for figure consistency
