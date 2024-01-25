@@ -34,9 +34,9 @@ knitr::opts_chunk$set(
 	warning = FALSE
 )
 
-ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") 
-QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month")
-Estuaries <- c("AB", "SS")
+ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") #May need to revise this
+QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month") #Probably won't need this
+Estuaries <- c("AB")
 ```
 
 ```{r DatabaseDownload}
@@ -50,6 +50,22 @@ con <- dbConnect(odbc(),
 dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   collect() %>% 
   filter(Estuary %in% Estuaries)
+
+hsdbSurveyQuadrat <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  
+dboSurveyQuadrat <- tbl(con,in_schema("dbo", "SurveyQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+hsdbSurveySH <- tbl(con,in_schema("hsdb", "SurveySH")) %>%
+  collect() %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
+dboSurveySH <- tbl(con,in_schema("dbo", "SurveySH")) %>%
+  collect()%>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
 
 hsdbSBMQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
   collect() %>%
