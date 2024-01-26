@@ -397,17 +397,6 @@ rm(dboFixedLocations,dboSBMQuadrat, dboSBMSH, dboSurveyQuadrat, dboSurveySH, hsd
 
 
 
-```{r DataFiltersAdvanced}
-#Change dataframes here to adjust Figures in chunks below
-
-
-
-
-
-```
-
-
-
 ```{r FigureFormatting}
 #Base formatting for figure consistency
 BaseForm <- theme_classic() +
@@ -426,7 +415,7 @@ BaseForm <- theme_classic() +
 
 ```{r PlotFunction}
 # Function to generate plots
-generate_plot <- function(df, y_variable, y_label, y_SD, title) {
+generate_plot <- function(df, x_variable, x_label, y_variable, y_label, y_SD, title) {
   
   df <- df %>%
     mutate(Upper = !!sym(y_variable) + !!sym(y_SD))
@@ -434,7 +423,7 @@ generate_plot <- function(df, y_variable, y_label, y_SD, title) {
                      dplyr::select(Upper), na.rm = TRUE)
   
   plot_list <- df %>% 
-    ggplot(aes(x = factor(Survey_Year, levels = unique(Survey_Year)), 
+    ggplot(aes(x = factor(!!sym(x_variable), levels = unique(!!sym(x_variable))), 
                y = !!sym(y_variable), 
                color = StationNameNumber, 
                fill = as.factor(StationNameNumber))) + 
@@ -444,7 +433,7 @@ generate_plot <- function(df, y_variable, y_label, y_SD, title) {
     geom_errorbar(aes(ymin = !!sym(y_variable), ymax = Upper), 
                   position = position_dodge(width = 0.9), 
                   width = 0.25, color = "black") + 
-    scale_x_discrete("Survey", expand = c(0.005, 0), 
+    scale_x_discrete(x_label, expand = c(0.005, 0), 
                      guide = guide_axis(angle = -45)) +
     scale_y_continuous(y_label, expand = c(0, 0),
                        limits = c(0, ceiling(max_upper * 1.05)),
@@ -462,8 +451,12 @@ generate_plot <- function(df, y_variable, y_label, y_SD, title) {
 
 ``` {r Figures}
 # Creating SBM Figures
+### Function explanation
+# generate_plot(df, x_variable, x_label, y_variable, y_label, y_SD, title)
+
+
 # Creating Shell Budget figures Mean Live Oysters
-SBM_OyDensity <- generate_plot(SBM_QuadStats1, "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "AB SBM Oyster Density")
+SBM_OyDensity <- generate_plot(SBM_QuadStats1, "Survey_Year", "Survey", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "AB SBM Oyster Density")
 print(SBM_OyDensity)
 
 # Creating Shell Budget figures Mean live shell heights
