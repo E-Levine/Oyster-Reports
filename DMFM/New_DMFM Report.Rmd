@@ -454,22 +454,49 @@ SBM_OyDensity <- generate_plot(SBM_QuadStats1, "Survey_Year", "Survey", "OysterD
 print(SBM_OyDensity)
 
 # Creating Shell Budget figures Mean live shell heights
-SBM_SHLiveMean <- generate_plot(SBM_SHStatsLive, "SHMean", "Live Shell Height (mm)", "SHSD", "AB SBM Live Shell Heights")
+SBM_SHLiveMean <- generate_plot(SBM_SHStatsLive, "Survey_Year", "Survey", "SHMean", "Live Shell Height (mm)", "SHSD", "AB SBM Live Shell Heights")
 print(SBM_SHLiveMean)
 
-# Creating Shell Budget figures Mean dead shell heights
-SBM_SHDeadMean <- generate_plot(SBM_SHStatsDead, "SHMean", "Dead Shell Height (mm)", "SHSD", "AB SBM Dead Shell Heights")
-print(SBM_SHDeadMean)
-
 # Creating Shell Budget figures Mean Oyster drill density
-SBM_DrillDensity <- generate_plot(SBM_QuadStats1, "DrillDensityMean", "Live drills / m2)", "DrillDensitySD", "AB SBM Drill Density")
+SBM_DrillDensity <- generate_plot(SBM_QuadStats1, "Survey_Year", "Survey", "DrillDensityMean", "Live drills / m2)", "DrillDensitySD", "AB SBM Drill Density")
 print(SBM_DrillDensity)
 
 #Creating Shell Budget figures Mean Weights
-SBM_WeightMean <- generate_plot(SBM_QuadStats1, "WeightDensityMean", "Mean Weight (kg / m2)", "WeightDensitySD", "AB SBM Weight Density")
+SBM_WeightMean <- generate_plot(SBM_QuadStats1, "Survey_Year", "Survey", "WeightDensityMean", "Mean Weight (kg / m2)", "WeightDensitySD", "AB SBM Weight Density")
 print(SBM_WeightMean)
 
 ```
+
+
+```{r Figures}
+# Creating Survey Figures
+### Function explanation
+# generate_plot(df, x_variable, x_label, y_variable, y_label, y_SD, title)
+
+#Filter
+Survey_QuadStats2 <- Survey_QuadStats1 %>%
+  filter(StationNumber <= 15 & TripDate >= "2020-01-01")
+Survey_SHStatsLive2 <- Survey_SHStatsLive %>%
+  filter(StationNumber <= 15 & TripDate >= "2020-01-01")
+
+# Creating Surveyfigures Mean Live Oysters
+Survey_OyDensity <- generate_plot(Survey_QuadStats2, "Survey_Year", "Survey", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "AB Survey Oyster Density")
+print(Survey_OyDensity)
+
+# Creating Surveyfigures Mean live shell heights
+Survey_SHLiveMean <- generate_plot(Survey_SHStatsLive2, "Survey_Year", "Survey", "SHMean", "Live Shell Height (mm)", "SHSD", "AB Survey Live Shell Heights")
+print(Survey_SHLiveMean)
+
+# Creating Surveyfigures Mean Oyster drill density
+Survey_DrillDensity <- generate_plot(Survey_QuadStats2, "Survey_Year", "Survey", "DrillDensityMean", "Live drills / m2)", "DrillDensitySD", "AB Survey Drill Density")
+print(Survey_DrillDensity)
+
+#Creating Surveyfigures Mean Weights
+Survey_WeightMean <- generate_plot(Survey_QuadStats2, "Survey_Year", "Survey", "WeightDensityMean", "Mean Weight (kg / m2)", "WeightDensitySD", "AB Survey Weight Density")
+print(Survey_WeightMean)
+
+```
+
 
 ```{r Component Weights}
 #Creating Shell Budget figures Component Weight
