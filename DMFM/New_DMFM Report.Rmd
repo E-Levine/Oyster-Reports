@@ -395,6 +395,19 @@ rm(dboFixedLocations,dboSBMQuadrat, dboSBMSH, dboSurveyQuadrat, dboSurveySH, hsd
 
 ```
 
+
+
+```{r DataFiltersAdvanced}
+#Change dataframes here to adjust Figures in chunks below
+
+
+
+
+
+```
+
+
+
 ```{r FigureFormatting}
 #Base formatting for figure consistency
 BaseForm <- theme_classic() +
