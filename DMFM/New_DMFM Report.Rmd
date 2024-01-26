@@ -6,7 +6,7 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2023-12-31")  # Report End Date
+ReportEnd <- as.Date("2023-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
 Database = "OysterLocalMD20240123"  # Set the local database to use
 Server = "localhost\\MATTLOCALSQL" # Set the local Server to use
 ```
@@ -130,7 +130,6 @@ Survey_Quad1 <- union_all(dboSurveyQuadrat, hsdbSurveyQuadrat) %>%
 
 ### Provide stats for mean number of live oysters; mean number of drills; mean weight
 Survey_QuadStats1 <- Survey_Quad1 %>%
-  filter(TripDate > ReportStart) %>%
   mutate(OysterDensity = NumLive * 4,
          DrillDensity = NumDrills * 4,
          WeightDensity = TotalWeight * 4,
@@ -178,7 +177,6 @@ Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
 
 ### Provides stats for Mean Shell Height LIVE 
 Survey_SHStatsLive <- Survey_SH1 %>%
-  filter(TripDate > ReportStart) %>%
   group_by(Survey_Year,
            Survey,
            Year,
@@ -258,7 +256,6 @@ SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
 
 ### Provide stats for mean number of live oysters; mean number of drills; mean weight 
 SBM_QuadStats1 <- SBM_Quad1 %>%
-  filter(TripDate > ReportStart) %>%
   mutate(OysterDensity = NumLiveOysters * 4,
          DrillDensity = NumDrills * 4,
          WeightDensity = TotalSampleWeight * 4,
@@ -279,8 +276,7 @@ SBM_QuadStats1 <- SBM_Quad1 %>%
   arrange(Year, TripDate, StationNumber)
 
 ### Provide stats for mean weights of components
-SBM_QuadStats2 <- SBM_Quad1 %>%
-  filter(TripDate > QuarterStart) %>% 
+SBM_QuadStats2 <- SBM_Quad1 %>% 
   mutate(LiveOysterWeightDensity = LiveOysterWeight * 4,
          OysterShellWeightDensity = OysterShellWeight * 4,
          PlantedShellWeightDensity = PlantedShellWeight * 4,
@@ -332,7 +328,7 @@ SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
 
 ### Provides stats for Mean Shell Height LIVE 
 SBM_SHStatsLive <- SBM_SH1 %>%
-  filter(TripDate > ReportStart & LiveOrDead == "Live") %>%
+  filter(LiveOrDead == "Live") %>%
   group_by(Survey_Year,
            Survey,
            Year,
