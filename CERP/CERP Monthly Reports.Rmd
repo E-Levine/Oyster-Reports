@@ -2,8 +2,8 @@
 title: "CERP Monthly Report - `r params$Year`-`r params$Month`"
 output: word_document
 params: 
-  Month: "11"  #Enter 2-digit month
-  Year: "2023" #Enter 4-digit year
+  Month: "02"  #Enter 2-digit month
+  Year: "2024" #Enter 4-digit year
 
 knit: (function(inputFile, encoding) {
   rmarkdown::render(
@@ -32,6 +32,7 @@ pacman::p_load(tidyverse, dplyr,  #DF manipulation
                readxl,          #Excel
                lubridate,         #Dates
                knitr, here,
+               flextable,
                install = TRUE)
 
 #Load required data - salinity, recruitment, dermo, survey counts - all but WQ limited to 2023 data
@@ -82,6 +83,7 @@ Srvy <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {Surve
 
 ```
 
+
 ```{r Data summary}
 Sal_summary <- rbind(Sal %>% filter(Site == "SL-C") %>% group_by(Month, Site) %>%
                        summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)),
@@ -118,6 +120,90 @@ CRE_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Bird Island there were approximately ", (Srvy_summary %>% filter(Site == "CR-W"))$meanLive, " live and approximately ", (Srvy_summary %>% filter(Site == "CR-W"))$meanDead, " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 ```
 
+```{r Data summary output}
+
+SLC_survey_output <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  Srvy %>% filter(Site == "SL-C") %>% group_by(Date, Site) %>%
+    summarise(meanLive = round(mean(Live, na.rm = T),2),
+              sdLive = round(sd(Live, na.rm = T), 2),
+              meanDead = round(mean(Dead, na.rm = T), 2),
+              sdDead = round(sd(Dead, na.rm = T),2))
+} else {(data.frame(Site = "SL-C", meanLive = NA, sdLive = NA, meanDead = NA, sdDead = NA))}
+
+SLC1_survey_output <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  Srvy %>% filter(Site == "SL-C" & Station == 1) %>% group_by(Date, Site) %>%
+    summarise(meanLive = round(mean(Live, na.rm = T),2),
+              sdLive = round(sd(Live, na.rm = T), 2),
+              meanDead = round(mean(Dead, na.rm = T), 2),
+              sdDead = round(sd(Dead, na.rm = T),2))
+} else {data.frame(Site = "SLC", meanLive = NA, sdLive = NA, meanDead = NA, sdDead = NA)}
+
+CRE_survey_output <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  Srvy %>% filter(Site == "CR-E" & Station == 2) %>% group_by(Date, Site) %>%
+    summarise(meanLive = round(mean(Live, na.rm = T),2),
+              sdLive = round(sd(Live, na.rm = T), 2),
+              meanDead = round(mean(Dead, na.rm = T), 2),
+              sdDead = round(sd(Dead, na.rm = T),2))
+} else {data.frame(Site = "CR-E", meanLive = NA, sdLive = NA, meanDead = NA, sdDead = NA)}
+
+CRW_survey_output <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  Srvy %>% filter(Site == "CR-W" & Station == 3) %>% group_by(Date, Site) %>% 
+    summarise(meanLive = round(mean(Live, na.rm = T),2),
+              sdLive = round(sd(Live, na.rm = T), 2),
+              meanDead = round(mean(Dead, na.rm = T), 2),
+              sdDead = round(sd(Dead, na.rm = T),2))
+} else {data.frame(Site = "CR-W", meanLive = NA, sdLive = NA, meanDead = NA, sdDead = NA)}
+
+SLC_Excel_summ <- left_join(
+  left_join(
+    left_join(Sal %>% filter(Site == "SL-C") %>% group_by(Date, Site) %>%
+              summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2),
+                        sdSal = round(sd(Salinity..ppt., na.rm = T), 2)), 
+            Rcrt %>% filter(Site == "SL-C") %>% group_by(Ret.Date, Site) %>% 
+              summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2),
+                        sdRcrt = round(sd(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
+  Dermo %>% filter(Site == "SL-C") %>% group_by(Date, Site) %>%
+    summarise(PctDermo = round(sum(DermoSum, na.rm = T)/n()*100, 2))),
+  SLC_survey_output) %>%
+  mutate(Date = format(as.Date(Date, "%Y-%m-%d"), "%b-%y")) %>% as.data.frame()
+
+SLC1_Excel_summ <- left_join(
+  left_join(
+    left_join(Sal %>% filter(Site == "SL-C" & Station == 1) %>% group_by(Date, Site) %>%
+              summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2),
+                        sdSal = round(sd(Salinity..ppt., na.rm = T), 2)), 
+            Rcrt %>% filter(Site == "SL-C" & Station == 1) %>% group_by(Ret.Date, Site) %>% 
+              summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2),
+                        sdRcrt = round(sd(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
+  Dermo %>% filter(Site == "SL-C" & Station == 1) %>% group_by(Date, Site) %>%
+    summarise(PctDermo = round(sum(DermoSum, na.rm = T)/n()*100, 2))),
+  SLC_survey_output) %>%
+  mutate(Date = format(as.Date(Date, "%Y-%m-%d"), "%b-%y")) %>% as.data.frame()
+
+CRE_Excel_summ <- left_join(
+  left_join(
+    left_join(Sal %>% filter(Site == "CR-E") %>% filter(Station == 2) %>% group_by(Date, Site, Station) %>% 
+                summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)),
+              Rcrt %>% filter(Site == "CR-E") %>% filter(Station == 2)%>%  mutate(Station = as.numeric(Station)) %>%
+                group_by(Ret.Date, Site, Station) %>%
+                summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
+    Dermo %>% filter(Site == "CR-E") %>% filter(Station == 2) %>% group_by(Date, Site, Station) %>% 
+      summarise(PctDermo = round(sum(DermoSum, na.rm = T)/n()*100, 2))),
+  CRE_survey_output) %>% dplyr::select(-Station) %>% 
+  mutate(Date = format(as.Date(Date, "%Y-%m-%d"), "%b-%y")) %>% as.data.frame()
+
+CRW_Excel_summ <- left_join(
+  left_join(
+    left_join(Sal %>% filter(Site == "CR-W") %>% filter(Station == 3) %>% group_by(Date, Site, Station) %>%  
+                summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)),
+              Rcrt %>% filter(Site == "CR-W") %>% filter(Station == 3) %>% mutate(Station = as.numeric(Station)) %>%
+                group_by(Ret.Date, Site, Station) %>%
+                summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
+    Dermo %>% filter(Site == "CR-W") %>% filter(Station == 3) %>% group_by(Date, Site, Station) %>% 
+      summarise(PctDermo = round(sum(DermoSum, na.rm = T)/n()*100, 2))),
+  CRW_survey_output) %>% dplyr::select(-Station) %>% 
+  mutate(Date = format(as.Date(Date, "%Y-%m-%d"), "%b-%y")) %>% as.data.frame()
+```
 ## Report summary
 Compiled by: `r Author` on `r format(Sys.Date(), "%d %B %Y")`.\
 This report details data for **CERP** sites in **`r MonYr`**.
@@ -227,3 +313,30 @@ in
 `r max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
 at the Bird Island station.
 *	`r if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste(CRE_Srvy_note, CRW_Srvy_note, sep = " ")} else {paste("Survey was not conducted this month")}`
+
+\newpage
+
+## Data summary output (for Excel files)
+The following data updates the "CERPMonthlyReportData" Excel file:
+
+Here is the data summary output for "Monthly CERP data" Excel sheet:
+```{r echo=FALSE, results='asis'}
+flextable(SLC_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
+```
+\
+\
+Here is the data summary output for "Monthly CR data" Excel sheet:
+```{r echo=FALSE, results='asis'}
+flextable(CRE_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
+flextable(CRW_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
+```
+\
+\
+\
+\
+The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" Excel file:
+
+Here is the data summary output for "SLC_1" Excel sheet:
+```{r echo=FALSE, results='asis'}
+flextable(SLC1_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
+```
