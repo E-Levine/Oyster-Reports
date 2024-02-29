@@ -186,7 +186,8 @@ CRE_Excel_summ <- left_join(
                 summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)),
               Rcrt %>% filter(Site == "CR-E") %>% filter(Station == 2)%>%  mutate(Station = as.numeric(Station)) %>%
                 group_by(Ret.Date, Site, Station) %>%
-                summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
+                summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2),
+                        sdRcrt = round(sd(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
     Dermo %>% filter(Site == "CR-E") %>% filter(Station == 2) %>% group_by(Date, Site, Station) %>% 
       summarise(PctDermo = round(sum(DermoSum, na.rm = T)/n()*100, 2))),
   CRE_survey_output) %>% dplyr::select(-Station) %>% 
@@ -198,7 +199,8 @@ CRW_Excel_summ <- left_join(
                 summarise(meanSal = round(mean(Salinity..ppt., na.rm = T),2)),
               Rcrt %>% filter(Site == "CR-W") %>% filter(Station == 3) %>% mutate(Station = as.numeric(Station)) %>%
                 group_by(Ret.Date, Site, Station) %>%
-                summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
+                summarise(meanRcrt = round(mean(Bottom/(Num.Days/28), na.rm = T),2),
+                        sdRcrt = round(sd(Bottom/(Num.Days/28), na.rm = T),2)) %>% rename(Date = Ret.Date)),
     Dermo %>% filter(Site == "CR-W") %>% filter(Station == 3) %>% group_by(Date, Site, Station) %>% 
       summarise(PctDermo = round(sum(DermoSum, na.rm = T)/n()*100, 2))),
   CRW_survey_output) %>% dplyr::select(-Station) %>% 
