@@ -30,8 +30,8 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 # Connect to Local database server and pull all necessary data, then close connection 
 con <- dbConnect(odbc(),
                     Driver= "SQL Server", 
-                    Server = "localhost\\MATTLOCALSQL",
-                    Database= "OysterLocalMD20230913",
+                    Server = "localhost\\LOCALSQL",
+                    Database= "OysterLocalMD20240314",
                     Authentication = "ActiveDirectoryIntegrated")
 
 dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%

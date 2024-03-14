@@ -7,8 +7,8 @@ output:
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportEnd <- as.Date("2023-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
-Database = "OysterLocalMD20240123"  # Set the local database to use
-Server = "localhost\\MATTLOCALSQL" # Set the local Server to use
+Database = "OysterLocalMD20240314"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
 ```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
