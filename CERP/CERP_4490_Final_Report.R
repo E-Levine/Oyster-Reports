@@ -9,7 +9,7 @@ pacman::p_load(tidyverse, dplyr,  #DF manipulation
                readxl,          #Excel
                lubridate,         #Dates
                lme4, car, #glmer function to replace GLMMIX
-               afex, emmeans, #working
+               stats, emmeans, #working
                knitr, here, 
                flextable,
                install = TRUE)
@@ -37,16 +37,42 @@ Counts <- Counts %>% mutate_at(c(3:8, 10:12), as.factor) %>% rename(Live_raw = L
 #
 ###Run with negative binomial, poisson, and normal distribution - compare to determine best model
 Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site:Year),
-                      data = Counts_df)         
+                      data = Counts_df)     
 Counts_mod_P <- glmer(Live ~ Site * Year + (1|Site:Year),
                           data = Counts_df, family = poisson) 
 Counts_mod_N <- lmer(Live ~ Site * Year + (1|Site:Year),
-                      data = Counts_df) 
-anova(Counts_mod_NB) #Similar F values
-#mixed(Live ~ Site * Year + (1|Site:Year), #Incorrect dfs
-#        data = Counts_df, method = "KR")
-test(emmeans(Counts_mod_NB, "Site")) #Correct LSmeans table but missing mean and se mean - mean and se from "response"
-pairs(emmeans(Counts_mod_NB, "Site")) #Same as diff of Site LS means table
+                      data = Counts_df)
+#
+Model_eval <- list()
+models <- list(Counts_mod_NB, Counts_mod_N, Counts_mod_P)
+model_names <- c("Neg Bi", "Normal", "Poisson")
+for (i in seq_along(models)){
+  model_info <- model_names[i]
+  model_info$Chi2 <- sum(residuals(models[[i]], type = "pearson")^2)
+  model_info$Obs <-  stats::nobs(models[[i]])
+  model_info$Chi_df <- sum(residuals(models[[i]], type = "pearson")^2)/stats::nobs(models[[i]])
+  model_info$Diff <- abs(sum(residuals(models[[i]], type = "pearson")^2)/stats::nobs(models[[i]]) - 1)
+  #model_info %>% as.data.frame()
+  Model_eval <- cbind(Model_eval, model_info)
+}
+(Model_eval %>% as.data.frame())
+#Compare and select best model based on smallest "Diff"erence
+#
+anova(Counts_mod_NB)
+#
+(Live_by_Site <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger"))),
+                                            as.data.frame(emmeans(Counts_mod_NB, "Site", type = "response", lmer.df = "kenward-roger")) %>% 
+                                              dplyr::select(Site:SE) %>% rename(Mean = response))),
+                           multcomp::cld(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger"), Letters = letters, alpha = 0.05) %>% 
+                             data.frame() %>% dplyr::select(Site, .group) %>%
+                             rename(Letters = '.group')))
+pairs(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger")) #Same as diff of Site LS means table
+#
+#
+(Live_by_Year <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger"))),
+                                            as.data.frame(emmeans(Counts_mod_NB, "Year", type = "response", lmer.df = "kenward-roger")) %>% 
+                                              dplyr::select(Year:SE) %>% rename(Mean = response))),
+                           multcomp::cld(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger"), Letters = letters, alpha = 0.05) %>% 
+                             data.frame() %>% dplyr::select(Year, .group) %>%
+                             rename(Letters = '.group')))
 
-cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Site"))),
-          as.data.frame(emmeans(Counts_mod_NB, "Site", type = "response")) %>% dplyr::select(Site:SE) %>% rename(Mean = response))
