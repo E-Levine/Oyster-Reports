@@ -113,6 +113,7 @@ Survey_Quad1 <- union_all(dboSurveyQuadrat, hsdbSurveyQuadrat) %>%
         month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
         month(ymd(TripDate)) > 6 ~ "Fall",
         TRUE ~ "Invalid")) %>%
+  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
   mutate(StationGroup = case_when(
     grepl("RESTORE", StationName) ~ "RESTORE 2017",
     grepl("Baywide", StationName) ~ "Baywide",
@@ -129,6 +130,7 @@ Survey_Quad1 <- union_all(dboSurveyQuadrat, hsdbSurveyQuadrat) %>%
          StationGroup,
          Season, 
          Year, 
+         Season_Year,
          NumLive, 
          TotalWeight,
          Comments)
@@ -145,6 +147,7 @@ SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
         month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
         month(ymd(TripDate)) > 6 ~ "Fall",
         TRUE ~ "Invalid")) %>%
+  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
   rename(TotalWeight = TotalSampleWeight,
          NumLive = NumLiveOysters) %>%
   mutate(StationGroup = case_when(
@@ -167,6 +170,7 @@ SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
          StationGroup,
          Season, 
          Year, 
+         Season_Year,
          NumLive, 
          TotalWeight,
          Comments)
@@ -190,6 +194,7 @@ Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
         month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
         month(ymd(TripDate)) > 6 ~ "Fall",
         TRUE ~ "Invalid")) %>%
+  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
   mutate(StationGroup = case_when(
     grepl("RESTORE", StationName) ~ "RESTORE 2017",
     grepl("Baywide", StationName) ~ "Baywide",
@@ -206,7 +211,8 @@ Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
          StationNameNumber,
          StationGroup,
          Season, 
-         Year,   
+         Year,
+         Season_Year,
          ShellHeight)
 
 ### SBM SHELL HEIGHTS ###
@@ -221,6 +227,7 @@ SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
         month(ymd(TripDate)) > 6 ~ "Fall",
         TRUE ~ "Invalid")) %>%
   filter(LiveOrDead != "Dead") %>% ### Remove measures of dead
+  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
   mutate(StationGroup = case_when(
     TripDate <= "2021-07-16" ~ "Historic Uncultched",
     StationNumber == 6 ~ "Historic Uncultched",
@@ -241,7 +248,8 @@ SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
          StationNameNumber,
          StationGroup,
          Season, 
-         Year,   
+         Year,
+         Season_Year,
          ShellHeight)
 
 #####
@@ -263,188 +271,230 @@ rm(FixedLocations1, dboSBMSH, dboSurveySH, hsdbSBMSH, hsdbSurveySH, Survey_SH1, 
 
 ``` {r BasicStats}
 
-### Provide stats for mean number of live oysters; mean number of drills; mean weight
-Survey_QuadStats1 <- Survey_Quad1 %>%
-  mutate(OysterDensity = NumLive * 4,
-         DrillDensity = NumDrills * 4,
-         WeightDensity = TotalWeight * 4,
-         Survey_Year = paste(Survey, Year, sep = " ")) %>%
-  group_by(TripDate, 
-           Survey_Year, 
-           Survey, 
-           Year, 
-           FixedLocationID,
-           StationNameNumber,
-           StationNumber) %>%
-  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
-            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
-            DrillDensityMean = mean(DrillDensity, na.rm = TRUE),
-            DrillDensitySD = sd(DrillDensity, na.rm = TRUE),
-            WeightDensityMean = mean(WeightDensity, na.rm = TRUE),
-            WeightDensitySD = sd(WeightDensity, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
+### Provides how many were measured for each size class for each quadrat
+SHMeasures <- ShellHeights_ALL %>%
+  group_by(QuadratID) %>%
+  summarize(TotalNumMeasured = sum(!is.na(ShellHeight)),
+            Count_1_to_15 = sum(ifelse(ShellHeight >= 1 & ShellHeight <= 15, 1, 0), na.rm = TRUE),
+            Count_16_to_30 = sum(ifelse(ShellHeight >= 16 & ShellHeight <= 30, 1, 0), na.rm = TRUE),
+            Count_31_to_45 = sum(ifelse(ShellHeight >= 31 & ShellHeight <= 45, 1, 0), na.rm = TRUE),
+            Count_46_to_60 = sum(ifelse(ShellHeight >= 46 & ShellHeight <= 60, 1, 0), na.rm = TRUE),
+            Count_61_to_75 = sum(ifelse(ShellHeight >= 61 & ShellHeight <= 75, 1, 0), na.rm = TRUE),
+            Count_76_to_90 = sum(ifelse(ShellHeight >= 76 & ShellHeight <= 90, 1, 0), na.rm = TRUE),
+            Count_91_plus = sum(ifelse(ShellHeight >= 91, 1, 0), na.rm = TRUE),
+            Count_Spat_1_to_30 = sum(ifelse(ShellHeight >= 1 & ShellHeight <= 30, 1, 0), na.rm = TRUE),
+            Count_Seed_31_to_75 = sum(ifelse(ShellHeight >= 31 & ShellHeight <= 75, 1, 0), na.rm = TRUE),
+            Count_Legal_76_plus = sum(ifelse(ShellHeight >= 76, 1, 0), na.rm = TRUE)
+            )
 
+### Provide stats for how many live oysters there were in each quadrat, by size class
+QuadStats1 <- left_join(Quadrats_ALL, SHMeasures, by = c("QuadratID"))
 
-
-### Provides stats for Mean Shell Height LIVE 
-Survey_SHStatsLive <- Survey_SH1 %>%
-  group_by(Survey_Year,
-           Survey,
-           Year,
-           TripDate,
-           FixedLocationID, 
-           StationNameNumber, 
-           StationNumber) %>%
-  summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
-            SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
-
-### Provide fisheries calculations
-Survey_FishStats1 <- Survey_SH1 %>%
-  group_by(Survey_Year,
-           Survey,
-           Year,
-           TripDate,
-           FixedLocationID, 
-           StationNameNumber, 
-           StationNumber, 
-           QuadratID) %>%
-  summarise(LegalCount = replace_na(sum(ShellHeight > 74), 0)) %>%
-  right_join(Survey_Quad1, by = c("QuadratID", "Survey", "Year", "TripDate", "FixedLocationID", "StationNumber", "StationNameNumber")) %>%
-  mutate(OysterDensity = NumLive * 4, 
-         LegalTotal = ifelse(NumLive > 50, ((NumLive * LegalCount) / 50), LegalCount),
-         LegalDensity = LegalTotal *4,
-         BagsPerAcre = (LegalDensity * 4047) / 225)
-  
-Survey_FishStats2 <- Survey_FishStats1 %>%
-  group_by(Survey_Year,
-           Survey,
-           Year,
-           TripDate,
-           FixedLocationID, 
-           StationNameNumber, 
-           StationNumber) %>%
-  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
-            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
-            LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
-            LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
-            BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
-            BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
-
-
-
-### Provide stats for mean number of live oysters; mean number of drills; mean weight 
-SBM_QuadStats1 <- SBM_Quad1 %>%
-  mutate(OysterDensity = NumLiveOysters * 4,
-         DrillDensity = NumDrills * 4,
-         WeightDensity = TotalSampleWeight * 4,
-         Survey_Year = paste(Survey, Year, sep = " ")) %>%
-  group_by(TripDate, 
-           Survey_Year, 
-           Survey, 
-           Year, 
-           FixedLocationID,
-           StationNameNumber,
-           StationNumber) %>%
-  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
-            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
-            DrillDensityMean = mean(DrillDensity, na.rm = TRUE),
-            DrillDensitySD = sd(DrillDensity, na.rm = TRUE),
-            WeightDensityMean = mean(WeightDensity, na.rm = TRUE),
-            WeightDensitySD = sd(WeightDensity, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
-
-### Provide stats for mean weights of components
-SBM_QuadStats2 <- SBM_Quad1 %>% 
-  mutate(LiveOysterWeightDensity = LiveOysterWeight * 4,
-         OysterShellWeightDensity = OysterShellWeight * 4,
-         PlantedShellWeightDensity = PlantedShellWeight * 4,
-         ShellHashWeightDensity = ShellHashWeight * 4,
-         OtherWeightDensity = OtherWeight * 4) %>%
-  group_by(Survey, 
-           Year, 
-           FixedLocationID, 
-           StationNameNumber,
-           StationNumber) %>%
-  summarise(LiveOysterWeightMean = mean(LiveOysterWeightDensity, na.rm = TRUE),
-            LiveOysterWeightSD = sd(LiveOysterWeightDensity, na.rm = TRUE),
-            OysterShellWeightMean = mean(OysterShellWeightDensity, na.rm = TRUE),
-            OysterShellWeightSD = sd(OysterShellWeightDensity, na.rm = TRUE),
-            PlantedShellWeightMean = mean(PlantedShellWeightDensity, na.rm = TRUE),
-            PlantedShellWeightSD = sd(PlantedShellWeightDensity, na.rm = TRUE),
-            ShellHashWeightMean = mean(ShellHashWeightDensity, na.rm = TRUE),
-            ShellHashWeightSD = sd(ShellHashWeightDensity, na.rm = TRUE),
-            OtherWeightMean = mean(OtherWeightDensity, na.rm = TRUE),
-            OtherWeightSD = sd(OtherWeightDensity, na.rm = TRUE)) %>%
-  arrange(StationNumber)
-
-
-
-### Provides stats for Mean Shell Height LIVE 
-SBM_SHStatsLive <- SBM_SH1 %>%
-  filter(LiveOrDead == "Live") %>%
-  group_by(Survey_Year,
-           Survey,
-           Year,
-           TripDate,
-           FixedLocationID, 
-           StationNameNumber, 
-           StationNumber) %>%
-  summarise(SHMean = mean(ShellHeight, na.rm = TRUE),
-            SHSD = sd(ShellHeight, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
-
-### Provide fisheries calculations
-SBM_FishStats1 <- SBM_SH1 %>%
-  group_by(Survey_Year,
-           Survey,
-           Year,
-           TripDate,
-           FixedLocationID, 
-           StationNameNumber, 
-           StationNumber, 
-           QuadratID) %>%
-  summarise(LegalCount = replace_na(sum(ShellHeight > 74), 0)) %>%
-  right_join(SBM_Quad1, by = c("QuadratID", "Survey", "Year", "TripDate", "FixedLocationID", "StationNumber", "StationNameNumber")) %>%
-  mutate(OysterDensity = NumLiveOysters * 4, 
-         LegalTotal = ifelse(NumLiveOysters > 50, ((NumLiveOysters * LegalCount) / 50), LegalCount),
-         LegalDensity = LegalTotal *4,
-         BagsPerAcre = (LegalDensity * 4047) / 225)
-  
-SBM_FishStats2 <- SBM_FishStats1 %>%
-  group_by(TripDate, 
-           Survey_Year, 
-           Survey, 
-           Year, 
-           FixedLocationID,
-           StationNameNumber,
-           StationNumber) %>%
-  summarise(OysterDensityMean = mean(OysterDensity, na.rm = TRUE),
-            OysterDensitySD = sd(OysterDensity, na.rm = TRUE),
-            LegalDensityMean = mean(LegalDensity, na.rm = TRUE),
-            LegalDensitySD = sd(LegalDensity, na.rm = TRUE),
-            BagsPerAcreMean = mean(BagsPerAcre, na.rm = TRUE),
-            BagsPerAcreSD = sd(BagsPerAcre, na.rm = TRUE)) %>%
-  arrange(Year, TripDate, StationNumber)
-
-
-### ALL DATA ###
-# Quadrats #
-ALL_QuadStats1 <- union_all(SBM_QuadStats1, Survey_QuadStats1) %>%
-  arrange(Year, TripDate, StationNumber)
-
-# Shell Heights #
-ALL_SHStats1 <- union_all(SBM_SHStatsLive, Survey_SHStatsLive) %>%
-  arrange(Year, TripDate, StationNumber)
-
-# Fisheries Stats #
-ALL_FishStats1 <- union_all(SBM_FishStats2, Survey_FishStats2) %>%
-  arrange(Year, TripDate, StationNumber)
-
-rm(dboFixedLocations,dboSBMQuadrat, dboSBMSH, dboSurveyQuadrat, dboSurveySH, hsdbSBMQuadrat, hsdbSBMSH, hsdbSurveyQuadrat, hsdbSurveySH) # remove dataframes no longer in use
+QuadStats2 <- QuadStats1 %>%
+  mutate(
+    Num_1_to_15 = (Count_1_to_15 * NumLive) / TotalNumMeasured,
+    Num_16_to_30 = (Count_16_to_30 * NumLive) / TotalNumMeasured,
+    Num_31_to_45 = (Count_31_to_45 * NumLive) / TotalNumMeasured,
+    Num_46_to_60 = (Count_46_to_60 * NumLive) / TotalNumMeasured,
+    Num_61_to_75 = (Count_61_to_75 * NumLive) / TotalNumMeasured,
+    Num_76_to_90 = (Count_76_to_90 * NumLive) / TotalNumMeasured,
+    Num_91_plus = (Count_91_plus * NumLive) / TotalNumMeasured,
+    Num_Spat_1_to_30 = (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured,
+    Num_Seed_31_to_75 = (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured,
+    Num_Legal_76_plus = (Count_Legal_76_plus * NumLive) / TotalNumMeasured) %>%
+  select(
+    - Count_1_to_15,
+    - Count_16_to_30,
+    - Count_31_to_45,
+    - Count_46_to_60,
+    - Count_61_to_75,
+    - Count_76_to_90, 
+    - Count_91_plus, 
+    - Count_Spat_1_to_30,
+    - Count_Seed_31_to_75,
+    - Count_Legal_76_plus)
 
 ```
+
+``` {r AllOysterStats}
+
+# Set up
+
+QuadStats_ALL_Oys <- QuadStats2 %>%
+  mutate(OysterDensity = NumLive * 4,
+         WeightDensity = TotalWeight * 4) 
+
+summarise_ALL <- function(data) {
+  summarised_data <- data %>%
+    summarise(OysterDensityMean = round(mean(OysterDensity, na.rm = TRUE), digits = 0),
+            OysterDensitySD = round(sd(OysterDensity, na.rm = TRUE), digits = 0),
+            WeightDensityMean = round(mean(WeightDensity, na.rm = TRUE), digits = 1),
+            WeightDensitySD = round(sd(WeightDensity, na.rm = TRUE), digits = 1))
+  return(summarised_data)
+}
+
+# Stats for Total Oyster Density and Total Weight Density by Year and StationGroup
+QuadStats_ALL_Oys1 <- QuadStats_ALL_Oys %>%
+  group_by(Year, 
+           StationGroup) %>%
+  summarise_ALL() %>%
+  arrange(StationGroup, 
+          Year)
+
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
+QuadStats_ALL_Oys2 <- QuadStats_ALL_Oys %>%
+  group_by(Year, 
+           StationGroup,
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year, 
+          SectionName, 
+          StationGroup)
+
+# Stats for Total Oyster Density and Total Weight Density by Year and Season and StationGroup
+QuadStats_ALL_Oys3 <- QuadStats_ALL_Oys %>%
+  group_by(Year, 
+           Season,
+           Season_Year, 
+           StationGroup) %>%
+  summarise_ALL() %>%
+  arrange(StationGroup, 
+          Year, 
+          desc(Season))
+
+# Stats for Total Oyster Density and Total Weight Density by Year and Section
+QuadStats_ALL_Oys4 <- QuadStats_ALL_Oys %>%
+  group_by(Year, 
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year, 
+          SectionName)
+
+
+```
+
+
+``` {r OysterStatsby15mmSizeClass}
+
+# Set up
+
+QuadStats_15mmSizeClass_Oys <- QuadStats2 %>%
+  mutate(Num_1_to_15 = Num_1_to_15 * 4,
+         Num_16_to_30 = Num_16_to_30 * 4,
+         Num_31_to_45 = Num_31_to_45 * 4,
+         Num_46_to_60 = Num_46_to_60 * 4,
+         Num_61_to_75 = Num_61_to_75 * 4,
+         Num_76_to_90 = Num_76_to_90 * 4,
+         Num_91_plus = Num_91_plus * 4) 
+
+summarise_15mmSizeClass <- function(data) {
+  summarised_data <- data %>%
+    summarise(Density_1_to_15_Mean = round(mean(Num_1_to_15, na.rm = TRUE), digits = 0),
+            Density_16_to_30_Mean = round(mean(Num_16_to_30, na.rm = TRUE), digits = 0),
+            Density_31_to_45_Mean = round(mean(Num_31_to_45, na.rm = TRUE), digits = 0),
+            Density_46_to_60_Mean = round(mean(Num_46_to_60, na.rm = TRUE), digits = 0),
+            Density_61_to_75_Mean = round(mean(Num_46_to_60, na.rm = TRUE), digits = 0),
+            Density_76_to_90_Mean = round(mean(Num_76_to_90, na.rm = TRUE), digits = 0),
+            Density_91_plus_Mean = round(mean(Num_91_plus, na.rm = TRUE), digits = 0)) 
+  return(summarised_data)
+}
+
+# Stats for Oyster Density by 15mm size class, by Year and StationGroup
+QuadStats_15mmSizeClass_1 <- QuadStats_15mmSizeClass_Oys %>%
+  group_by(Year, 
+           StationGroup) %>%
+  summarise_15mmSizeClass() %>%
+  arrange(StationGroup, 
+          Year)
+
+# Stats for Oyster Density by 15mm size class, by Year and Section and StationGroup
+QuadStats_15mmSizeClass_2 <- QuadStats_15mmSizeClass_Oys %>%
+  group_by(Year, 
+           StationGroup,
+           SectionName) %>%
+  summarise_15mmSizeClass() %>%
+  arrange(Year, 
+          SectionName, 
+          StationGroup)
+
+# Stats for Oyster Density by 15mm size class, by Year and Season and StationGroup
+QuadStats_15mmSizeClass_3 <- QuadStats_15mmSizeClass_Oys %>%
+  group_by(Year, 
+           Season,
+           Season_Year, 
+           StationGroup) %>%
+  summarise_15mmSizeClass() %>%
+  arrange(StationGroup, 
+          Year, 
+          desc(Season))
+
+# Stats for Oyster Density by 15mm size class, by Year and Section
+QuadStats_15mmSizeClass_4 <- QuadStats_15mmSizeClass_Oys %>%
+  group_by(Year,
+           SectionName) %>%
+  summarise_15mmSizeClass() %>%
+  arrange(Year, 
+          SectionName)
+
+```
+
+``` {r OysterStatsbyClassicSizeClass}
+
+# Set up
+
+QuadStats_ClassicSizeClass_Oys <- QuadStats2 %>%
+  mutate(Num_Spat_1_to_30 = Num_Spat_1_to_30 * 4,
+         Num_Seed_31_to_75 = Num_Seed_31_to_75 * 4,
+         Num_Legal_76_plus = Num_Legal_76_plus * 4) 
+
+summarise_ClassicSizeClass <- function(data) {
+  summarised_data <- data %>%
+    summarise(Density_Spat_1_to_30_Mean = round(mean(Num_1_to_15, na.rm = TRUE), digits = 0),
+            Density_Seed_31_to_75_Mean = round(mean(Num_16_to_30, na.rm = TRUE), digits = 0),
+            Density_Legal_76_plus_Mean = round(mean(Num_31_to_45, na.rm = TRUE), digits = 0)) 
+  return(summarised_data)
+}
+
+# Stats for Oyster Density by classic size class, by Year and StationGroup
+QuadStats_ClassicSizeClass_1 <- QuadStats_ClassicSizeClass_Oys %>%
+  group_by(Year, 
+           StationGroup) %>%
+  summarise_ClassicSizeClass() %>%
+  arrange(StationGroup, 
+          Year)
+
+# Stats for Oyster Density by classic size class, by Year and Section and StationGroup
+QuadStats_ClassicSizeClass_2 <- QuadStats_ClassicSizeClass_Oys %>%
+  group_by(Year, 
+           StationGroup,
+           SectionName) %>%
+  summarise_ClassicSizeClass() %>%
+  arrange(Year, 
+          SectionName, 
+          StationGroup)
+
+# Stats for Oyster Density by classic size class, by Year and Season and StationGroup
+QuadStats_ClassicSizeClass_3 <- QuadStats_ClassicSizeClass_Oys %>%
+  group_by(Year, 
+           Season,
+           Season_Year, 
+           StationGroup) %>%
+  summarise_ClassicSizeClass() %>%
+  arrange(StationGroup, 
+          Year, 
+          desc(Season))
+
+# Stats for Oyster Density by classic size class, by Year and Section
+QuadStats_ClassicSizeClass_4 <- QuadStats_ClassicSizeClass_Oys %>%
+  group_by(Year,
+           SectionName) %>%
+  summarise_ClassicSizeClass() %>%
+  arrange(Year, 
+          SectionName)
+
+```
+
+
 
 ```{r FigureFormatting}
 #Base formatting for figure consistency
