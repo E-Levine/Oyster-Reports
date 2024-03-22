@@ -36,7 +36,7 @@ Counts <- Counts %>% mutate_at(c(3:8, 10:12), as.factor) %>% rename(Live_raw = L
   droplevels() %>% mutate(across(everything(), ~replace(., . == -999, NA)))) 
 #
 ###Run with negative binomial, poisson, and normal distribution - compare to determine best model
-Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site:Year),
+Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site) + (1|Year),
                       data = Counts_df)     
 Counts_mod_P <- glmer(Live ~ Site * Year + (1|Site:Year),
                           data = Counts_df, family = poisson) 
@@ -60,19 +60,19 @@ for (i in seq_along(models)){
 #
 anova(Counts_mod_NB)
 #
-(Live_by_Site <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger"))),
-                                            as.data.frame(emmeans(Counts_mod_NB, "Site", type = "response", lmer.df = "kenward-roger")) %>% 
+(Live_by_Site <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink"))),
+                                            as.data.frame(emmeans(Counts_mod_NB, "Site", type = "response", lmer.df = "kenward-roger", type = "unlink")) %>% 
                                               dplyr::select(Site:SE) %>% rename(Mean = response))),
-                           multcomp::cld(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger"), Letters = letters, alpha = 0.05) %>% 
+                           multcomp::cld(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink"), Letters = letters, alpha = 0.05) %>% 
                              data.frame() %>% dplyr::select(Site, .group) %>%
                              rename(Letters = '.group')))
-pairs(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger")) #Same as diff of Site LS means table
+pairs(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink"), adjust = "tukey") #Same as diff of Site LS means table
 #
 #
-(Live_by_Year <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger"))),
-                                            as.data.frame(emmeans(Counts_mod_NB, "Year", type = "response", lmer.df = "kenward-roger")) %>% 
+(Live_by_Year <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink"))),
+                                            as.data.frame(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink")) %>% 
                                               dplyr::select(Year:SE) %>% rename(Mean = response))),
-                           multcomp::cld(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger"), Letters = letters, alpha = 0.05) %>% 
+                           multcomp::cld(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink"), Letters = letters, alpha = 0.05) %>% 
                              data.frame() %>% dplyr::select(Year, .group) %>%
                              rename(Letters = '.group')))
 
