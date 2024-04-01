@@ -1,4 +1,4 @@
-###CERP 4490 Final Report
+###CERP 4490 Final Report - Testing with 4203 analyses
 ##2019-2023 Data
 ##Running 2019-2023 then 2005-2023 
 #
@@ -10,12 +10,13 @@ pacman::p_load(tidyverse, dplyr,  #DF manipulation
                lubridate,         #Dates
                lme4, car, #glmer function to replace GLMMIX
                stats, emmeans, #working
+               nlme, #afex, #lmerTest, #MASS, #glm.nb
                knitr, here, 
                flextable,
                install = TRUE)
 #
 #
-####Surevey data####
+####Survey data####
 #
 ##Load data, check, and reformat columns as needed
 Counts <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/SAS Data Analysis/SAS Data/SurveyCountsSAS.xlsx", 
@@ -27,17 +28,27 @@ Counts <- Counts %>% mutate_at(c(3:8, 10:12), as.factor) %>% rename(Live_raw = L
 #
 ##Add columns for converted counts and select data to analyze
 (Counts_df <- Counts %>% 
-  mutate(Live = case_when(Live_raw < 0 & Date >= '2019-01-01' & (Season == 'Spr'|Season == 'Fal') ~ LiveQtr*4,
-         TRUE ~ NA),
-         Dead = case_when(Dead_raw < 0 & Date >= '2019-01-01' & (Season == 'Spr'|Season == 'Fal') ~ DeadQtr*4,
-                          TRUE ~ NA),
+  mutate(Live = case_when(Live_raw >= 0 & Date <= '2019-01-01' & (Season == 'Spr'|Season == 'Fal') ~ Live_raw,
+                          Live_raw < 0 & Date >= '2019-01-01' & (Season == 'Spr'|Season == 'Fal') ~ LiveQtr*4,
+                          TRUE ~ LiveQtr*4),
+         Dead = case_when(Dead_raw >= 0 & Date <= '2019-01-01' & (Season == 'Spr'|Season == 'Fal') ~ Dead_raw,
+                          Dead_raw < 0 & Date >= '2019-01-01' & (Season == 'Spr'|Season == 'Fal') ~ DeadQtr*4,
+                          TRUE ~ DeadQtr*4),
          Total = Live + Dead) %>%
-  subset(Date >= as.Date('2019-01-01', format = "%Y-%m-%d") & (Site == "SL-C" | Site == "SL-N" | Site == "SL-S" | Site == "LX-N" | Site == "LX-S")) %>%
+  subset(Date <= as.Date('2019-01-01', format = "%Y-%m-%d") & (Site == "SL-C" | Site == "SL-N" | Site == "SL-S" | Site == "LX-N" | Site == "LX-S") &
+           (Season == 'Spr' | Season == 'Fal')) %>%
   droplevels() %>% mutate(across(everything(), ~replace(., . == -999, NA)))) 
 #
+#
+#
+options(contrasts = c(factor = "contr.SAS", ordered = "contr.poly"))
 ###Run with negative binomial, poisson, and normal distribution - compare to determine best model
-Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site) + (1|Year),
+set.seed(54321)
+Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site:Year),
                       data = Counts_df)     
+Counts_mod_NB2 <- glm.nb(Live ~ Site * Year, Counts_df, link = log)
+Counts_mod_NB3 <- nlme::lme(Live ~ Site * Year, random = ~1|Station, method = "ML", data = Counts_df)
+
 Counts_mod_P <- glmer(Live ~ Site * Year + (1|Site:Year),
                           data = Counts_df, family = poisson) 
 Counts_mod_N <- lmer(Live ~ Site * Year + (1|Site:Year),
@@ -58,10 +69,13 @@ for (i in seq_along(models)){
 (Model_eval %>% as.data.frame())
 #Compare and select best model based on smallest "Diff"erence
 #
-anova(Counts_mod_NB)
+anova(Counts_mod_NB, type = 3, ddf = "Kenward-Roger")
+anova(Counts_mod_NB3, type = "sequential")
+anova(Counts_mod_NB2, test = "F")
+Anova(Counts_mod_NB2, type = c(3), test.statistic="F")
 #
 (Live_by_Site <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink"))),
-                                            as.data.frame(emmeans(Counts_mod_NB, "Site", type = "response", lmer.df = "kenward-roger", type = "unlink")) %>% 
+                                            as.data.frame(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink")) %>% 
                                               dplyr::select(Site:SE) %>% rename(Mean = response))),
                            multcomp::cld(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink"), Letters = letters, alpha = 0.05) %>% 
                              data.frame() %>% dplyr::select(Site, .group) %>%
