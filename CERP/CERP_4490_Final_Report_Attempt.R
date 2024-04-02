@@ -4,13 +4,13 @@
 #
 #
 #Load required packages
-if (!require("pacman")) install.packages("pacman")
+if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(tidyverse, dplyr,  #DF manipulation
                readxl,          #Excel
                lubridate,         #Dates
                lme4, car, #glmer function to replace GLMMIX
                stats, emmeans, #working
-               nlme, #afex, #lmerTest, #MASS, #glm.nb
+               pbgrtest, MASS, nlme, #afex, #lmerTest, #glm.nb
                knitr, here, 
                flextable,
                install = TRUE)
@@ -44,10 +44,7 @@ Counts <- Counts %>% mutate_at(c(3:8, 10:12), as.factor) %>% rename(Live_raw = L
 ###Run with negative binomial, poisson, and normal distribution - compare to determine best model
 set.seed(54321)
 Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site:Year),
-                                data = Counts_df)     
-Counts_mod_NB2 <- glm.nb(Live ~ Site * Year, Counts_df, link = log)
-Counts_mod_NB3 <- nlme::lme(Live ~ Site * Year, random = ~1|Station, method = "ML", data = Counts_df)
-
+                                data = Counts_df)   #glm.nb(Live ~ Site * Year, data = Counts_df, link = "log")     
 Counts_mod_P <- glmer(Live ~ Site * Year + (1|Site:Year),
                       data = Counts_df, family = poisson) 
 Counts_mod_N <- lmer(Live ~ Site * Year + (1|Site:Year),
@@ -68,3 +65,8 @@ for (i in seq_along(models)){
 }
 (Model_eval %>% as.data.frame())
 #Compare and select best model based on smallest "Diff"erence
+## 
+##Neg
+anova(Counts_mod_NB, type = c("3"))
+pbkrtest::KRmodcomp(Counts_mod_N)
+      
