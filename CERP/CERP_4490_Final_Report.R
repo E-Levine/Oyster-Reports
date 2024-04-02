@@ -10,7 +10,7 @@ pacman::p_load(tidyverse, dplyr,  #DF manipulation
                lubridate,         #Dates
                lme4, car, #glmer function to replace GLMMIX
                stats, emmeans, #working
-               nlme, #afex, #lmerTest, #MASS, #glm.nb
+               MASS, nlme, #afex, #lmerTest, #MASS, #glm.nb
                knitr, here, 
                flextable,
                install = TRUE)
@@ -46,7 +46,7 @@ options(contrasts = c(factor = "contr.SAS", ordered = "contr.poly"))
 set.seed(54321)
 Counts_mod_NB <- lme4::glmer.nb(Live ~ Site * Year + (1|Site:Year),
                       data = Counts_df)     
-Counts_mod_NB2 <- glm.nb(Live ~ Site * Year, Counts_df, link = log)
+Counts_mod_NB2 <- glm.nb(Live ~ Site * Year, Counts_df, link = log, contrasts = list(Site = "contr.SAS", Year = "contr.SAS"))
 Counts_mod_NB3 <- nlme::lme(Live ~ Site * Year, random = ~1|Station, method = "ML", data = Counts_df)
 
 Counts_mod_P <- glmer(Live ~ Site * Year + (1|Site:Year),
@@ -72,7 +72,8 @@ for (i in seq_along(models)){
 anova(Counts_mod_NB, type = 3, ddf = "Kenward-Roger")
 anova(Counts_mod_NB3, type = "sequential")
 anova(Counts_mod_NB2, test = "F")
-Anova(Counts_mod_NB2, type = c(3), test.statistic="F")
+Anova(Counts_mod_NB2, type = (3), test.statistic="F")
+mixed(Counts_mod_NB2, data = Counts_df)
 #
 (Live_by_Site <- left_join(data.frame(cbind(as.data.frame(test(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink"))),
                                             as.data.frame(emmeans(Counts_mod_NB, "Site", lmer.df = "kenward-roger", type = "unlink")) %>% 
@@ -89,4 +90,53 @@ pairs(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink")
                            multcomp::cld(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink"), Letters = letters, alpha = 0.05) %>% 
                              data.frame() %>% dplyr::select(Year, .group) %>%
                              rename(Letters = '.group')))
+#
+#
+#
+###Testing
+Counts <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/SAS Data Analysis/SAS Data/CERP4203_Final_Live_Data_Test.xlsx", 
+                     sheet = "Sheet1", skip = 0, col_names = TRUE, na = c("", "Z"), trim_ws = TRUE, .name_repair = "universal")
+#
+head(Counts)
+glimpse(Counts)
+Counts <- Counts %>% mutate_at(c(3:8, 10:12), as.factor) 
+#
+Counts_glmer <- glmer(Live ~ Site * Year + (1|Site:Year), data = Counts, family = negative.binomial)
+summary(Counts_glmer)
+Anova(Counts_glmer, type = 3, ddf = "Kenward-Roger", test.statistic = "F")
+lsmeans(Counts_glmer, specs = "Site|Year", type = "response")
+#
+Counts_NB <- glm.nb(Live ~ Site * Year, Counts, link = log)#, contrasts = list(Site = "contr.SAS", Year = "contr.SAS"))
+summary(Counts_NB)
+Anova(Counts_NB, type = 3, test.statistic = "F")
+lsmeans(Counts_NB, ~ Site, type = "response", ddf = "Kenward-Roger", pairwise = TRUE)
+lsmeans(Counts_NB, ~ Year, type = "response", ddf = "Kenward-Roger")
+lsmeans(Counts_NB, ~ Year|Site, type = "response")
+multcomp::cld(emmeans(Counts_NB, "Site"), adjust = "none")
+expand.grid(Site = levels(Counts$Site), Year = levels(Counts$Year))
 
+Counts_mod_NB3 <- nlme::lme(Live ~ Site * Year, random = ~1|Station, method = "ML", data = Counts_df)
+Anova(Counts_mod_NB3, type = 3, test.statistic = "F", ddf = "Kenward-Roger")
+lsmeans(Counts_mod_NB3, "Site", type = "response")
+
+t <- lme4::lmer(Live ~ Site * Year + (1|Station), data = Counts, REML = TRUE)
+summary(t)
+anova(t)
+t2 <- afex::mixed(Live ~ Site * Year + (1|Station), data = Counts, method = "KR")
+summary(t2)
+anova(t2)
+emmeans(t2)
+#
+Counts_NB <- glm.nb(Live ~ Site * Year, Counts, link = "log")#, contrasts = list(Site = "contr.SAS", Year = "contr.SAS"))
+summary(Counts_NB)
+Anova(Counts_NB, type = 3, test.statistic = "F")
+NB_ls <- lsmeans(Counts_NB, ~Year|Site)
+multcomp::cld(NB_ls)
+wilcox.test(Live ~ Site, data = Counts)
+#
+#####Within comps####
+#
+##Only missing comparisons within sites among years - ignore rest and work with comparisons
+
+Counts %>% group_by(Site) %>% summarise(mean = mean(Live))
+wilcox.test(Live ~ Year, data = Counts, subset = Site %in% c("LX-N"))
