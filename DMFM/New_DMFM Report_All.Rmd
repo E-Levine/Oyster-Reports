@@ -338,8 +338,8 @@ QuadStats_ALL_Oys1 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
            StationGroup) %>%
   summarise_ALL() %>%
-  arrange(StationGroup, 
-          Year)
+  arrange(Year,
+          StationGroup)
 
 # Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
 QuadStats_ALL_Oys2 <- QuadStats_ALL_Oys %>%
@@ -496,6 +496,85 @@ QuadStats_ClassicSizeClass_4 <- QuadStats_ClassicSizeClass_Oys %>%
 
 
 
+``` {r dataExport}
+# Temporary section for data export to Excel so I can play around with data / displays to see what we need in the sections following
+library(openxlsx)
+
+ALLOysfile = paste("All_Oysters_", Sys.Date(), ".xlsx", sep = "")
+SmallSizeClass = paste("Small_Size_Class_", Sys.Date(), ".xlsx", sep = "") 
+ClassiciSizeClass = paste("Classic_Size_Class_", Sys.Date(), ".xlsx", sep = "")
+
+# All Oysters together
+  write.xlsx(list(
+    "YearSG" = QuadStats_ALL_Oys1, 
+    "YearSectionSG" = QuadStats_ALL_Oys2, 
+    "YearSeasonSG" = QuadStats_ALL_Oys3, 
+    "YearSection" = QuadStats_ALL_Oys4),
+  file = ALLOysfile, colNames = TRUE)
+  # Open the workbook for further customization
+  wb <- loadWorkbook(ALLOysfile)
+  # Auto-adjust column widths
+  setColWidths(wb, sheet = "YearSG", cols = 1:ncol(QuadStats_ALL_Oys1), widths = "auto")
+  setColWidths(wb, sheet = "YearSectionSG", cols = 1:ncol(QuadStats_ALL_Oys2), widths = "auto")
+  setColWidths(wb, sheet = "YearSeasonSG", cols = 1:ncol(QuadStats_ALL_Oys3), widths = "auto")
+  setColWidths(wb, sheet = "YearSection", cols = 1:ncol(QuadStats_ALL_Oys4), widths = "auto")
+  # Freeze the first row
+  freezePane(wb, sheet = "YearSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSectionSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSeasonSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSection", firstRow = TRUE)
+  # Save the modified workbook
+  saveWorkbook(wb, ALLOysfile, overwrite = TRUE)
+
+  
+# Small size classes  (15 mm)
+  write.xlsx(list(
+    "YearSG" = QuadStats_15mmSizeClass_1, 
+    "YearSectionSG" = QuadStats_15mmSizeClass_2, 
+    "YearSeasonSG" = QuadStats_15mmSizeClass_3, 
+    "YearSection" = QuadStats_15mmSizeClass_4),
+  file = SmallSizeClass, colNames = TRUE)
+  # Open the workbook for further customization
+  wb <- loadWorkbook(SmallSizeClass)
+  # Auto-adjust column widths
+  setColWidths(wb, sheet = "YearSG", cols = 1:ncol(QuadStats_15mmSizeClass_1), widths = "auto")
+  setColWidths(wb, sheet = "YearSectionSG", cols = 1:ncol(QuadStats_15mmSizeClass_2), widths = "auto")
+  setColWidths(wb, sheet = "YearSeasonSG", cols = 1:ncol(QuadStats_15mmSizeClass_3), widths = "auto")
+  setColWidths(wb, sheet = "YearSection", cols = 1:ncol(QuadStats_15mmSizeClass_4), widths = "auto")
+  # Freeze the first row
+  freezePane(wb, sheet = "YearSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSectionSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSeasonSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSection", firstRow = TRUE)
+  # Save the modified workbook
+  saveWorkbook(wb, SmallSizeClass, overwrite = TRUE)
+  
+  
+# Classic size classes  (spat, seed, legal)
+  write.xlsx(list(
+    "YearSG" = QuadStats_ClassicSizeClass_1, 
+    "YearSectionSG" = QuadStats_ClassicSizeClass_2, 
+    "YearSeasonSG" = QuadStats_ClassicSizeClass_3, 
+    "YearSection" = QuadStats_ClassicSizeClass_4),
+  file = ClassiciSizeClass, colNames = TRUE)
+  # Open the workbook for further customization
+  wb <- loadWorkbook(ClassiciSizeClass)
+  # Auto-adjust column widths
+  setColWidths(wb, sheet = "YearSG", cols = 1:ncol(QuadStats_ClassicSizeClass_1), widths = "auto")
+  setColWidths(wb, sheet = "YearSectionSG", cols = 1:ncol(QuadStats_ClassicSizeClass_2), widths = "auto")
+  setColWidths(wb, sheet = "YearSeasonSG", cols = 1:ncol(QuadStats_ClassicSizeClass_3), widths = "auto")
+  setColWidths(wb, sheet = "YearSection", cols = 1:ncol(QuadStats_ClassicSizeClass_4), widths = "auto")
+  # Freeze the first row
+  freezePane(wb, sheet = "YearSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSectionSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSeasonSG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSection", firstRow = TRUE)
+  # Save the modified workbook
+  saveWorkbook(wb, ClassiciSizeClass, overwrite = TRUE)
+```
+
+
+
 ```{r FigureFormatting}
 #Base formatting for figure consistency
 BaseForm <- theme_classic() +
@@ -512,9 +591,12 @@ BaseForm <- theme_classic() +
 
 ```
 
-```{r PlotFunction}
-# Function to generate plots
-generate_plot <- function(df, x_variable, x_label, y_variable, y_label, y_SD, title) {
+
+
+```{r PlotFunctions}
+# Function to generate grouped bar plots with SD bars
+# df is short for data frame
+generate_grouped_plot <- function(df, x_variable, x_label, y_variable, y_label, y_SD, UseColor, UseFill, title) {
   
   df <- df %>%
     mutate(Upper = !!sym(y_variable) + !!sym(y_SD))
@@ -524,8 +606,8 @@ generate_plot <- function(df, x_variable, x_label, y_variable, y_label, y_SD, ti
   plot_list <- df %>% 
     ggplot(aes(x = factor(!!sym(x_variable), levels = unique(!!sym(x_variable))), 
                y = !!sym(y_variable), 
-               color = StationNameNumber, 
-               fill = as.factor(StationNameNumber))) + 
+               color = !!sym(UseColor), 
+               fill = as.factor(!!sym(UseFill)))) + 
     geom_bar(stat = "identity", 
              position = position_dodge(width = 0.9),
              color = "black") + 
@@ -548,7 +630,36 @@ generate_plot <- function(df, x_variable, x_label, y_variable, y_label, y_SD, ti
 
 ```
 
-```{r Figures}
+``` {r New figures}
+### Function explanation
+# generate_plot(df, x_variable, x_label, y_variable, y_label, y_SD, UseColor, UseFill, title)
+
+
+# Stats for Total Oyster Density and Total Weight Density by Year and StationGroup
+# Oysters
+QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "StationGroup", "StationGroup", "AB Oyster Density by Year and StationGroup")
+print(QuadStats_ALL_Oys1_fig)
+
+# Creating figures Mean Sample Weight Density
+QuadStats_ALL_Oys1_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "StationGroup", "StationGroup", "AB Sample Weight Density by Year and StationGroup")
+print(QuadStats_ALL_Oys1_Sample_Weight_fig)
+
+
+
+
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
+QuadStats_ALL_Oys2_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD",  "StationGroup", "StationGroup", "AB Oyster Density by Year and Section and StationGroup")
+print(QuadStats_ALL_Oys2_fig)
+
+# Creating figures Mean Sample Weight Density
+QuadStats_ALL_Oys2_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "AB Sample Weight Density by Year and Section and StationGroup")
+print(QuadStats_ALL_Oys2_Sample_Weight_fig)
+
+
+```
+
+
+```{r OG Figures}
 # Creating SBM Figures
 ### Function explanation
 # generate_plot(df, x_variable, x_label, y_variable, y_label, y_SD, title)
