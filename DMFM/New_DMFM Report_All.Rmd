@@ -292,27 +292,18 @@ QuadStats1 <- left_join(Quadrats_ALL, SHMeasures, by = c("QuadratID"))
 
 QuadStats2 <- QuadStats1 %>%
   mutate(
-    Num_1_to_15 = (Count_1_to_15 * NumLive) / TotalNumMeasured,
-    Num_16_to_30 = (Count_16_to_30 * NumLive) / TotalNumMeasured,
-    Num_31_to_45 = (Count_31_to_45 * NumLive) / TotalNumMeasured,
-    Num_46_to_60 = (Count_46_to_60 * NumLive) / TotalNumMeasured,
-    Num_61_to_75 = (Count_61_to_75 * NumLive) / TotalNumMeasured,
-    Num_76_to_90 = (Count_76_to_90 * NumLive) / TotalNumMeasured,
-    Num_91_plus = (Count_91_plus * NumLive) / TotalNumMeasured,
-    Num_Spat_1_to_30 = (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured,
-    Num_Seed_31_to_75 = (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured,
-    Num_Legal_76_plus = (Count_Legal_76_plus * NumLive) / TotalNumMeasured) %>%
-  select(
-    - Count_1_to_15,
-    - Count_16_to_30,
-    - Count_31_to_45,
-    - Count_46_to_60,
-    - Count_61_to_75,
-    - Count_76_to_90, 
-    - Count_91_plus, 
-    - Count_Spat_1_to_30,
-    - Count_Seed_31_to_75,
-    - Count_Legal_76_plus)
+    Num_1_to_15 = if_else(TotalNumMeasured == 0, 0, (Count_1_to_15 * NumLive) / TotalNumMeasured),
+    Num_16_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_16_to_30 * NumLive) / TotalNumMeasured),
+    Num_31_to_45 = if_else(TotalNumMeasured == 0, 0, (Count_31_to_45 * NumLive) / TotalNumMeasured),
+    Num_46_to_60 = if_else(TotalNumMeasured == 0, 0, (Count_46_to_60 * NumLive) / TotalNumMeasured),
+    Num_61_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_61_to_75 * NumLive) / TotalNumMeasured),
+    Num_76_to_90 = if_else(TotalNumMeasured == 0, 0, (Count_76_to_90 * NumLive) / TotalNumMeasured),
+    Num_91_plus = if_else(TotalNumMeasured == 0, 0, (Count_91_plus * NumLive) / TotalNumMeasured),
+    Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
+    Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
+    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)
+  ) %>%
+  select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
 
 ```
 
@@ -320,16 +311,18 @@ QuadStats2 <- QuadStats1 %>%
 
 # Set up
 
-QuadStats_ALL_Oys <- QuadStats2 %>%
-  mutate(OysterDensity = NumLive * 4,
-         WeightDensity = TotalWeight * 4) 
+QuadStats_ALL_Oys <- QuadStats2  
 
 summarise_ALL <- function(data) {
   summarised_data <- data %>%
-    summarise(OysterDensityMean = round(mean(OysterDensity, na.rm = TRUE), digits = 0),
-            OysterDensitySD = round(sd(OysterDensity, na.rm = TRUE), digits = 0),
-            WeightDensityMean = round(mean(WeightDensity, na.rm = TRUE), digits = 1),
-            WeightDensitySD = round(sd(WeightDensity, na.rm = TRUE), digits = 1))
+    summarise(NumLiveMean = mean(NumLive, na.rm = TRUE),
+            NumLiveSD = sd(NumLive, na.rm = TRUE),
+            TotalWeightMean = mean(TotalWeight, na.rm = TRUE),
+            TotalWeightSD = sd(TotalWeight, na.rm = TRUE)) %>%
+    mutate(OysterDensityMean = NumLiveMean * 4,
+           OysterDensitySD = NumLiveSD * 4,
+           WeightDensityMean = TotalWeightMean * 4,
+           WeightDensitySD = TotalWeightSD * 4)
   return(summarised_data)
 }
 
@@ -378,24 +371,25 @@ QuadStats_ALL_Oys4 <- QuadStats_ALL_Oys %>%
 
 # Set up
 
-QuadStats_15mmSizeClass_Oys <- QuadStats2 %>%
-  mutate(Num_1_to_15 = Num_1_to_15 * 4,
-         Num_16_to_30 = Num_16_to_30 * 4,
-         Num_31_to_45 = Num_31_to_45 * 4,
-         Num_46_to_60 = Num_46_to_60 * 4,
-         Num_61_to_75 = Num_61_to_75 * 4,
-         Num_76_to_90 = Num_76_to_90 * 4,
-         Num_91_plus = Num_91_plus * 4) 
+QuadStats_15mmSizeClass_Oys <- QuadStats2 
 
 summarise_15mmSizeClass <- function(data) {
   summarised_data <- data %>%
-    summarise(Density_1_to_15_Mean = round(mean(Num_1_to_15, na.rm = TRUE), digits = 0),
-            Density_16_to_30_Mean = round(mean(Num_16_to_30, na.rm = TRUE), digits = 0),
-            Density_31_to_45_Mean = round(mean(Num_31_to_45, na.rm = TRUE), digits = 0),
-            Density_46_to_60_Mean = round(mean(Num_46_to_60, na.rm = TRUE), digits = 0),
-            Density_61_to_75_Mean = round(mean(Num_46_to_60, na.rm = TRUE), digits = 0),
-            Density_76_to_90_Mean = round(mean(Num_76_to_90, na.rm = TRUE), digits = 0),
-            Density_91_plus_Mean = round(mean(Num_91_plus, na.rm = TRUE), digits = 0)) 
+    summarise(Num_1_to_15_Mean = mean(Num_1_to_15, na.rm = TRUE),
+            Num_16_to_30_Mean = mean(Num_16_to_30, na.rm = TRUE),
+            Num_31_to_45_Mean = mean(Num_31_to_45, na.rm = TRUE),
+            Num_46_to_60_Mean = mean(Num_46_to_60, na.rm = TRUE),
+            Num_61_to_75_Mean = mean(Num_61_to_75, na.rm = TRUE),
+            Num_76_to_90_Mean = mean(Num_76_to_90, na.rm = TRUE),
+            Num_91_plus_Mean = mean(Num_91_plus, na.rm = TRUE)) %>%
+    mutate(Density_1_to_15_Mean = Num_1_to_15_Mean * 4,
+       Density_16_to_30_Mean = Num_16_to_30_Mean * 4,
+       Density_31_to_45_Mean = Num_31_to_45_Mean * 4,
+       Density_46_to_60_Mean = Num_46_to_60_Mean * 4,
+       Density_61_to_75_Mean = Num_61_to_75_Mean * 4,
+       Density_76_to_90_Mean = Num_76_to_90_Mean * 4,
+       Density_91_plus_Mean = Num_91_plus_Mean * 4,
+       SumDensityMean = Density_1_to_15_Mean + Density_16_to_30_Mean + Density_31_to_45_Mean + Density_46_to_60_Mean + Density_61_to_75_Mean + Density_76_to_90_Mean + Density_91_plus_Mean )
   return(summarised_data)
 }
 
@@ -442,16 +436,17 @@ QuadStats_15mmSizeClass_4 <- QuadStats_15mmSizeClass_Oys %>%
 
 # Set up
 
-QuadStats_ClassicSizeClass_Oys <- QuadStats2 %>%
-  mutate(Num_Spat_1_to_30 = Num_Spat_1_to_30 * 4,
-         Num_Seed_31_to_75 = Num_Seed_31_to_75 * 4,
-         Num_Legal_76_plus = Num_Legal_76_plus * 4) 
+QuadStats_ClassicSizeClass_Oys <- QuadStats2 
 
 summarise_ClassicSizeClass <- function(data) {
   summarised_data <- data %>%
-    summarise(Density_Spat_1_to_30_Mean = round(mean(Num_1_to_15, na.rm = TRUE), digits = 0),
-            Density_Seed_31_to_75_Mean = round(mean(Num_16_to_30, na.rm = TRUE), digits = 0),
-            Density_Legal_76_plus_Mean = round(mean(Num_31_to_45, na.rm = TRUE), digits = 0)) 
+    summarise(Num_Spat_1_to_30_Mean = mean(Num_Spat_1_to_30, na.rm = TRUE),
+            Num_Seed_31_to_75_Mean = mean(Num_Seed_31_to_75, na.rm = TRUE),
+            Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE)) %>%
+    mutate(Density_Spat_1_to_30_Mean = Num_Spat_1_to_30_Mean * 4,
+           Density_Seed_31_to_75_Mean = Num_Seed_31_to_75_Mean * 4,
+           Density_Legal_76_plus_Mean = Num_Legal_76_plus_Mean * 4,
+           SumDensityMean = Density_Spat_1_to_30_Mean + Density_Seed_31_to_75_Mean + Density_Legal_76_plus_Mean)
   return(summarised_data)
 }
 
@@ -573,6 +568,10 @@ ClassiciSizeClass = paste("Classic_Size_Class_", Sys.Date(), ".xlsx", sep = "")
   saveWorkbook(wb, ClassiciSizeClass, overwrite = TRUE)
 ```
 
+```{r Placeholdingstop} 
+### Remove this chunk when you are ready to create figures with R
+stop("Stopping")
+```
 
 
 ```{r FigureFormatting}
