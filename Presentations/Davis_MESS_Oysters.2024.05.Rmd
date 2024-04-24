@@ -1,0 +1,151 @@
+---
+output: 
+  word_document:
+  toc: true
+---
+
+### This is code for creating the data for a presentation to FWC (HSC) MESS Group's Restoration Meeting in Panama City FL. See Powerpoint with the same name as this file for finished result. End product is an Excel file that can create a graph via Pivot Graphs.
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportEnd <- as.Date("2023-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
+Database = "OysterLocalMD20240423"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+YearFilter = c(2023) # Data shared in presentation is 2023 only. Adjust here to show other years
+```
+
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(knitr)
+library(ggpubr)
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales)
+library(openxlsx)
+```
+
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+
+Estuaries <- c("AB", "SA", "PE")
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+# Note that All data through the end of 2023 has been completed, so querying dbo tables wasn't necessary
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = Server,
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+hsdbSurveyQuadrat <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  
+hsdbSurveySH <- tbl(con,in_schema("hsdb", "SurveySH")) %>%
+  collect() %>%
+  mutate(ShellHeight = as.integer(ShellHeight)) %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
+hsdbSBMQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  
+hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
+  collect() %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
+# hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+#   collect() %>%
+#   filter(substring(SampleEventWQID, 1, 2) %in% Estuaries)
+
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+DBI::dbDisconnect(con)
+
+```
+
+```{r BasicStats}
+# Arrange data frames using data from the database, doing basic filters, adding necessary columns for statistics and performing statistics.
+FixedLocations <- dboFixedLocations %>% 
+  mutate(StationNumber = as.factor(StationNumber)) %>% #changed to factor based on EL's code
+  select(FixedLocationID,
+         Estuary,
+         SectionName, 
+         StationNumber) %>% 
+  distinct()
+
+Recruitment <- hsdbRecruitment %>% 
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         Year = year(RetDate),
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate - DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         Year,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(Year %in% YearFilter) %>%
+  distinct() %>%
+  left_join(FixedLocations, by = c("FixedLocationID")) %>%
+  unique()
+
+RecruitmentStats1 <- Recruitment %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE))
+
+RecruitmentStats2 <- RecruitmentStats1 %>% # Shows the mean and max monthly recruitment rate for each estuary
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary) %>% 
+  summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
+            RecMax = max(RecMean, na.rm = TRUE))
+
+RecruitmentStats3 <- RecruitmentStats1 %>% # Shows the mean and max recruitment rate for each station in each estuary
+  group_by(Estuary,
+           StationNumber) %>% 
+  summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
+            RecMax = max(RecMean, na.rm = TRUE))
+
+```
+
+``` {r DataExport}
+
+mydatasets <- list('Estuary' = RecruitmentStats2, 'Station' = RecruitmentStats3)
+write.xlsx(mydatasets, "Davis_MESS_Oysters.2024.05_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
+
+```

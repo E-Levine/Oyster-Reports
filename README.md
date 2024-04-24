@@ -27,6 +27,7 @@ FILE STRUCTURE: <br>
 /DMFM - RMarkdown scripts for sharing with the Division of Marine Fisheries Management  - Current versions: AS NEEDED.<br>
 /FLTIG - RMarkdown scripts for the Florida Trustees Implementation Group Data Gaps project  - Current versions: Annually.<br>
 /NFWF2 - RMarkdown scripts for the National Fish and Wildlife Foundation 2.0 project - Current versions: Quarterly..<br>
+/Presentations - RMarkdown scripts for Presentations given to other groups. As needed. <br>
 <br>
 FILE USE:<br>
 /CERP - Compiling monthly reports from Excel data files into Word doucument outputs on the Molluscs network using RMarkdown. Code will need to be downloaded Oysters\CERP\R\Reports to ensure file mappings are accurate.<br>
@@ -34,6 +35,7 @@ FILE USE:<br>
 /DMFM - Previous export of some NFWF data to Excel for a quick graph. Used Bags per acre.<br>
 /FLTIG - .<br>
 /NFWF2 - .<br>
+/Presentations - Data displays for Presentations given to other groups. <br>
 <br>
 
 REPORT TYPES: <br>
