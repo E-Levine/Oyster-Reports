@@ -81,7 +81,7 @@ if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
 DBI::dbDisconnect(con)
 ```
 
-```{r DataFilters}
+```{r DataFilters and Summaries}
 # Filter data frames so that only data collected for inclusion in the CERP Monthly Report are present.
 FixedLocations1 <- dboFixedLocations %>% 
   mutate(StationNumber = as.numeric(StationNumber)) %>% 
@@ -260,7 +260,9 @@ Survey1 <- union(hsdbSurvey, dboSurvey) %>%
   mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+         Plot_Date = as.Date(AnalysisDate + 14),
+         Live = NumLive * 4,
+         Dead = NumDead * 4) %>%
   select(QuadratID,
          FixedLocationID,
          SampleEventID,
@@ -268,8 +270,8 @@ Survey1 <- union(hsdbSurvey, dboSurvey) %>%
          AnalysisDate,
          Plot_Date,
          QuadratNumber,
-         NumLive,
-         NumDead) %>% 
+         Live,
+         Dead) %>% 
   filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
@@ -279,10 +281,10 @@ SLC_SurveyStats <- Survey1 %>%
            Plot_Date, 
            Estuary,  
            SectionName) %>%
-  summarise(LiveMean = mean(NumLive, na.rm = T),
-            LiveSD = sd(NumLive, na.rm = T),
-            DeadMean = mean(NumDead, na.rm = T),
-            DeadSD = sd(NumDead, na.rm = T))
+  summarise(LiveMean = mean(Live, na.rm = T),
+            LiveSD = sd(Live, na.rm = T),
+            DeadMean = mean(Dead, na.rm = T),
+            DeadSD = sd(Dead, na.rm = T))
 
 SLC1_SurveyStats <- Survey1 %>%
   filter(Estuary == "SL" & StationNumber == 1) %>%
@@ -291,10 +293,10 @@ SLC1_SurveyStats <- Survey1 %>%
            Estuary,  
            SectionName, 
            StationNumber) %>%
-  summarise(LiveMean = mean(NumLive, na.rm = T),
-            LiveSD = sd(NumLive, na.rm = T),
-            DeadMean = mean(NumDead, na.rm = T),
-            DeadSD = sd(NumDead, na.rm = T))
+  summarise(LiveMean = mean(Live, na.rm = T),
+            LiveSD = sd(Live, na.rm = T),
+            DeadMean = mean(Dead, na.rm = T),
+            DeadSD = sd(Dead, na.rm = T))
 
 CR_SurveyStats <- Survey1 %>%
   filter(Estuary == "CR") %>%
@@ -303,10 +305,18 @@ CR_SurveyStats <- Survey1 %>%
            Estuary,  
            SectionName,
            StationNumber) %>%
-  summarise(LiveMean = mean(NumLive, na.rm = T),
-            LiveSD = sd(NumLive, na.rm = T),
-            DeadMean = mean(NumDead, na.rm = T),
-            DeadSD = sd(NumDead, na.rm = T))
+  summarise(LiveMean = mean(Live, na.rm = T),
+            LiveSD = sd(Live, na.rm = T),
+            DeadMean = mean(Dead, na.rm = T),
+            DeadSD = sd(Dead, na.rm = T))
 
+```
+
+```{r Data summary tables}
+#Output datatables for SLC, SLC1, CRE, CRW
+SLC_Summary <- SLC_WQStats %>% dplyr::select(AnalysisDate, SalMean, SalSD)
+SLC_RecruitStats %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)
+SLC_DermoStats %>% dplyr::select(AnalysisDate, DermoPct)
+SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD)
 ```
 
