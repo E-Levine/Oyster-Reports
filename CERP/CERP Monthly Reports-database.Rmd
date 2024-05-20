@@ -1,0 +1,89 @@
+---
+title: "CERP Monthly Report - `r params$Year`-`r params$Month`"
+output: word_document
+params: 
+  Month: "12"  #Enter 2-digit month
+  Year: "2023" #Enter 4-digit year
+---
+
+```{r VariableSet, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+Author <- c("E Levine") #Change to your name
+Database <- "OystersEL_240104"  # Set the local database to use
+Server = "localhost\\ERICALOCALSQL" # Set the local Server to use
+
+#Don't modify code in rest of section
+Month <- params$Month 
+Year <- params$Year   
+Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
+                 ifelse(as.numeric(Month) > 2 & as.numeric(Month) < 6, paste0("Spring", Year),
+                        ifelse(as.numeric(Month) > 5 & as.numeric(Month) < 9, paste0("Summer", Year), paste0("Fall", Year))))
+```
+
+```{r PackageLoad & VarSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages
+if (!require("pacman")) {install.packages("pacman")}
+pacman::p_load(odbc, DBI,
+  tidyverse, dplyr,  #DF manipulation
+  #readxl,          #Excel
+  lubridate,         #Dates
+  knitr, here,
+  flextable,
+  install = TRUE)
+
+MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
+Start_date <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
+End_date <- format(ceiling_date(Start_date %m+% months(2)) - days(1), "%Y-%m-%d")
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = Server,
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSedimentTrap <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+DBI::dbDisconnect(con)
+```
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
