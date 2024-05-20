@@ -2,7 +2,7 @@
 title: "CERP Monthly Report - `r params$Year`-`r params$Month`"
 output: word_document
 params: 
-  Month: "12"  #Enter 2-digit month
+  Month: "09"  #Enter 2-digit month
   Year: "2023" #Enter 4-digit year
 ---
 
@@ -10,10 +10,13 @@ params:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "OystersEL_240104"  # Set the local database to use
-Server = "localhost\\ERICALOCALSQL" # Set the local Server to use
+Database <- "OystersEL_240104"  #Set the local database to use
+Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
+
 
 #Don't modify code in rest of section
+Estuaries <- c("SL", "CR")
+LocationIDs <- c("0255", "0256", "0257", "0231", "0232")
 Month <- params$Month 
 Year <- params$Year   
 Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
@@ -24,7 +27,7 @@ Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter"
 ```{r PackageLoad & VarSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Load necessary R packages
 if (!require("pacman")) {install.packages("pacman")}
-pacman::p_load(odbc, DBI,
+pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  #DF manipulation
   #readxl,          #Excel
   lubridate,         #Dates
@@ -33,8 +36,8 @@ pacman::p_load(odbc, DBI,
   install = TRUE)
 
 MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
-Start_date <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
-End_date <- format(ceiling_date(Start_date %m+% months(2)) - days(1), "%Y-%m-%d")
+ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
+ReportEnd <- format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d")
 ```
 
 ```{r DatabaseDownload}
@@ -60,30 +63,158 @@ hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
 dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+hsdbDermo <- tbl(con,in_schema("hsdb", "Dermo")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-dboSedimentTrap <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+dboDermo <- tbl(con,in_schema("dbo", "Dermo")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  hsdbSurvey <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
+    collect() %>%
+    filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  dboSurvey <- tbl(con,in_schema("dbo", "SurveyQuadrat")) %>%
+    collect() %>%
+    filter(substring(SampleEventID, 1, 2) %in% Estuaries)} else {Survey <- "Survey was not conducted"}
 DBI::dbDisconnect(con)
 ```
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r DataFilters}
+# Filter data frames so that only data collected for inclusion in the CERP Monthly Report are present.
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber)) %>% 
+  filter(FixedLocationID %in% LocationIDs) %>% #Only need SLC stations (0255-0257), CR2 (0231), and CR3 (0232)
+  select(FixedLocationID,
+         Estuary,
+         SectionName, 
+         StationNumber) %>% 
+  distinct()  
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+### WATER QUALITY ###
+WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>% 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14),
+         SecchiPercent = (Secchi / Depth) * 100) %>%
+  select(SampleEventWQID,
+         FixedLocationID,
+         SampleEventID,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         Temperature,
+         Salinity,
+         DissolvedOxygen,
+         pH,
+         SecchiPercent) %>% 
+  drop_na(Temperature) %>%
+  filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) 
 
-```{r cars}
-summary(cars)
+SLC_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'COLL') & Estuary == "SL") %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary,  
+           SectionName) %>% 
+  summarise(SalMean = mean(Salinity, na.rm = TRUE),
+            SalSD = sd(Salinity, na.rm = T))
+
+SLC1_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'COLL') & Estuary == "SL" & StationNumber == 1) %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary,  
+           SectionName) %>% 
+  summarise(SalMean = mean(Salinity, na.rm = TRUE),
+            SalSD = sd(Salinity, na.rm = T))
+
+CR_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'COLL') & Estuary == "CR") %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(SalMean = mean(Salinity, na.rm = TRUE),
+            SalSD = sd(Salinity, na.rm = T))
+
+
+### RECRITMENT ###
+#SL and CR RCRT calculate differently so compiling separately
+SL_Recruit <- union(hsdbRecruitment, dboRecruitment) %>% 
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+
+CR_Recruit <- union(hsdbRecruitment, dboRecruitment) %>% 
+  filter(ShellPosition %in% c(2,3,4,5,6,7,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+  
+SLC_RecruitStats <- SL_Recruit %>% 
+  filter(Estuary == "SL" & SectionName == "C") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
+  summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
+            RcrtSD= sd(BottomMonth, na.rm = TRUE))
+
+SLC1_RecruitStats <- SL_Recruit %>% 
+  filter(Estuary == "SL" & SectionName == "C" & StationNumber == 1) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, SectionName, StationNumber) %>% 
+  summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
+            RcrtSD= sd(BottomMonth, na.rm = TRUE))
+
+CR_RecruitStats <- CR_Recruit %>% 
+  filter(Estuary == "CR" & FixedLocationID %in% LocationIDs) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, SectionName, StationNumber) %>% 
+  summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
+            RcrtSD= sd(BottomMonth, na.rm = TRUE))
+
+
+
+### DERMO ###
+
+
+
+
+### SURVEY ###
+
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
