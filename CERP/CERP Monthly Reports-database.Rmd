@@ -456,25 +456,25 @@ in
 `r max((CR_WQStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
 at the Bird Island station.
 *	The mean recruitment rate 
-`r if((Rcrt_summary %>% filter(Site == "CR-E" & RetDate == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "CR-E" & RetDate == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+`r if((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean > (CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean) {paste("decreased")} else if ((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean < (CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")` 
+`r min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")` 
 to 
-`r (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")`
-at the Iona Cove station, and
-`r if((Rcrt_summary %>% filter(Site == "CR-W" & Month == min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "CR-W" & Month == max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "CR-W" & Month == min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "CR-W" & Month == max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+`r max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
+at the Iona Cove station and
+`r if((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean > (CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean) {paste("decreased")} else if ((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean < (CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Rcrt_summary %>% filter(Site == "CR-W" & Month == min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r min((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")` 
+`r min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
 to 
-`r (Rcrt_summary %>% filter(Site == "CR-W" & Month == max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r max((Rcrt %>% filter(Site == "CR-W"))$Ret.Date) %>% format("%B")`
+`r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
 *	Dermo prevalence 
 `r if((Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
 from
