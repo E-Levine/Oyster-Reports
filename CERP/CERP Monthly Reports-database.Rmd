@@ -476,25 +476,25 @@ to
 spat/shell in 
 `r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
 *	Dermo prevalence 
-`r if((Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+`r if((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r (Dermo_summary %>% filter(Site == "CR-E" & Month == min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent`% 
+`r round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)`% 
 in 
-`r min((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")` 
+`r min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")` 
 to 
-`r (Dermo_summary %>% filter(Site == "CR-E" & Month == max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$Percent`% 
+`r round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)`% 
 in
-`r max((Dermo %>% filter(Site == "CR-E"))$Date) %>% format("%B")`
-at the Iona Cove station, and 
-`r if((Dermo_summary %>% filter(Site == "CR-W" & Month == min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "CR-W" & Month == max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "CR-W" & Month == min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "CR-W" & Month == max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+`r max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
+at the Iona Cove station and 
+`r if((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r (Dermo_summary %>% filter(Site == "CR-W" & Month == min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent`% 
+`r round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)`% 
 in 
-`r min((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
+`r min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
 to 
-`r (Dermo_summary %>% filter(Site == "CR-W" & Month == max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$Percent`% 
+`r round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)`% 
 in
-`r max((Dermo %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
+`r max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
 at the Bird Island station.
 *	`r if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste(CRE_Srvy_note, CRW_Srvy_note, sep = " ")} else {paste("Survey was not conducted this month")}`
 
