@@ -313,10 +313,42 @@ CR_SurveyStats <- Survey1 %>%
 ```
 
 ```{r Data summary tables}
-#Output datatables for SLC, SLC1, CRE, CRW
-SLC_Summary <- SLC_WQStats %>% dplyr::select(AnalysisDate, SalMean, SalSD)
-SLC_RecruitStats %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)
-SLC_DermoStats %>% dplyr::select(AnalysisDate, DermoPct)
-SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD)
+#Output tables for SLC, SLC1, CR - combining WQ, Rcrt, Dermo, and Survey
+SLC_Summary <- left_join(
+  left_join(
+    left_join(SLC_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
+              SLC_RecruitStats %>% ungroup() %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
+    SLC_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
+  SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD)) %>%
+  mutate(across(where(is.numeric), round, 2))
+
+
+SLC1_Summary <- left_join(
+  left_join(
+    left_join(SLC1_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
+              SLC1_RecruitStats %>% ungroup() %>% 
+                dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
+    SLC1_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
+  SLC1_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
+    mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
+                              TRUE ~ "DrySeason"),
+           .before = LiveMean)) %>%
+  mutate(across(where(is.numeric), round, 2),
+         Density = LiveMean,
+         .after = DermoPct) 
+
+
+CR_Summary <- left_join(
+  left_join(
+    left_join(CR_WQStats %>% ungroup() %>% group_by(StationNumber) %>%
+                dplyr::select(StationNumber, AnalysisDate, SalMean, SalSD), 
+              CR_RecruitStats %>% ungroup() %>% group_by(StationNumber) %>%
+                dplyr::select(StationNumber, AnalysisDate, RcrtMean, RcrtSD)),
+    CR_DermoStats %>% ungroup() %>% group_by(StationNumber) %>%
+      dplyr::select(StationNumber, AnalysisDate, DermoPct)),
+  CR_SurveyStats %>% ungroup() %>% group_by(StationNumber) %>%
+    dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD)) %>%
+                pivot_wider(names_from = StationNumber, values_from = c(3:11), names_glue = "{StationNumber}_{.value}") %>%
+  mutate(across(where(is.numeric), round, 2))
 ```
 
