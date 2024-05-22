@@ -196,19 +196,19 @@ CR_Recruit <- union(hsdbRecruitment, dboRecruitment) %>%
   
 SLC_RecruitStats <- SL_Recruit %>% 
   filter(Estuary == "SL" & SectionName == "C") %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
+  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>% 
   summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
 SLC1_RecruitStats <- SL_Recruit %>% 
   filter(Estuary == "SL" & SectionName == "C" & StationNumber == 1) %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, SectionName, StationNumber) %>% 
+  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName, StationNumber) %>% 
   summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
 CR_RecruitStats <- CR_Recruit %>% 
   filter(Estuary == "CR" & FixedLocationID %in% LocationIDs) %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, SectionName, StationNumber) %>% 
+  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName, StationNumber) %>% 
   summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
@@ -399,15 +399,15 @@ to
 in 
 `r max(SLC_WQStats$RetDate) %>% format("%B")`.
 *	The mean recruitment rate 
-`r if((Rcrt_summary %>% filter(Site == "SL-C" & Month == min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "SL-C" & Month == max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "SL-C" & Month == min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "SL-C" & Month == max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+`r if((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean > (SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean < (SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Rcrt_summary %>% filter(Site == "SL-C" & Month == min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r round((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r min((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")` 
+`r min(SLC_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r (Rcrt_summary %>% filter(Site == "SL-C" & Month == max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r round((SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r max((Rcrt %>% filter(Site == "SL-C"))$Ret.Date) %>% format("%B")`.
+`r max(SLC_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
 `r if((Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
 from
