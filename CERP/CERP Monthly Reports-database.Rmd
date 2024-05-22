@@ -377,6 +377,15 @@ CR_Summary <- CR_Summary %>% mutate(AnalysisDate_B = AnalysisDate) %>%
                 AnalysisDate_B, everything())
 ```
 
+```{r Surevy Text}
+#Text for survey section of monthly report
+SLC_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(SLC_SurveyStats$LiveMean,0), " live and ", round(SLC_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+
+CRE_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Iona Cove there were approximately ", round((CR_SurveyStats %>% filter(SectionName == "E"))$LiveMean,0), " live and ", round((CR_SurveyStats %>% filter(SectionName == "E"))$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+
+CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Bird Island there were approximately ", round((CR_SurveyStats %>% filter(SectionName == "W"))$LiveMean,0), " live and ", round((CR_SurveyStats %>% filter(SectionName == "W"))$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+```
+
 ```{r ReportText}
 #Report Text in area below
 ```
@@ -409,15 +418,15 @@ to
 spat/shell in 
 `r max(SLC_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
-`r if((Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent > (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent) {paste("decreased")} else if ((Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent < (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent) {paste("increased")} else {paste("stayed the same")}` 
+`r if((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct > (SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct < (SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r (Dermo_summary %>% filter(Site == "SL-C" & Month == min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent`% 
+`r round((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct,2)`% 
 in 
-`r min((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")` 
+`r min(SLC_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r (Dermo_summary %>% filter(Site == "SL-C" & Month == max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")))$Percent`% 
+`r round((SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct,2)`% 
 in
-`r max((Dermo %>% filter(Site == "SL-C"))$Date) %>% format("%B")`.
+`r max(SLC_DermoStats$RetDate) %>% format("%B")`.
 * `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(SLC_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
