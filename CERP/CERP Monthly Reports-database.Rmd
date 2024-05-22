@@ -432,37 +432,37 @@ in
 
 ## Caloosahatchee River summary 
 
-Here is the monthly report with data collected from Caloosahatchee on `r max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B %d, %Y")`:
+Here is the monthly report with data collected from Caloosahatchee on `r max(CR_WQStats$RetDate) %>% format("%B %d, %Y")`:
 
 *	Mean salinity 
-`r if((Sal_summary %>% filter(Site == "CR-E" & Month == min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "CR-E" & Month == max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "CR-E" & Month == min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "CR-E" & Month == max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+`r if((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean > (CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean) {paste("decreased")} else if ((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean < (CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sal_summary %>% filter(Site == "CR-E" & Month == min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal` 
+`r round((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)` 
 in 
-`r min((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")` 
+`r min((CR_WQStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")` 
 to 
-`r (Sal_summary %>% filter(Site == "CR-E" & Month == max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")))$meanSal` 
+`r round((CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)` 
 in 
-`r max((Sal %>% filter(Site == "CR-E"))$Date) %>% format("%B")`
-at the Iona Cove station, and 
-`r if((Sal_summary %>% filter(Site == "CR-W" & Month == min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal > (Sal_summary %>% filter(Site == "CR-W" & Month == max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal) {paste("decreased")} else if ((Sal_summary %>% filter(Site == "CR-W" & Month == min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal < (Sal_summary %>% filter(Site == "CR-W" & Month == max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal) {paste("increased")} else {paste("stayed the same")}` 
+`r max((CR_WQStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
+at the Iona Cove station and 
+`r if((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean > (CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean) {paste("decreased")} else if ((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean < (CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sal_summary %>% filter(Site == "CR-W" & Month == min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal` 
+`r round((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)` 
 in 
-`r min((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")` 
+`r min((CR_WQStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
 to 
-`r (Sal_summary %>% filter(Site == "CR-W" & Month == max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")))$meanSal` 
+`r round((CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)` 
 in 
-`r max((Sal %>% filter(Site == "CR-W"))$Date) %>% format("%B")`
+`r max((CR_WQStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
 at the Bird Island station.
 *	The mean recruitment rate 
-`r if((Rcrt_summary %>% filter(Site == "CR-E" & Month == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "CR-E" & Month == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "CR-E" & Month == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "CR-E" & Month == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
+`r if((Rcrt_summary %>% filter(Site == "CR-E" & RetDate == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt > (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("decreased")} else if ((Rcrt_summary %>% filter(Site == "CR-E" & RetDate == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt < (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Rcrt_summary %>% filter(Site == "CR-E" & Month == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
 spat/shell in 
 `r min((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")` 
 to 
-`r (Rcrt_summary %>% filter(Site == "CR-E" & Month == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
+`r (Rcrt_summary %>% filter(Site == "CR-E" & RetDate == max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")))$meanRcrt` 
 spat/shell in 
 `r max((Rcrt %>% filter(Site == "CR-E"))$Ret.Date) %>% format("%B")`
 at the Iona Cove station, and
