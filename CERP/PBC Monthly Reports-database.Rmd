@@ -2,7 +2,7 @@
 title: "PBC Monthly Report - `r params$Year`-`r params$Month`"
 output: word_document
 params: 
-  Month: "09"  #Enter 2-digit month
+  Month: "11"  #Enter 2-digit month
   Year: "2023" #Enter 4-digit year
 ---
 
@@ -15,8 +15,8 @@ Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
 #Don't modify code in rest of section
-Estuaries <- c("SL", "CR")
-LocationIDs <- c("0255", "0256", "0257", "0231", "0232")
+Estuaries <- c("LW")
+LocationIDs <- c("0235", "0236", "0237", "0240", "0241", "0312")
 Month <- params$Month 
 Year <- params$Year   
 Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
@@ -38,6 +38,8 @@ pacman::p_load(odbc, DBI, dbplyr,
 MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
 ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
 ReportEnd <- format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d")
+NorthStations <- c("0312", "0235", "0236")
+SouthStations <- c("0240", "0241", "0237")
 ```
 
 ```{r DatabaseDownload}
@@ -71,6 +73,13 @@ dboDermo <- tbl(con,in_schema("dbo", "Dermo")) %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries) %>%
   mutate(DermoMantle = as.numeric(DermoMantle),
          DermoGill = as.numeric(DermoGill))
+hsdbSediment <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+dboSediment <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
 if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
   hsdbSurvey <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
     collect() %>%
@@ -114,8 +123,8 @@ WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>%
   filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
   left_join(FixedLocations1, by = c("FixedLocationID")) 
 
-SLC_WQStats <- WQ1 %>% 
-  filter(str_detect(SampleEventWQID, 'COLL') & Estuary == "SL") %>%
+LWL_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'COLL') & SectionName == "L") %>%
   group_by(AnalysisDate, 
            Plot_Date, 
            RetDate,
@@ -124,8 +133,8 @@ SLC_WQStats <- WQ1 %>%
   summarise(SalMean = mean(Salinity, na.rm = TRUE),
             SalSD = sd(Salinity, na.rm = T))
 
-SLC1_WQStats <- WQ1 %>% 
-  filter(str_detect(SampleEventWQID, 'COLL') & Estuary == "SL" & StationNumber == 1) %>%
+LWR_WQStats <- WQ1 %>% 
+  filter(str_detect(SampleEventWQID, 'COLL') & SectionName == "R") %>%
   group_by(AnalysisDate, 
            Plot_Date,  
            RetDate,
@@ -134,21 +143,9 @@ SLC1_WQStats <- WQ1 %>%
   summarise(SalMean = mean(Salinity, na.rm = TRUE),
             SalSD = sd(Salinity, na.rm = T))
 
-CR_WQStats <- WQ1 %>% 
-  filter(str_detect(SampleEventWQID, 'COLL') & Estuary == "CR") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary, 
-           StationNumber, 
-           SectionName) %>% 
-  summarise(SalMean = mean(Salinity, na.rm = TRUE),
-            SalSD = sd(Salinity, na.rm = T))
-
 
 ### RECRITMENT ###
-#SL and CR RCRT calculate differently so compiling separately
-SL_Recruit <- union(hsdbRecruitment, dboRecruitment) %>% 
+R1 <- union(hsdbRecruitment, dboRecruitment) %>% 
   filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
   mutate(DeployedDate = as.Date(DeployedDate), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
@@ -171,48 +168,25 @@ SL_Recruit <- union(hsdbRecruitment, dboRecruitment) %>%
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
-CR_Recruit <- union(hsdbRecruitment, dboRecruitment) %>% 
-  filter(ShellPosition %in% c(2,3,4,5,6,7,8,9,10,11)) %>%
-  mutate(DeployedDate = as.Date(DeployedDate), 
-         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
-         FixedLocationID = substring(ShellID, 19, 22), 
-         NumDays = as.numeric(RetDate-DeployedDate),
-         BottomMonth= NumBottom/(NumDays/28),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14)) %>%
-  select(ShellID,
-         FixedLocationID,
-         SampleEventID,
-         DeployedDate,
-         RetDate,
-         AnalysisDate,
-         Plot_Date,
-         NumDays,
-         ShellPosition,
-         NumBottom,
-         BottomMonth) %>% 
-  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID"))
-  
-SLC_RecruitStats <- SL_Recruit %>% 
-  filter(Estuary == "SL" & SectionName == "C") %>%
-  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>% 
-  summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
+
+ R1 %>% 
+  filter(Estuary == "AB") %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
+
+LWL_Recruit <-  R1 %>% 
+  filter(SectionName == "L") %>%
+  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>%
+   summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
-SLC1_RecruitStats <- SL_Recruit %>% 
-  filter(Estuary == "SL" & SectionName == "C" & StationNumber == 1) %>%
-  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName, StationNumber) %>% 
-  summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
+LWR_Recruit <-  R1 %>% 
+  filter(SectionName == "R") %>%
+  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>%
+   summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
-
-CR_RecruitStats <- CR_Recruit %>% 
-  filter(Estuary == "CR" & FixedLocationID %in% LocationIDs) %>%
-  group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName, StationNumber) %>% 
-  summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
-            RcrtSD= sd(BottomMonth, na.rm = TRUE))
-
-
 
 ### DERMO ###
 Dermo1 <- union((hsdbDermo %>% dplyr::select(-OldSampleNumber)), dboDermo) %>% 
@@ -233,8 +207,8 @@ Dermo1 <- union((hsdbDermo %>% dplyr::select(-OldSampleNumber)), dboDermo) %>%
   filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
-SLC_DermoStats <- Dermo1 %>%
-  filter(Estuary == "SL") %>%
+LWL_DermoStats <- Dermo1 %>%
+  filter(SectionName == "L") %>%
   group_by(AnalysisDate, 
            Plot_Date,  
            RetDate,
@@ -242,23 +216,13 @@ SLC_DermoStats <- Dermo1 %>%
            SectionName) %>% 
   summarise(DermoPct = (sum(DermoSum, na.rm = TRUE)/n())*100)
 
-SLC1_DermoStats <- Dermo1 %>%
-  filter(Estuary == "SL" & StationNumber == 1) %>%
+LWR_DermoStats <- Dermo1 %>%
+  filter(SectionName == "R") %>%
   group_by(AnalysisDate, 
            Plot_Date,  
            RetDate,
            Estuary,  
            SectionName) %>% 
-  summarise(DermoPct = (sum(DermoSum, na.rm = TRUE)/n())*100)
-
-CR_DermoStats <- Dermo1 %>%
-  filter(Estuary == "CR") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary,  
-           SectionName,
-           StationNumber) %>% 
   summarise(DermoPct = (sum(DermoSum, na.rm = TRUE)/n())*100)
 
 
@@ -282,8 +246,8 @@ Survey1 <- union(hsdbSurvey, dboSurvey) %>%
   filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
-SLC_SurveyStats <- Survey1 %>%
-  filter(Estuary == "SL") %>%
+LWL_SurveyStats <- Survey1 %>%
+  filter(SectionName == "L") %>%
   group_by(AnalysisDate, 
            Plot_Date,  
            RetDate,
@@ -294,31 +258,56 @@ SLC_SurveyStats <- Survey1 %>%
             DeadMean = mean(Dead, na.rm = T),
             DeadSD = sd(Dead, na.rm = T))
 
-SLC1_SurveyStats <- Survey1 %>%
-  filter(Estuary == "SL" & StationNumber == 1) %>%
+LWR_SurveyStats <- Survey1 %>%
+  filter(SectionName == "R") %>%
+  group_by(AnalysisDate, 
+           Plot_Date,  
+           RetDate,
+           Estuary,  
+           SectionName) %>%
+  summarise(LiveMean = mean(Live, na.rm = T),
+            LiveSD = sd(Live, na.rm = T),
+            DeadMean = mean(Dead, na.rm = T),
+            DeadSD = sd(Dead, na.rm = T))
+
+
+### SEDIMENT TRAPS ###
+Sedi1 <- union(hsdbSediment, dboSediment) %>% 
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14),
+         Position = case_when(FixedLocationID %in% NorthStations ~ "North",
+                             FixedLocationID %in% SouthStations ~ "South",
+                             TRUE ~ NA),
+         TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
+         TotalAsh = (AshWeight - TareCrucible)*(1/PortionofSample), 
+         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100) %>%
+  select(CupSampleID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         Position,
+         TotalDW,
+         PctOrganic) %>% 
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID"))
+
+LW_SediStats <- Sedi1 %>%
   group_by(AnalysisDate, 
            Plot_Date,  
            RetDate,
            Estuary,  
            SectionName, 
            StationNumber) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
-
-CR_SurveyStats <- Survey1 %>%
-  filter(Estuary == "CR") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary,  
-           SectionName,
-           StationNumber) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
+  summarise(MonthRate = mean(TotalDW/(NumDays/28), na.rm = T),
+            MeanOrganic = mean(PctOrganic, na.rm = T))
 
 ```
 
