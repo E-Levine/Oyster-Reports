@@ -337,18 +337,33 @@ SLC1_Summary <- left_join(
          Density = LiveMean,
          .after = DermoPct) 
 
-
-CR_Summary <- left_join(
-  left_join(
-    left_join(CR_WQStats %>% ungroup() %>% group_by(StationNumber) %>%
+CR_Summary <- data.frame()
+for (i in list(unique(CR_WQStats$StationNumber))){
+CR_i <- left_join(
+    left_join(
+      left_join(CR_WQStats %>% ungroup() %>% subset(StationNumber == i) %>%
                 dplyr::select(StationNumber, AnalysisDate, SalMean, SalSD), 
-              CR_RecruitStats %>% ungroup() %>% group_by(StationNumber) %>%
+              CR_RecruitStats %>% ungroup() %>% subset(StationNumber == i) %>%
                 dplyr::select(StationNumber, AnalysisDate, RcrtMean, RcrtSD)),
-    CR_DermoStats %>% ungroup() %>% group_by(StationNumber) %>%
+    CR_DermoStats %>% ungroup() %>% subset(StationNumber == i) %>%
       dplyr::select(StationNumber, AnalysisDate, DermoPct)),
-  CR_SurveyStats %>% ungroup() %>% group_by(StationNumber) %>%
-    dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD)) %>%
-                pivot_wider(names_from = StationNumber, values_from = c(3:11), names_glue = "{StationNumber}_{.value}") %>%
-  mutate(across(where(is.numeric), round, 2))
+  CR_SurveyStats %>% ungroup() %>% subset(StationNumber == i) %>%
+    dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD) %>%
+   mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
+                              TRUE ~ "DrySeason"),
+           .before = LiveMean)) %>%
+                
+  mutate(across(where(is.numeric), round, 2),
+         Density = LiveMean,
+         .after = DermoPct)
+CR_Summary <- rbind(CR_Summary, CR_i)
+CR_Summary <- CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:13), names_glue = "{StationNumber}_{.value}")
+return(CR_Summary)
+}
+
+#Order columns for output - duplicate date for each station then arrange by stations
+CR_Summary <- CR_Summary %>% mutate(AnalysisDate_B = AnalysisDate) %>%
+  dplyr::select(AnalysisDate, starts_with("2_"), 
+                AnalysisDate_B, everything())
 ```
 
