@@ -10,7 +10,7 @@ params:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "OystersEL_240104"  #Set the local database to use
+Database <- "OystersEL_240111"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -330,6 +330,9 @@ SLC_Summary <- left_join(
               SLC_RecruitStats %>% ungroup() %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
     SLC_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
   SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD)) %>%
+  mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
+                              TRUE ~ "DrySeason"),
+         .before = LiveMean) %>%
   mutate(across(where(is.numeric), round, 2))
 
 
@@ -352,7 +355,7 @@ for (i in list(unique(CR_WQStats$StationNumber))){
 CR_i <- left_join(
     left_join(
       left_join(CR_WQStats %>% ungroup() %>% subset(StationNumber == i) %>%
-                dplyr::select(StationNumber, AnalysisDate, SalMean, SalSD), 
+                dplyr::select(StationNumber, AnalysisDate, SalMean), 
               CR_RecruitStats %>% ungroup() %>% subset(StationNumber == i) %>%
                 dplyr::select(StationNumber, AnalysisDate, RcrtMean, RcrtSD)),
     CR_DermoStats %>% ungroup() %>% subset(StationNumber == i) %>%
@@ -367,7 +370,7 @@ CR_i <- left_join(
          Density = LiveMean,
          .after = DermoPct)
 CR_Summary <- rbind(CR_Summary, CR_i)
-CR_Summary <- CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:13), names_glue = "{StationNumber}_{.value}")
+CR_Summary <- CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:12), names_glue = "{StationNumber}_{.value}")
 return(CR_Summary)
 }
 
@@ -384,6 +387,7 @@ SLC_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 CRE_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Iona Cove there were approximately ", round((CR_SurveyStats %>% filter(SectionName == "E"))$LiveMean,0), " live and ", round((CR_SurveyStats %>% filter(SectionName == "E"))$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
 CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Bird Island there were approximately ", round((CR_SurveyStats %>% filter(SectionName == "W"))$LiveMean,0), " live and ", round((CR_SurveyStats %>% filter(SectionName == "W"))$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+
 ```
 
 ```{r ReportText}
@@ -391,7 +395,7 @@ CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 ```
 
 ## Report summary
-This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")`. and details data for **CERP** sites in **`r MonYr`**. Analysis covers data occurring between *`r ReportStart`* and *`r ReportEnd`* at St. Lucie-Central and at Caloosahatchee River sites.\
+This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** sites in **`r MonYr`**. Analysis covers data occurring between *`r ReportStart`* and *`r ReportEnd`* at St. Lucie-Central and at Caloosahatchee River sites.\
 
 ## St. Lucie Central summary
 
@@ -425,7 +429,7 @@ in
 `r min(SLC_DermoStats$RetDate) %>% format("%B")` 
 to 
 `r round((SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct,2)`% 
-in
+of the oysters sampled in
 `r max(SLC_DermoStats$RetDate) %>% format("%B")`.
 * `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(SLC_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
@@ -501,26 +505,25 @@ at the Bird Island station.
 \newpage
 
 ## Data summary output (for Excel files)
-The following data updates the "CERPMonthlyReportData" Excel file:
-
-Here is the data summary output for "Monthly CERP data" Excel sheet:
+The following data updates the "CERPMonthlyReportData" [Excel file](\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData.xlsx).
+\
+Here is the data summary output for SLC on the "Monthly CERP data" Excel sheet:
 ```{r echo=FALSE, results='asis'}
-flextable(SLC_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
+flextable(SLC_Summary) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize(size = 9, part = "header") 
+```
+\
+Here is the data summary output for CRE and CRW on the "Monthly CR data" Excel sheet:
+```{r echo=FALSE, results='asis'}
+flextable(CR_Summary %>% dplyr::select(AnalysisDate, starts_with("2"))) %>% align(align = "center") %>% set_table_properties(width = 0.15) %>%  font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize( size = 9, part = "header") 
+
+flextable(CR_Summary %>% dplyr::select(AnalysisDate_B, starts_with("3"))) %>% align(align = "center") %>% set_table_properties(width = 0.15) %>%  font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize(size = 9, part = "header")
 ```
 \
 \
-Here is the data summary output for "Monthly CR data" Excel sheet:
+\
+The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](file:\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData_Rio_Station%20(05-Present).xlsx).
+\
+Here is the data summary output for St. Lucie-Central station 1 on the "SLC_1" Excel sheet:
 ```{r echo=FALSE, results='asis'}
-flextable(CRE_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
-flextable(CRW_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
-```
-\
-\
-\
-\
-The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" Excel file:
-
-Here is the data summary output for "SLC_1" Excel sheet:
-```{r echo=FALSE, results='asis'}
-flextable(SLC1_Excel_summ) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% fontsize(size = 10, part = "all")
+flextable(SLC1_Summary) %>% align(align = "center") %>% set_table_properties(width = 0.15) %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize(size = 9, part = "header") 
 ```
