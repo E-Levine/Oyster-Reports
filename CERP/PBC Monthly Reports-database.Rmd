@@ -40,6 +40,7 @@ ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
 ReportEnd <- format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d")
 NorthStations <- c("0312", "0235", "0236")
 SouthStations <- c("0240", "0241", "0237")
+NS_Order <- c('LWR4', 'LWL1', 'LWL2', 'LWR2', 'LWR3', 'LWL3')
 ```
 
 ```{r DatabaseDownload}
@@ -86,7 +87,7 @@ if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
     filter(substring(SampleEventID, 1, 2) %in% Estuaries)
   dboSurvey <- tbl(con,in_schema("dbo", "SurveyQuadrat")) %>%
     collect() %>%
-    filter(substring(SampleEventID, 1, 2) %in% Estuaries)} else {Survey <- "Survey was not conducted"}
+    filter(substring(SampleEventID, 1, 2) %in% Estuaries)} else {hsdbSurvey <- "Survey was not conducted."}
 DBI::dbDisconnect(con)
 ```
 
@@ -168,21 +169,13 @@ R1 <- union(hsdbRecruitment, dboRecruitment) %>%
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
-
- R1 %>% 
-  filter(Estuary == "AB") %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
-  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
-            SD= sd(BottomMonth, na.rm = TRUE),
-            Upper = RecMean + SD)
-
-LWL_Recruit <-  R1 %>% 
+LWL_RecruitStats <-  R1 %>% 
   filter(SectionName == "L") %>%
   group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>%
    summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
-LWR_Recruit <-  R1 %>% 
+LWR_RecruitStats <-  R1 %>% 
   filter(SectionName == "R") %>%
   group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>%
    summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
@@ -227,6 +220,7 @@ LWR_DermoStats <- Dermo1 %>%
 
 
 ### SURVEY ###
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
 Survey1 <- union(hsdbSurvey, dboSurvey) %>% 
   mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
@@ -245,31 +239,35 @@ Survey1 <- union(hsdbSurvey, dboSurvey) %>%
          Dead) %>% 
   filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
+}else{Survey1 <- "Survey was not conducted."}
 
-LWL_SurveyStats <- Survey1 %>%
-  filter(SectionName == "L") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary,  
-           SectionName) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  LWL_SurveyStats <- Survey1 %>%
+    filter(SectionName == "L") %>%
+    group_by(AnalysisDate, 
+             Plot_Date,  
+             RetDate,
+             Estuary,  
+             SectionName) %>%
+    summarise(LiveMean = mean(Live, na.rm = T),
+              LiveSD = sd(Live, na.rm = T),
+              DeadMean = mean(Dead, na.rm = T),
+              DeadSD = sd(Dead, na.rm = T))
+}else{LWL_SurveyStats <- "Survey was not conducted."}
 
-LWR_SurveyStats <- Survey1 %>%
-  filter(SectionName == "R") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary,  
-           SectionName) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
-
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  LWR_SurveyStats <- Survey1 %>%
+    filter(SectionName == "R") %>%
+    group_by(AnalysisDate, 
+             Plot_Date,  
+             RetDate,
+             Estuary,  
+             SectionName) %>%
+    summarise(LiveMean = mean(Live, na.rm = T),
+              LiveSD = sd(Live, na.rm = T),
+              DeadMean = mean(Dead, na.rm = T),
+              DeadSD = sd(Dead, na.rm = T))
+}else{LWR_SurveyStats <- "Survey was not conducted."}
 
 ### SEDIMENT TRAPS ###
 Sedi1 <- union(hsdbSediment, dboSediment) %>% 
@@ -303,79 +301,60 @@ LW_SediStats <- Sedi1 %>%
   group_by(AnalysisDate, 
            Plot_Date,  
            RetDate,
+           FixedLocationID,
            Estuary,  
            SectionName, 
-           StationNumber) %>%
+           StationNumber,
+           Position) %>%
   summarise(MonthRate = mean(TotalDW/(NumDays/28), na.rm = T),
             MeanOrganic = mean(PctOrganic, na.rm = T))
 
 ```
 
 ```{r Data summary tables}
-#Output tables for SLC, SLC1, CR - combining WQ, Rcrt, Dermo, and Survey
-SLC_Summary <- left_join(
+#Output tables for LWL and LWR - combining WQ, Rcrt, Dermo, and Survey
+LWL_Summary <- left_join(
   left_join(
-    left_join(SLC_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
-              SLC_RecruitStats %>% ungroup() %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
-    SLC_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
-  SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD)) %>%
-  mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
-                              TRUE ~ "DrySeason"),
-         .before = LiveMean) %>%
+    left_join(LWL_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
+              LWL_RecruitStats %>% ungroup() %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
+    LWL_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
+  #Add in survey data or placeholder if no survey conducted
+  if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+    LWL_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
+      mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
+    }else{
+      data.frame(AnalysisDate = LWL_WQStats$AnalysisDate, Survey = NA)
+      }) %>%
   mutate(across(where(is.numeric), round, 2))
 
 
-SLC1_Summary <- left_join(
+LWR_Summary <- left_join(
   left_join(
-    left_join(SLC1_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
-              SLC1_RecruitStats %>% ungroup() %>% 
-                dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
-    SLC1_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
-  SLC1_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
-    mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
-                              TRUE ~ "DrySeason"),
-           .before = LiveMean)) %>%
-  mutate(across(where(is.numeric), round, 2),
-         Density = LiveMean,
-         .after = DermoPct) 
+    left_join(LWR_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
+              LWR_RecruitStats %>% ungroup() %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
+    LWR_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
+  #Add in survey data or placeholder if no survey conducted
+  if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+    LWR_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
+      mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
+    }else{
+      data.frame(AnalysisDate = LWL_WQStats$AnalysisDate, Survey = NA)
+      }) %>%
+  mutate(across(where(is.numeric), round, 2))
 
-CR_Summary <- data.frame()
-for (i in list(unique(CR_WQStats$StationNumber))){
-CR_i <- left_join(
-    left_join(
-      left_join(CR_WQStats %>% ungroup() %>% subset(StationNumber == i) %>%
-                dplyr::select(StationNumber, AnalysisDate, SalMean), 
-              CR_RecruitStats %>% ungroup() %>% subset(StationNumber == i) %>%
-                dplyr::select(StationNumber, AnalysisDate, RcrtMean, RcrtSD)),
-    CR_DermoStats %>% ungroup() %>% subset(StationNumber == i) %>%
-      dplyr::select(StationNumber, AnalysisDate, DermoPct)),
-  CR_SurveyStats %>% ungroup() %>% subset(StationNumber == i) %>%
-    dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD) %>%
-   mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
-                              TRUE ~ "DrySeason"),
-           .before = LiveMean)) %>%
-                
-  mutate(across(where(is.numeric), round, 2),
-         Density = LiveMean,
-         .after = DermoPct)
-CR_Summary <- rbind(CR_Summary, CR_i)
-CR_Summary <- CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:12), names_glue = "{StationNumber}_{.value}")
-return(CR_Summary)
-}
+##Output table for sediment traps - divided by North and South of C-51
+Sedi_summary <- LW_SediStats %>% group_by(AnalysisDate, RetDate, Position) %>%
+  summarise(Rate = mean(MonthRate, na.rm = T),
+            OrganicPct = mean(MeanOrganic, na.rm = T)) %>%
+  mutate(across(where(is.numeric), round, 2))
 
-#Order columns for output - duplicate date for each station then arrange by stations
-CR_Summary <- CR_Summary %>% mutate(AnalysisDate_B = AnalysisDate) %>%
-  dplyr::select(AnalysisDate, starts_with("2_"), 
-                AnalysisDate_B, everything())
 ```
 
 ```{r Surevy Text}
 #Text for survey section of monthly report
-SLC_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(SLC_SurveyStats$LiveMean,0), " live and ", round(SLC_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+LWL_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(LWL_SurveyStats$LiveMean,0), " live and ", round(LWL_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
-CRE_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Iona Cove there were approximately ", round((CR_SurveyStats %>% filter(SectionName == "E"))$LiveMean,0), " live and ", round((CR_SurveyStats %>% filter(SectionName == "E"))$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
-
-CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey at Bird Island there were approximately ", round((CR_SurveyStats %>% filter(SectionName == "W"))$LiveMean,0), " live and ", round((CR_SurveyStats %>% filter(SectionName == "W"))$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+LWR_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(LWR_SurveyStats$LiveMean,0), " live and ", round(LWR_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
 ```
 
@@ -384,135 +363,135 @@ CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 ```
 
 ## Report summary
-This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** sites in **`r MonYr`**. Analysis covers data occurring between *`r ReportStart`* and *`r ReportEnd`* at St. Lucie-Central and at Caloosahatchee River sites.\
+This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **Palm Beach County** sites in **`r MonYr`**. Analysis covers data occurring between *`r ReportStart`* and *`r ReportEnd`* at natural reef and restored reef stations.\
 
-## St. Lucie Central summary
+## Lake Worth Lagoon summary
 
-Here is the monthly report with the data collected from the St. Lucie Estuary on `r max(SLC_WQStats$RetDate %>% format("%B %d, %Y"))`:
+Here is the monthly report with the data collected from the Lake Worth Lagoon stations on `r max(LWL_WQStats$RetDate %>% format("%B %d, %Y"))`:
 
 *	Mean salinity 
-`r if((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean > (SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean) {paste("decreased")} else if ((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean < (SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if((LWL_WQStats %>% filter(RetDate == min(LWL_WQStats$RetDate)))$SalMean > (LWL_WQStats %>% filter(RetDate == max(LWL_WQStats$RetDate)))$SalMean) {paste("decreased")} else if ((LWL_WQStats %>% filter(RetDate == min(LWL_WQStats$RetDate)))$SalMean < (LWL_WQStats %>% filter(RetDate == max(LWL_WQStats$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean,2)` 
+`r round((LWL_WQStats %>% filter(RetDate == min(LWL_WQStats$RetDate)))$SalMean,2)` 
 in 
-`r min(SLC_WQStats$RetDate) %>% format("%B")` 
+`r min(LWL_WQStats$RetDate) %>% format("%B")` 
 to 
-`r round((SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean,2)` 
+`r round((LWL_WQStats %>% filter(RetDate == max(LWL_WQStats$RetDate)))$SalMean,2)` 
 in 
-`r max(SLC_WQStats$RetDate) %>% format("%B")`.
+`r max(LWL_WQStats$RetDate) %>% format("%B")`.
 *	The mean recruitment rate 
-`r if((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean > (SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean < (SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean > (LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean < (LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r min(SLC_RecruitStats$RetDate) %>% format("%B")` 
+`r min(LWL_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r round((SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r max(SLC_RecruitStats$RetDate) %>% format("%B")`.
+`r max(LWL_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
-`r if((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct > (SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct < (SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
+`r if((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct > (LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct < (LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r round((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
 in 
-`r min(SLC_DermoStats$RetDate) %>% format("%B")` 
+`r min(LWL_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r round((SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
 of the oysters sampled in
-`r max(SLC_DermoStats$RetDate) %>% format("%B")`.
-* `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(SLC_Srvy_note)} else {paste("Survey was not conducted this month")}`
+`r max(LWL_DermoStats$RetDate) %>% format("%B")`.
+* `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
-## Caloosahatchee River summary 
+## Lake Worth Restoration summary 
 
-Here is the monthly report with data collected from Caloosahatchee on `r max(CR_WQStats$RetDate) %>% format("%B %d, %Y")`:
+Here is the monthly report with data collected from the Lake Worth Restoration stations on `r max(LWR_WQStats$RetDate) %>% format("%B %d, %Y")`:
 
 *	Mean salinity 
-`r if((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean > (CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean) {paste("decreased")} else if ((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean < (CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if((LWR_WQStats %>% filter(RetDate == min(LWR_WQStats$RetDate)))$SalMean > (LWR_WQStats %>% filter(RetDate == max(LWR_WQStats$RetDate)))$SalMean) {paste("decreased")} else if ((LWR_WQStats %>% filter(RetDate == min(LWR_WQStats$RetDate)))$SalMean < (LWR_WQStats %>% filter(RetDate == max(LWR_WQStats$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)` 
+`r round((LWR_WQStats %>% filter(RetDate == min(LWR_WQStats$RetDate)))$SalMean,2)` 
 in 
-`r min((CR_WQStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")` 
+`r min(LWR_WQStats$RetDate) %>% format("%B")` 
 to 
-`r round((CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)` 
+`r round((LWR_WQStats %>% filter(RetDate == max(LWR_WQStats$RetDate)))$SalMean,2)` 
 in 
-`r max((CR_WQStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
-at the Iona Cove station and 
-`r if((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean > (CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean) {paste("decreased")} else if ((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean < (CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
-from 
-`r round((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)` 
-in 
-`r min((CR_WQStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
-to 
-`r round((CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)` 
-in 
-`r max((CR_WQStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
-at the Bird Island station.
+`r max(LWR_WQStats$RetDate) %>% format("%B")`.
 *	The mean recruitment rate 
-`r if((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean > (CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean) {paste("decreased")} else if ((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean < (CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean > (LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean < (LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,2)` 
+`r round((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")` 
+`r min(LWR_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,2)` 
+`r round((LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
-at the Iona Cove station and
-`r if((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean > (CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean) {paste("decreased")} else if ((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean < (CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
-from 
-`r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,2)` 
-spat/shell in 
-`r min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
-to 
-`r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,2)` 
-spat/shell in 
-`r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
+`r max(LWR_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
-`r if((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
+`r if((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct > (LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct < (LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)`% 
+`r round((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
 in 
-`r min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")` 
+`r min(LWR_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)`% 
-in
-`r max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
-at the Iona Cove station and 
-`r if((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
-from
-`r round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)`% 
+`r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
+of the oysters sampled in
+`r max(LWR_DermoStats$RetDate) %>% format("%B")`.
+* `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
+\
+
+## Lake Worth sediment trap summary 
+
+Here is the monthly report with sediment data collected from the Lake Worth Lagoon and Lake Worth Restoration stations on `r max(LWL_WQStats$RetDate) %>% format("%B %d, %Y")`:
+
+* The mean monthly sedimentation rate at the stations north of the C-51 output 
+`r if((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate > (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate < (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate`
+g/month in 
+`r min(Sedi_summary$RetDate) %>% format("%B")` 
+to 
+`r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate`
+g/month in
+`r max(Sedi_summary$RetDate) %>% format("%B")`,
+and the mean percent organic content
+`r if((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct > (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct < (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct`%
 in 
-`r min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
+`r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)`% 
+`r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct`%
 in
-`r max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")` 
-at the Bird Island station.
-*	`r if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste(CRE_Srvy_note, CRW_Srvy_note, sep = " ")} else {paste("Survey was not conducted this month")}`
+`r max(Sedi_summary$RetDate) %>% format("%B")`.
+* The mean monthly sedimentation rate at the stations south of the C-51 output 
+`r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate`
+g/month in 
+`r min(Sedi_summary$RetDate) %>% format("%B")` 
+to 
+`r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate`
+g/month in
+`r max(Sedi_summary$RetDate) %>% format("%B")`,
+and the mean percent organic content
+`r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct`%
+in 
+`r min(Sedi_summary$RetDate) %>% format("%B")` 
+to 
+`r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct`%
+in
+`r max(Sedi_summary$RetDate) %>% format("%B")`.
+\
 
-\newpage
+```{r echo=FALSE, restults = 'asis'}
+set_flextable_defaults(na_str = "--", nan_str = "--")
 
-## Data summary output (for Excel files)
-The following data updates the "CERPMonthlyReportData" [Excel file](\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData.xlsx).
-\
-Here is the data summary output for SLC on the "Monthly CERP data" Excel sheet:
-```{r echo=FALSE, results='asis'}
-flextable(SLC_Summary) %>% align(align = "center") %>% set_table_properties(width = 0.2) %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize(size = 9, part = "header") 
-```
-\
-Here is the data summary output for CRE and CRW on the "Monthly CR data" Excel sheet:
-```{r echo=FALSE, results='asis'}
-flextable(CR_Summary %>% dplyr::select(AnalysisDate, starts_with("2"))) %>% align(align = "center") %>% set_table_properties(width = 0.15) %>%  font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize( size = 9, part = "header") 
+#Create base table
+Sedi_table <- LW_SediStats %>% mutate(Month = format(RetDate, "%B"), Station = paste0(Estuary, SectionName, StationNumber), MonthRate = round(MonthRate, 2), MeanOrganic = round(MeanOrganic, 2)) %>% rename("Monthly rate (g/month)" = MonthRate, "Mean % Organic" = MeanOrganic) %>% mutate(Station = factor(Station, levels = NS_Order)) %>% pivot_wider(id_cols = Station, names_from = Month, values_from = c("Monthly rate (g/month)", "Mean % Organic"), names_glue = "{Month}_{.value}") %>% arrange(Station)
 
-flextable(CR_Summary %>% dplyr::select(AnalysisDate_B, starts_with("3"))) %>% align(align = "center") %>% set_table_properties(width = 0.15) %>%  font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize(size = 9, part = "header")
-```
-\
-\
-\
-The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](file:\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData_Rio_Station%20(05-Present).xlsx).
-\
-Here is the data summary output for St. Lucie-Central station 1 on the "SLC_1" Excel sheet:
-```{r echo=FALSE, results='asis'}
-flextable(SLC1_Summary) %>% align(align = "center") %>% set_table_properties(width = 0.15) %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 10, part = "all") %>% fontsize(size = 9, part = "header") 
+
+flextable(Sedi_table) %>% separate_header() %>% align(align = "center") %>% 
+  hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") 
 ```
