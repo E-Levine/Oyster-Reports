@@ -263,62 +263,70 @@ CR_DermoStats <- Dermo1 %>%
 
 
 ### SURVEY ###
-Survey1 <- union(hsdbSurvey, dboSurvey) %>% 
-  mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
-         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14),
-         Live = NumLive * 4,
-         Dead = NumDead * 4) %>%
-  select(QuadratID,
-         FixedLocationID,
-         SampleEventID,
-         RetDate,
-         AnalysisDate,
-         Plot_Date,
-         QuadratNumber,
-         Live,
-         Dead) %>% 
-  filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID"))
-
-SLC_SurveyStats <- Survey1 %>%
-  filter(Estuary == "SL") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  Survey1 <- union(hsdbSurvey, dboSurvey) %>% 
+    mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
+           RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+           AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+           Plot_Date = as.Date(AnalysisDate + 14),
+           Live = NumLive * 4,
+           Dead = NumDead * 4) %>%
+    select(QuadratID,
+           FixedLocationID,
+           SampleEventID,
            RetDate,
-           Estuary,  
-           SectionName) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
+           AnalysisDate,
+           Plot_Date,
+           QuadratNumber,
+           Live,
+           Dead) %>% 
+    filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID"))
+}else{Survey1 <- "Survey was not conducted."}
 
-SLC1_SurveyStats <- Survey1 %>%
-  filter(Estuary == "SL" & StationNumber == 1) %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary,  
-           SectionName, 
-           StationNumber) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  SLC_SurveyStats <- Survey1 %>%
+    filter(Estuary == "SL") %>%
+    group_by(AnalysisDate, 
+             Plot_Date,  
+             RetDate,
+             Estuary,  
+             SectionName) %>%
+    summarise(LiveMean = mean(Live, na.rm = T),
+              LiveSD = sd(Live, na.rm = T),
+              DeadMean = mean(Dead, na.rm = T),
+              DeadSD = sd(Dead, na.rm = T))
+}else{SLC_SurveyStats <- Survey1}
 
-CR_SurveyStats <- Survey1 %>%
-  filter(Estuary == "CR") %>%
-  group_by(AnalysisDate, 
-           Plot_Date,  
-           RetDate,
-           Estuary,  
-           SectionName,
-           StationNumber) %>%
-  summarise(LiveMean = mean(Live, na.rm = T),
-            LiveSD = sd(Live, na.rm = T),
-            DeadMean = mean(Dead, na.rm = T),
-            DeadSD = sd(Dead, na.rm = T))
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  SLC1_SurveyStats <- Survey1 %>%
+    filter(Estuary == "SL" & StationNumber == 1) %>%
+    group_by(AnalysisDate, 
+             Plot_Date,  
+             RetDate,
+             Estuary,  
+             SectionName, 
+             StationNumber) %>%
+    summarise(LiveMean = mean(Live, na.rm = T),
+              LiveSD = sd(Live, na.rm = T),
+              DeadMean = mean(Dead, na.rm = T),
+              DeadSD = sd(Dead, na.rm = T))
+}else{SLC1_SurveyStats <- Survey1}
+
+if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+  CR_SurveyStats <- Survey1 %>%
+    filter(Estuary == "CR") %>%
+    group_by(AnalysisDate, 
+             Plot_Date,  
+             RetDate,
+             Estuary,  
+             SectionName,
+             StationNumber) %>%
+    summarise(LiveMean = mean(Live, na.rm = T),
+              LiveSD = sd(Live, na.rm = T),
+              DeadMean = mean(Dead, na.rm = T),
+              DeadSD = sd(Dead, na.rm = T))
+}else{CR_SurveyStats <- Survey1}
 
 ```
 
@@ -329,10 +337,13 @@ SLC_Summary <- left_join(
     left_join(SLC_WQStats %>% ungroup() %>% dplyr::select(AnalysisDate, SalMean, SalSD),
               SLC_RecruitStats %>% ungroup() %>% dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
     SLC_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
-  SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD)) %>%
-  mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
-                              TRUE ~ "DrySeason"),
-         .before = LiveMean) %>%
+    #Add in survey data or placeholder if no survey conducted
+  if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+    SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
+  mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
+    }else{
+      data.frame(AnalysisDate = LWL_WQStats$AnalysisDate, Survey = NA)
+    }) %>%
   mutate(across(where(is.numeric), round, 2))
 
 
@@ -342,10 +353,13 @@ SLC1_Summary <- left_join(
               SLC1_RecruitStats %>% ungroup() %>% 
                 dplyr::select(AnalysisDate, RcrtMean, RcrtSD)),
     SLC1_DermoStats %>% ungroup() %>% dplyr::select(AnalysisDate, DermoPct)),
-  SLC1_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
-    mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
-                              TRUE ~ "DrySeason"),
-           .before = LiveMean)) %>%
+  #Add in survey data or placeholder if no survey conducted
+  if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+    SLC1_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
+      mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
+    }else{
+      data.frame(AnalysisDate = LWL_WQStats$AnalysisDate, Survey = NA)
+      }) %>%
   mutate(across(where(is.numeric), round, 2),
          Density = LiveMean,
          .after = DermoPct) 
@@ -355,22 +369,25 @@ for (i in list(unique(CR_WQStats$StationNumber))){
 CR_i <- left_join(
     left_join(
       left_join(CR_WQStats %>% ungroup() %>% subset(StationNumber == i) %>%
-                dplyr::select(StationNumber, AnalysisDate, SalMean), 
-              CR_RecruitStats %>% ungroup() %>% subset(StationNumber == i) %>%
-                dplyr::select(StationNumber, AnalysisDate, RcrtMean, RcrtSD)),
-    CR_DermoStats %>% ungroup() %>% subset(StationNumber == i) %>%
-      dplyr::select(StationNumber, AnalysisDate, DermoPct)),
-  CR_SurveyStats %>% ungroup() %>% subset(StationNumber == i) %>%
-    dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD) %>%
-   mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason",
-                              TRUE ~ "DrySeason"),
-           .before = LiveMean)) %>%
-                
+                  dplyr::select(StationNumber, AnalysisDate, SalMean), 
+                CR_RecruitStats %>% ungroup() %>% subset(StationNumber == i) %>%
+                  dplyr::select(StationNumber, AnalysisDate, RcrtMean, RcrtSD)),
+      CR_DermoStats %>% ungroup() %>% subset(StationNumber == i) %>%
+        dplyr::select(StationNumber, AnalysisDate, DermoPct)),  #Add in survey data or placeholder if no survey conducted
+  if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
+    CR_SurveyStats %>% ungroup() %>% subset(StationNumber == i) %>%
+      dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD) %>%
+      mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
+  }else{
+      data.frame(AnalysisDate = LWL_WQStats$AnalysisDate, Survey = NA)
+  }) %>%
   mutate(across(where(is.numeric), round, 2),
          Density = LiveMean,
          .after = DermoPct)
+
 CR_Summary <- rbind(CR_Summary, CR_i)
 CR_Summary <- CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:12), names_glue = "{StationNumber}_{.value}")
+
 return(CR_Summary)
 }
 
