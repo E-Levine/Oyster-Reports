@@ -1,16 +1,24 @@
 ---
 title: "CERP Monthly Report - `r params$Year`-`r params$Month`"
-output: word_document
+output: 
+  word_document:
+      reference_docx: Monthly-Reports-template.docx
 params: 
   Month: "05"  #Enter 2-digit month
   Year: "2024" #Enter 4-digit year
+  
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-14), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Year, params$Month)),'.docx')) 
+      })
 ---
 
 ```{r VariableSet, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-05-28"  #Set the local database to use
+Database <- "Oysters_24-05-29_temp"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -37,7 +45,7 @@ pacman::p_load(odbc, DBI, dbplyr,
 
 MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
 ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
-ReportEnd <- format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d")
+ReportEnd <- as.Date(format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d"))
 ```
 
 ```{r DatabaseDownload}
@@ -146,7 +154,7 @@ CR_WQStats <- WQ1 %>%
             SalSD = sd(Salinity, na.rm = T))
 
 
-### RECRITMENT ###
+### RECRUITMENT ###
 #SL and CR RCRT calculate differently so compiling separately
 SL_Recruit <- union(hsdbRecruitment, dboRecruitment) %>% 
   filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
@@ -342,7 +350,7 @@ SLC_Summary <- left_join(
     SLC_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
   mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
     }else{
-      data.frame(AnalysisDate = SLC_WQStats$AnalysisDate, Survey = NA)
+      data.frame(AnalysisDate = SLC_WQStats$AnalysisDate, LiveMean = NA)
     }) %>%
   mutate(across(where(is.numeric), round, 2))
 
@@ -358,7 +366,7 @@ SLC1_Summary <- left_join(
     SLC1_SurveyStats %>% ungroup() %>% dplyr::select(AnalysisDate, LiveMean:DeadSD) %>%
       mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
     }else{
-      data.frame(AnalysisDate = SLC1_WQStats$AnalysisDate, Survey = NA)
+      data.frame(AnalysisDate = SLC1_WQStats$AnalysisDate, LiveMean = NA)
       }) %>%
   mutate(across(where(is.numeric), round, 2),
          Density = LiveMean,
@@ -379,16 +387,15 @@ CR_i <- left_join(
       dplyr::select(StationNumber, AnalysisDate, LiveMean:DeadSD) %>%
       mutate(Season = case_when(month(AnalysisDate) > 4 & month(AnalysisDate) < 10 ~ "WetSeason", TRUE ~ "DrySeason"), .before = LiveMean)
   }else{
-      data.frame(AnalysisDate = CR_WQStats$AnalysisDate, Survey = NA)
+      data.frame(AnalysisDate = CR_WQStats$AnalysisDate, StationNumber = i, LiveMean = NA)
   }) %>%
   mutate(across(where(is.numeric), round, 2),
          Density = LiveMean,
          .after = DermoPct)
 
 CR_Summary <- rbind(CR_Summary, CR_i)
-CR_Summary <- CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:12), names_glue = "{StationNumber}_{.value}")
+CR_Summary <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:12), names_glue = "{StationNumber}_{.value}")} else {CR_Summary %>% pivot_wider(names_from = StationNumber, values_from = c(3:8), names_glue = "{StationNumber}_{.value}")}
 
-return(CR_Summary)
 }
 
 #Order columns for output - duplicate date for each station then arrange by stations
@@ -397,7 +404,7 @@ CR_Summary <- CR_Summary %>% mutate(AnalysisDate_B = AnalysisDate) %>%
                 AnalysisDate_B, everything())
 ```
 
-```{r Surevy Text}
+```{r Survey Text}
 #Text for survey section of monthly report
 SLC_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(SLC_SurveyStats$LiveMean,0), " live and ", round(SLC_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
@@ -412,7 +419,7 @@ CRW_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 ```
 
 ## Report summary
-This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** sites in **`r MonYr`**. Analysis covers data occurring between *`r ReportStart`* and *`r ReportEnd`* at St. Lucie-Central and at Caloosahatchee River sites.\
+This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** sites in **`r MonYr`**. Analysis covers data occurring between *`r format(ReportStart, "%d %B %Y")`* and *`r format(ReportEnd, "%d %B %Y")`* at St. Lucie-Central and at Caloosahatchee River sites.\
 
 ## St. Lucie Central summary
 
@@ -495,7 +502,7 @@ spat/shell in
 to 
 `r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,2)` 
 spat/shell in 
-`r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
+`r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
 `r if((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
@@ -522,7 +529,7 @@ at the Bird Island station.
 \newpage
 
 ## Data summary output (for Excel files)
-The following data updates the "CERPMonthlyReportData" [Excel file](\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData.xlsx).
+*The following data updates the "CERPMonthlyReportData" [Excel file](\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData.xlsx).*
 \
 Here is the data summary output for SLC on the "Monthly CERP data" Excel sheet:
 ```{r echo=FALSE, results='asis'}
@@ -538,7 +545,7 @@ flextable(CR_Summary %>% dplyr::select(AnalysisDate_B, starts_with("3"))) %>% al
 \
 \
 \
-The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](file:\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData_Rio_Station%20(05-Present).xlsx).
+*The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](file:\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData_Rio_Station%20(05-Present).xlsx).*
 \
 Here is the data summary output for St. Lucie-Central station 1 on the "SLC_1" Excel sheet:
 ```{r echo=FALSE, results='asis'}

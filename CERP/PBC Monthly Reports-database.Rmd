@@ -1,16 +1,24 @@
 ---
 title: "PBC Monthly Report - `r params$Year`-`r params$Month`"
-output: word_document
+output: 
+  word_document:
+      reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "11"  #Enter 2-digit month
-  Year: "2023" #Enter 4-digit year
+  Month: "05"  #Enter 2-digit month
+  Year: "2024" #Enter 4-digit year
+  
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-14), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Year, params$Month)),'.docx')) 
+      })
 ---
 
 ```{r VariableSet, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "OystersEL_240111"  #Set the local database to use
+Database <- "Oysters_24-05-29_temp"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -37,7 +45,7 @@ pacman::p_load(odbc, DBI, dbplyr,
 
 MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
 ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
-ReportEnd <- format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d")
+ReportEnd <- as.Date(format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d"))
 NorthStations <- c("0312", "0235", "0236")
 SouthStations <- c("0240", "0241", "0237")
 NS_Order <- c('LWR4', 'LWL1', 'LWL2', 'LWR2', 'LWR3', 'LWL3')
@@ -363,7 +371,7 @@ LWR_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12
 ```
 
 ## Report summary
-This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **Palm Beach County** sites in **`r MonYr`**. Analysis covers data occurring between *`r ReportStart`* and *`r ReportEnd`* at natural reef and restored reef stations.\
+This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **Palm Beach County** sites in **`r MonYr`**. Analysis covers data occurring between *`r format(ReportStart, "%d %B %Y")`* and *`r format(ReportEnd,  "%d %B %Y")`* at natural reef and restored reef stations.\
 
 ## Lake Worth Lagoon summary
 
@@ -492,6 +500,6 @@ set_flextable_defaults(na_str = "--", nan_str = "--")
 Sedi_table <- LW_SediStats %>% mutate(Month = format(RetDate, "%B"), Station = paste0(Estuary, SectionName, StationNumber), MonthRate = round(MonthRate, 2), MeanOrganic = round(MeanOrganic, 2)) %>% rename("Monthly rate (g/month)" = MonthRate, "Mean % Organic" = MeanOrganic) %>% mutate(Station = factor(Station, levels = NS_Order)) %>% pivot_wider(id_cols = Station, names_from = Month, values_from = c("Monthly rate (g/month)", "Mean % Organic"), names_glue = "{Month}_{.value}") %>% arrange(Station)
 
 
-flextable(Sedi_table) %>% separate_header() %>% align(align = "center") %>% 
+flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "all") %>% 
   hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") 
 ```
