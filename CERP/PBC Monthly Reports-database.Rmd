@@ -18,7 +18,7 @@ knit: (function(inputFile, encoding) {
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-05-29_temp"  #Set the local database to use
+Database <- "Oysters_24-05-31"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -288,9 +288,11 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
          Position = case_when(FixedLocationID %in% NorthStations ~ "North",
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
+         Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight-PanTareWeight)+(FilterDryWeight-FilterTareWeight)),
          TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
-         TotalAsh = (AshWeight - TareCrucible)*(1/PortionofSample), 
-         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100) %>%
+         TotalAsh = (AshWeight - TareCrucible)*(1/Proportion),
+         OrganicWt = TotalDW - TotalAsh, 
+         PctOrganic = (OrganicWt/TotalDW) * 100) %>%
   select(CupSampleID,
          FixedLocationID,
          SampleEventID,
@@ -300,7 +302,10 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
          Plot_Date,
          NumDays,
          Position,
+         Proportion,
          TotalDW,
+         TotalAsh,
+         OrganicWt,
          PctOrganic) %>% 
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
@@ -390,21 +395,21 @@ in
 *	The mean recruitment rate 
 `r if((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean > (LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean < (LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r min(LWL_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r max(LWL_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
 `r if((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct > (LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct < (LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r round((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct,1)`% 
 in 
 `r min(LWL_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWL_DermoStats$RetDate) %>% format("%B")`.
 * `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
@@ -427,21 +432,21 @@ in
 *	The mean recruitment rate 
 `r if((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean > (LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean < (LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r min(LWR_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r max(LWR_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
 `r if((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct > (LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct < (LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r round((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct,1)`% 
 in 
 `r min(LWR_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWR_DermoStats$RetDate) %>% format("%B")`.
 * `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
