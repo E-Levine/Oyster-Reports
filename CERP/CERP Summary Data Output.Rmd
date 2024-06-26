@@ -24,6 +24,15 @@ pacman::p_load(odbc, DBI, dbplyr,
   knitr, 
   install = TRUE)
 
+Estuaries <- c("SL", "LX", "CR")
+CR_order <- c("0230", "0231", "0232", "0233",  #CR
+              "0235", "0236", "0237", "0240", "0241", "0312", #LW
+              "0242", "0243", "0244", "0246", "0247", "0249", #LX
+              "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
+CR_order <- c("CR-E", "CR-E1", "CR-E2", "CR-W", "CR-W3", "CR-W4", #CR
+              "0236", "0237", "0240", "0241", "0312", #LW
+              "0242", "0243", "0244", "0246", "0247", "0249", #LX
+              "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
 
 ```
 
@@ -38,7 +47,7 @@ con <- dbConnect(odbc(),
 
 dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   collect() %>% 
-  filter(Estuary %in% c("SL", "LX", "CR") & grepl("^0", FixedLocationID)) %>% #Limit to primary stations, remove "ARRA" and SLN4
+  filter(Estuary %in% Estuaries & grepl("^0", FixedLocationID)) %>% #Limit to primary stations, remove "ARRA" and SLN4
   filter(!grepl("^ARRA", StationName) & StationName != "SL-N-4")
 hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
@@ -51,10 +60,50 @@ DBI::dbDisconnect(con)
 ```
 
 ```{r WQ data tables}
-rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proofed")), (dboSampleEventWQ %>% filter(DataStatus == "Proofed"))) %>%
+
+#List of WQ params
+WQ_params <- c("DO","Pct", "pH", "Sal", "SP", "Temp")
+
+#Combined table of all parameters
+WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proofed")), (dboSampleEventWQ %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns and Secchi penetration
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         SecchiPct = round((Secchi/Depth) * 100, 2)) %>%
+         SP = round((Secchi/Depth) * 100, 2)) %>%
+  #Filter data to desired date range and select columns needed for summary
   filter(RetDate > Start_date & RetDate < End_date) %>%
-  dplyr::select(RetDate, AnalysisDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, pH, Salinity, SecchiPct, Temperature)
+  dplyr::select(AnalysisDate, RetDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, PercentDissolvedOxygen, pH, Salinity, SP, Temperature) %>% rename(DO = DissolvedOxygen, Pct = PercentDissolvedOxygen, Sal = Salinity, Temp = Temperature) %>%
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(CR_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
+
+#Summary by Site
+Site_summary <- data.frame()#WQ_combined %>% distinct(Site, RetDate))
+Site_summary_l <- data.frame()
+WQ_list <- list()
+for(j in Estuaries){
+  for(i in WQ_params){
+    WQ_Sites_i <- WQ_combined %>% dplyr::select(Site, RetDate, i) %>%
+      group_by(Site, RetDate) %>%
+      summarise(A_Mean = round(mean(get(i), na.rm = T),2),
+                B_SD = round(sd(get(i), na.rm = T),2),
+                C_Min = min(get(i), na.rm = T),
+                D_Max = max(get(i), na.rm = T)) %>%
+      rename_with(~paste0(., i), -which(names(.) == c("Site", "RetDate")))
+    
+    WQ_Sites_ij <- WQ_Sites_i %>% filter(str_detect(Site, j)) %>% 
+    pivot_wider(names_from = Site, values_from = c(3:6), names_glue = "{Site}_{.value}", values_fill = NA) %>%
+    dplyr::select(RetDate, sort(colnames(.)))
+    
+    Site_summary <- rbind(Site_summary, WQ_Sites_i)
+    WQ_list[[j]][[i]] <- WQ_Sites_ij
+  }
+}
+
+WQ_list
+
 ```
