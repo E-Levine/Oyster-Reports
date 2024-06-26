@@ -1,0 +1,60 @@
+---
+title: "Summary_Data_Output"
+author: "ELevine"
+date: "2024-06-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+Author <- c("E Levine") #Change to your name
+Database <- "Oysters_24 06 05"  #Set the local database to use
+Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
+
+Start_date <- as.Date("2024-01-01")
+End_date <- as.Date("2024-06-30")
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  #DF manipulation
+  DT,          #Excel
+  lubridate, zoo,         #Dates
+  knitr, 
+  install = TRUE)
+
+
+```
+
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = Server,
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% c("SL", "LX", "CR") & grepl("^0", FixedLocationID)) %>% #Limit to primary stations, remove "ARRA" and SLN4
+  filter(!grepl("^ARRA", StationName) & StationName != "SL-N-4")
+hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) #Limit to COLL (dermo) data
+dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) #Limit to COLL (dermo) data
+
+DBI::dbDisconnect(con)
+```
+
+```{r WQ data tables}
+rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proofed")), (dboSampleEventWQ %>% filter(DataStatus == "Proofed"))) %>%
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         SecchiPct = round((Secchi/Depth) * 100, 2)) %>%
+  filter(RetDate > Start_date & RetDate < End_date) %>%
+  dplyr::select(RetDate, AnalysisDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, pH, Salinity, SecchiPct, Temperature)
+```
