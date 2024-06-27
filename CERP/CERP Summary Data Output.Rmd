@@ -24,7 +24,8 @@ pacman::p_load(odbc, DBI, dbplyr,
   knitr, 
   install = TRUE)
 
-Estuaries <- c("SL", "LX", "CR")
+Estuaries <- c("SL", "LX", "CR", "LW")
+Sites <- c("CR-E", "CR-W", "LW-L", "LW-R", "LX-N", "LX-S", "SL-C", "SL-N", "SL-S")
 CR_order <- c("0230", "0231", "0232", "0233",  #CR
               "0235", "0236", "0237", "0240", "0241", "0312", #LW
               "0242", "0243", "0244", "0246", "0247", "0249", #LX
@@ -100,9 +101,25 @@ for(j in Estuaries){
     dplyr::select(RetDate, sort(colnames(.)))
     
     Site_summary <- rbind(Site_summary, WQ_Sites_i)
-    WQ_list[[j]][[i]] <- WQ_Sites_ij
+    WQ_list[[i]][[j]] <- WQ_Sites_ij
   }
 }
+
+##Try 2
+#Get summary by Site for all parameters
+Site_summary <- list() #data.frame()#matrix(nrow = length(unique(WQ_combined$AnalysisDate)), ncol = 25*9)#WQ_combined %>% distinct(Site, RetDate))
+for(i in WQ_params){
+for (j in Sites) {
+  Summary_j <- WQ_combined %>% filter(str_detect(Site, j)) %>% dplyr::select(Site, RetDate, DO:Temp) %>% group_by(RetDate) %>% summarise(across(.cols = where(is.numeric), .fns = list(A_Mean = mean, B_SD = sd, C_Min = min, D_Max = max), na.rm = T, .names = "{fn}{col}")) %>% rename_with(., function(x){paste0(j, "_", x)})
+  
+  Site_summary[[j]] <- Summary_j
+}
+  #WORKING
+  map(Site_summary, ~.x %>% dplyr::select(contains(c("Date", "DO")))) %>% reduce(.,bind_cols)
+}
+(temp <- WQ_combined %>% filter(str_detect(Site, 'CR-E')) %>% dplyr::select(Site, RetDate, DO:Temp) %>% group_by(RetDate) %>% summarise(across(.cols = where(is.numeric), .fns = list(A_Mean = mean, B_SD = sd, C_Min = min, D_Max = max), na.rm = T, .names = "CR-E_{fn}{col}")) %>% rename("CR-E_RetDate" = RetDate))
+
+temp %>% dplyr::select('CR-E_RetDate', contains("DO"))
 
 WQ_list
 
