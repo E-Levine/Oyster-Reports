@@ -4,7 +4,7 @@ output:
   word_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "05"  #Enter 2-digit month
+  Month: "06"  #Enter 2-digit month
   Year: "2024" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -18,7 +18,7 @@ knit: (function(inputFile, encoding) {
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-05-29_temp"  #Set the local database to use
+Database <- "Oysters_24-06-28_test"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -279,6 +279,7 @@ if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
 
 ### SEDIMENT TRAPS ###
 Sedi1 <- union(hsdbSediment, dboSediment) %>% 
+  mutate(Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)))%>%
   mutate(DeployedDate = as.Date(DeployedDate), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
          NumDays = as.numeric(RetDate-DeployedDate),
@@ -289,8 +290,9 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
          TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
-         TotalAsh = (AshWeight - TareCrucible)*(1/PortionofSample), 
-         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100) %>%
+         TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
+         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100,
+         OrganicWt = TotalDW*(PctOrganic/100)) %>%
   select(CupSampleID,
          FixedLocationID,
          SampleEventID,
@@ -301,7 +303,8 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
          NumDays,
          Position,
          TotalDW,
-         PctOrganic) %>% 
+         PctOrganic,
+         OrganicWt) %>% 
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
@@ -315,7 +318,8 @@ LW_SediStats <- Sedi1 %>%
            StationNumber,
            Position) %>%
   summarise(MonthRate = mean(TotalDW/(NumDays/28), na.rm = T),
-            MeanOrganic = mean(PctOrganic, na.rm = T))
+            MeanOrganic = mean(PctOrganic, na.rm = T),
+            MonthOrgWt = mean(OrganicWt/(NumDays/28), na.rm = T))
 
 ```
 
@@ -353,16 +357,17 @@ LWR_Summary <- left_join(
 ##Output table for sediment traps - divided by North and South of C-51
 Sedi_summary <- LW_SediStats %>% group_by(AnalysisDate, RetDate, Position) %>%
   summarise(Rate = mean(MonthRate, na.rm = T),
-            OrganicPct = mean(MeanOrganic, na.rm = T)) %>%
+            OrganicPct = mean(MeanOrganic, na.rm = T),
+            RateOrganicWt = mean(MonthOrgWt, na.rm = T)) %>%
   mutate(across(where(is.numeric), round, 2))
 
 ```
 
 ```{r Surevy Text}
 #Text for survey section of monthly report
-LWL_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(LWL_SurveyStats$LiveMean,0), " live and ", round(LWL_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+LWL_Srvy_note <- if(Month == "03" | Month == "09") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else {paste("fall")}, " survey there were approximately ", round(LWL_SurveyStats$LiveMean,0), " live and ", round(LWL_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
-LWR_Srvy_note <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else if(Month == "06") {paste("summer")} else if (Month == "09") {paste("fall")} else {paste("winter")}, " survey there were approximately ", round(LWR_SurveyStats$LiveMean,0), " live and ", round(LWR_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
+LWR_Srvy_note <- if(Month == "03" | Month == "09") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else {paste("fall")}, " survey there were approximately ", round(LWR_SurveyStats$LiveMean,0), " live and ", round(LWR_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
 ```
 
@@ -375,7 +380,7 @@ This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %
 
 ## Lake Worth Lagoon summary
 
-Here is the monthly report with the data collected from the Lake Worth Lagoon stations on `r max(LWL_WQStats$RetDate %>% format("%B %d, %Y"))`:
+Here is the monthly report with the data collected from the Lake Worth Lagoon stations on `r max(LWL_WQStats$RetDate) %>% format("%B %d, %Y")`:
 
 *	Mean salinity 
 `r if((LWL_WQStats %>% filter(RetDate == min(LWL_WQStats$RetDate)))$SalMean > (LWL_WQStats %>% filter(RetDate == max(LWL_WQStats$RetDate)))$SalMean) {paste("decreased")} else if ((LWL_WQStats %>% filter(RetDate == min(LWL_WQStats$RetDate)))$SalMean < (LWL_WQStats %>% filter(RetDate == max(LWL_WQStats$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
@@ -407,7 +412,7 @@ to
 `r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
 of the oysters sampled in
 `r max(LWL_DermoStats$RetDate) %>% format("%B")`.
-* `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
+* `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
 ## Lake Worth Restoration summary 
@@ -444,7 +449,7 @@ to
 `r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
 of the oysters sampled in
 `r max(LWR_DermoStats$RetDate) %>% format("%B")`.
-* `r if(Month == "03" | Month == "06"  | Month == "09" | Month == "12") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
+* `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
 ## Lake Worth sediment trap summary 
@@ -471,6 +476,17 @@ to
 `r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct`%
 in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
+The mean monthly organic weight 
+`r if((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt > (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt < (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt`
+g/month in 
+`r min(Sedi_summary$RetDate) %>% format("%B")` 
+to 
+`r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt`
+g/month in
+`r max(Sedi_summary$RetDate) %>% format("%B")`.
+
 * The mean monthly sedimentation rate at the stations south of the C-51 output 
 `r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("increased")} else {paste("stayed the same")}` 
 from 
@@ -491,15 +507,25 @@ to
 `r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct`%
 in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
+The mean monthly organic weight 
+`r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("increased")} else {paste("stayed the same")}` 
+from 
+`r (Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt`
+g/month in 
+`r min(Sedi_summary$RetDate) %>% format("%B")` 
+to 
+`r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt`
+g/month in
+`r max(Sedi_summary$RetDate) %>% format("%B")`.
 \
 
 ```{r echo=FALSE, restults = 'asis'}
 set_flextable_defaults(na_str = "--", nan_str = "--")
 
 #Create base table
-Sedi_table <- LW_SediStats %>% mutate(Month = format(RetDate, "%B"), Station = paste0(Estuary, SectionName, StationNumber), MonthRate = round(MonthRate, 2), MeanOrganic = round(MeanOrganic, 2)) %>% rename("Monthly rate (g/month)" = MonthRate, "Mean % Organic" = MeanOrganic) %>% mutate(Station = factor(Station, levels = NS_Order)) %>% pivot_wider(id_cols = Station, names_from = Month, values_from = c("Monthly rate (g/month)", "Mean % Organic"), names_glue = "{Month}_{.value}") %>% arrange(Station)
+Sedi_table <- LW_SediStats %>% mutate(Month = format(RetDate, "%B"), Station = paste0(Estuary, SectionName, StationNumber), MonthRate = round(MonthRate, 2), MeanOrganic = round(MeanOrganic, 2), RateOrganicWt = round(MonthOrgWt, 2)) %>% rename("Monthly rate (g/month)" = MonthRate, "Mean % organic" = MeanOrganic, "Mean rate organic weight (g/month)" = RateOrganicWt) %>% mutate(Station = factor(Station, levels = NS_Order)) %>% pivot_wider(id_cols = Station, names_from = Month, values_from = c("Monthly rate (g/month)", "Mean % organic", "Mean rate organic weight (g/month)"), names_glue = "{Month}_{.value}") %>% arrange(Station)
 
 
 flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "all") %>% 
-  hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") 
+  hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3, 5), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") 
 ```
