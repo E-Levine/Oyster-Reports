@@ -30,10 +30,10 @@ CR_order <- c("0230", "0231", "0232", "0233",  #CR
               "0235", "0236", "0237", "0240", "0241", "0312", #LW
               "0242", "0243", "0244", "0246", "0247", "0249", #LX
               "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
-CR_order <- c("CR-E", "CR-E1", "CR-E2", "CR-W", "CR-W3", "CR-W4", #CR
-              "0236", "0237", "0240", "0241", "0312", #LW
-              "0242", "0243", "0244", "0246", "0247", "0249", #LX
-              "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
+Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
+                   "LW-L1", "LW-L2", "LWL-3", "LW-R2", "LW-R3", "LW-R4", #LW
+                   "LX-N1", "LX-N2", "LX-N3", "LXS-1", "LX-N2", "LX-S3", #LX
+                   "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
 
 ```
 
@@ -82,10 +82,26 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName))
 
+##Summary by Station
+#Create empty data frame with analysis dates
+Station_summary <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))#WQ_combined %>% distinct(Site, RetDate))
+for(i in WQ_params){
+  for(j in Station_order){
+    Summary_jS <- WQ_combined %>% 
+      #Select columns for each WQ param, filter to Station by FixedLocationID, and group for summary
+      dplyr::select(StationName, AnalysisDate, RetDate, i) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>% dplyr::select(-StationName) %>%
+      #Rename columns: Add StationName to beginning, reformat RetDate for cleaning
+      rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) %>% rename_with(.fn = ~ifelse(str_detect(.x, "RetDate"), paste0(j,"_", i, "_RetDate"), .x), .cols = everything())
+    #
+    #Join with existing data
+    Station_summary <- left_join(Station_summary, Summary_jS, by = "AnalysisDate")
+  }
+}
+
+
 ##Summary by Site
 #Create empty data frame with analysis dates
 Site_summary <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))#WQ_combined %>% distinct(Site, RetDate))
-
 for(i in WQ_params){
   for(j in Sites){
     Summary_j <- WQ_combined %>% 
