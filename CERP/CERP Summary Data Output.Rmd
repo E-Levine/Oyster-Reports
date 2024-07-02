@@ -2,7 +2,10 @@
 title: "Summary_Data_Output"
 author: "ELevine"
 date: "2024-06-26"
-output: html_document
+output: 
+  html_document:
+  word_document: null
+  
 ---
 
 ```{r setup, include=FALSE}
@@ -19,24 +22,34 @@ End_date <- as.Date("2022-06-30")
 if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
-  DT,          #Excel
+  DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
   knitr, 
   install = TRUE)
 
 Estuaries <- c("SL", "LX", "CR", "LW")
 Sites <- c("CR-E", "CR-W", "LW-L", "LW-R", "LX-N", "LX-S", "SL-C", "SL-N", "SL-S")
-CR_order <- c("0230", "0231", "0232", "0233",  #CR
-              "0235", "0236", "0237", "0240", "0241", "0312", #LW
-              "0242", "0243", "0244", "0246", "0247", "0249", #LX
-              "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
+LocationID_order <- c("0230", "0231", "0232", "0233",  #CR
+                      "0235", "0236", "0237", "0240", "0241", "0312", #LW
+                      "0242", "0243", "0244", "0246", "0247", "0249", #LX
+                      "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
 Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
-                   "LW-L1", "LW-L2", "LWL-3", "LW-R2", "LW-R3", "LW-R4", #LW
-                   "LX-N1", "LX-N2", "LX-N3", "LXS-1", "LX-N2", "LX-S3", #LX
+                   "LW-L1", "LW-L2", "LW-L3", "LW-R2", "LW-R3", "LW-R4", #LW
+                   "LX-N1", "LX-N2", "LX-N3", "LX-S1", "LX-S2", "LX-S3", #LX
                    "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
+Date_exclusion <- c("CR-W4_RetDate", "CR-E2_RetDate", "LW-L2_RetDate", "LW-L3_RetDate", "LW-R3_RetDate", "LW-R4_RetDate", "LX-N2_RetDate", "LX-N3_RetDate", "LX-S2_RetDate", "LX-S3_RetDate", "SL-C2_RetDate", "SL-C3_RetDate", "SL-N2_RetDate", "SL-N3_RetDate", "SL-S2_RetDate", "SL-S3_RetDate")
+
+Append_new_data <- c("N") #Y/N
 
 ```
 
+```{css}
+caption {
+  color: black;
+  font-weight: bold;
+  font-size: 14;
+} 
+```
 
 ```{r DatabaseDownload}
 # Connect to Local database server and pull all necessary data, then close connection 
@@ -75,12 +88,19 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
   filter(RetDate > Start_date & RetDate < End_date) %>%
   dplyr::select(AnalysisDate, RetDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, PercentDissolvedOxygen, pH, Salinity, SP, Temperature) %>% rename(DO = DissolvedOxygen, Pct = PercentDissolvedOxygen, Sal = Salinity, Temp = Temperature) %>%
   #Arrange by station then date
-  arrange(match(FixedLocationID, c(CR_order)), AnalysisDate),
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
   #Add simplified StationName 
   dboFixedLocations %>% 
     mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName))
+
+##WQ output summary
+WQ_out_list <- list()
+for(w in WQ_params){
+  WQ_Out <- WQ_combined %>% dplyr::select(StationName, AnalysisDate, w) %>% group_by(StationName, AnalysisDate) %>% summarise(count = sum(!is.na(w))) %>% pivot_wider(names_from = AnalysisDate, values_from = count) %>% rename_with(~str_replace(.x, "-01", "")) %>% ungroup()
+  WQ_out_list[[w]] <- WQ_Out
+}
 
 ##Summary by Station
 #Create empty data frame with analysis dates
@@ -89,13 +109,16 @@ for(i in WQ_params){
   for(j in Station_order){
     Summary_jS <- WQ_combined %>% 
       #Select columns for each WQ param, filter to Station by FixedLocationID, and group for summary
-      dplyr::select(StationName, AnalysisDate, RetDate, i) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>% dplyr::select(-StationName) %>%
+      dplyr::select(StationName, AnalysisDate, RetDate, all_of(i)) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>% dplyr::select(-StationName) %>%
       #Rename columns: Add StationName to beginning, reformat RetDate for cleaning
-      rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) %>% rename_with(.fn = ~ifelse(str_detect(.x, "RetDate"), paste0(j,"_", i, "_RetDate"), .x), .cols = everything())
+      rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) %>% rename_with(.fn = ~ifelse(str_detect(.x, "RetDate"), paste0(j,"_", "RetDate_", i), .x), .cols = everything())
     #
     #Join with existing data
     Station_summary <- left_join(Station_summary, Summary_jS, by = "AnalysisDate")
   }
+  #Clean columns for selection and output
+  Station_summ <- Station_summary %>% dplyr::select(-contains(Date_exclusion)) %>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
+    mutate(across(where(is.numeric), round, 2))
 }
 
 
@@ -115,15 +138,62 @@ for(i in WQ_params){
     #Join with existing data
     Site_summary <- left_join(Site_summary, Summary_j, by = "AnalysisDate")
   }
+  #Clean columns for selection and output
+  Site_summ <- Site_summary %>% rename_with(., function(x){str_replace(x, "(\\_)[A-Z]","")}) %>%
+    mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>% mutate(across(where(is.numeric), ~na_if(.x, -Inf)))
+
 }
-#Clean columns for selection and output
-Site_summary <- Site_summary %>% rename_with(., function(x){str_replace(x, "(\\_)[A-Z]","")}) 
-
-Site_summary %>% dplyr::select(contains("DO")) #Site DO
-Site_summary %>% dplyr::select(contains("Pct")) #Site PctDO
-Site_summary %>% dplyr::select(contains("pH")) #Site pH
-Site_summary %>% dplyr::select(contains("Sal")) #Site salinity
-Site_summary %>% dplyr::select(contains("Temp")) #Site temperature
-Site_summary %>% dplyr::select(contains("SP")) #Site Secchi
-
+#
+#
+if(Append_new_data == "Y"){
+  #Load each sheet and append new data
+  DO_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
+  DO_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
+  DOPct_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Pct")))
+  DOPct_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Pct"))) 
+  pH_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("pH")))
+  pH_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("pH")))
+  Sal_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Sal")))
+  Sal_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Sal")))
+  SP_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("SP")))
+  SP_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("SP")))
+  Temp_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Temp")))
+  Temp_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Temp")))
+  
+  #Load workbook of existing data
+  WQ_wb <- loadWorkbook("WQ_Summary_Data.xlsx")
+  #Overwrite each sheet with new data appended to old
+  writeData(WQ_wb, "DO Station", DO_Station)
+  writeData(WQ_wb, "DO Site", DO_Site)
+  writeData(WQ_wb, "DO% Station", DOPct_Station)
+  writeData(WQ_wb, "DO% Site", DOPct_Site)
+  writeData(WQ_wb, "pH Station", pH_Station)
+  writeData(WQ_wb, "pH Site", pH_Site)
+  writeData(WQ_wb, "Salinity Station", Sal_Station)
+  writeData(WQ_wb, "Salinity Site", Sal_Site)
+  writeData(WQ_wb, "Secchi Station", SP_Station)
+  writeData(WQ_wb, "Secchi Site", SP_Site)
+  writeData(WQ_wb, "Temp Station", Temp_Station)
+  writeData(WQ_wb, "Temp Site", Temp_Site)
+  #Save workbook
+  saveWorkbook(WQ_wb, "WQ_Summary_Data.xlsx", overwrite=TRUE)
+} else {
+  print("Data was not appended within Excel summary file.")
+  }
 ```
+
+
+```{r ReportText}
+#Report Text in area below
+```
+## Report summary
+This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites. \
+
+## Water Quality summary
+Water quality data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
+`r kable(WQ_out_list[1], caption = "Dissovled oxygen data")`
+`r kable(WQ_out_list[2], caption = "Percent dissovled oxygen data")`
+`r kable(WQ_out_list[3], caption = "pH data")`
+`r kable(WQ_out_list[4], caption = "Salinity data")`
+`r kable(WQ_out_list[5], caption = "Secchi penetration data")`
+`r kable(WQ_out_list[6], caption = "Temperature data")`
