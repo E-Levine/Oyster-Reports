@@ -9,16 +9,16 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24 06 05"  #Set the local database to use
+Database <- "Oysters_24-07-01"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
-Start_date <- as.Date("2024-01-01")
-End_date <- as.Date("2024-06-30")
+Start_date <- as.Date("2022-01-01")
+End_date <- as.Date("2022-06-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(odbc, DBI, dbplyr,
-  tidyverse, dplyr,  #DF manipulation
+  tidyverse, dplyr,  stringr, #DF manipulation
   DT,          #Excel
   lubridate, zoo,         #Dates
   knitr, 
@@ -52,7 +52,7 @@ dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   filter(!grepl("^ARRA", StationName) & StationName != "SL-N-4")
 hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
-  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) #Limit to COLL (dermo) data
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'RCRT')) #Limit to COLL (dermo) data (Pre-2023, WQ is with RCRT. 2023+ is with COLL)
 dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) #Limit to COLL (dermo) data
@@ -82,45 +82,32 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName))
 
-#Summary by Site
-Site_summary <- data.frame()#WQ_combined %>% distinct(Site, RetDate))
-Site_summary_l <- data.frame()
-WQ_list <- list()
-for(j in Estuaries){
-  for(i in WQ_params){
-    WQ_Sites_i <- WQ_combined %>% dplyr::select(Site, RetDate, i) %>%
-      group_by(Site, RetDate) %>%
-      summarise(A_Mean = round(mean(get(i), na.rm = T),2),
-                B_SD = round(sd(get(i), na.rm = T),2),
-                C_Min = min(get(i), na.rm = T),
-                D_Max = max(get(i), na.rm = T)) %>%
-      rename_with(~paste0(., i), -which(names(.) == c("Site", "RetDate")))
-    
-    WQ_Sites_ij <- WQ_Sites_i %>% filter(str_detect(Site, j)) %>% 
-    pivot_wider(names_from = Site, values_from = c(3:6), names_glue = "{Site}_{.value}", values_fill = NA) %>%
-    dplyr::select(RetDate, sort(colnames(.)))
-    
-    Site_summary <- rbind(Site_summary, WQ_Sites_i)
-    WQ_list[[i]][[j]] <- WQ_Sites_ij
+##Summary by Site
+#Create empty data frame with analysis dates
+Site_summary <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))#WQ_combined %>% distinct(Site, RetDate))
+
+for(i in WQ_params){
+  for(j in Sites){
+    Summary_j <- WQ_combined %>% 
+      #Select columns for each WQ param, filter to Site, and group for summary
+      dplyr::select(Site, AnalysisDate, RetDate, i) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
+      #Calculate mean, SD, min, and max of parameter
+      summarise(across(.cols = where(is.numeric), .fns = list(A_Mean = mean, B_SD = sd, C_Min = min, D_Max = max), na.rm = T, .names = "{fn}{col}")) %>% 
+      #Rename columns: Add Site to beginning, reformat RetDate for cleaning
+      rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) %>% rename_with(.fn = ~ifelse(str_detect(.x, "RetDate"), paste0(j,"_A_", i, "_RetDate"), .x), .cols = everything())
+    #
+    #Join with existing data
+    Site_summary <- left_join(Site_summary, Summary_j, by = "AnalysisDate")
   }
 }
+#Clean columns for selection and output
+Site_summary <- Site_summary %>% rename_with(., function(x){str_replace(x, "(\\_)[A-Z]","")}) 
 
-##Try 2
-#Get summary by Site for all parameters
-Site_summary <- list() #data.frame()#matrix(nrow = length(unique(WQ_combined$AnalysisDate)), ncol = 25*9)#WQ_combined %>% distinct(Site, RetDate))
-for(i in WQ_params){
-for (j in Sites) {
-  Summary_j <- WQ_combined %>% filter(str_detect(Site, j)) %>% dplyr::select(Site, RetDate, DO:Temp) %>% group_by(RetDate) %>% summarise(across(.cols = where(is.numeric), .fns = list(A_Mean = mean, B_SD = sd, C_Min = min, D_Max = max), na.rm = T, .names = "{fn}{col}")) %>% rename_with(., function(x){paste0(j, "_", x)})
-  
-  Site_summary[[j]] <- Summary_j
-}
-  #WORKING
-  map(Site_summary, ~.x %>% dplyr::select(contains(c("Date", "DO")))) %>% reduce(.,bind_cols)
-}
-(temp <- WQ_combined %>% filter(str_detect(Site, 'CR-E')) %>% dplyr::select(Site, RetDate, DO:Temp) %>% group_by(RetDate) %>% summarise(across(.cols = where(is.numeric), .fns = list(A_Mean = mean, B_SD = sd, C_Min = min, D_Max = max), na.rm = T, .names = "CR-E_{fn}{col}")) %>% rename("CR-E_RetDate" = RetDate))
-
-temp %>% dplyr::select('CR-E_RetDate', contains("DO"))
-
-WQ_list
+Site_summary %>% dplyr::select(contains("DO")) #Site DO
+Site_summary %>% dplyr::select(contains("Pct")) #Site PctDO
+Site_summary %>% dplyr::select(contains("pH")) #Site pH
+Site_summary %>% dplyr::select(contains("Sal")) #Site salinity
+Site_summary %>% dplyr::select(contains("Temp")) #Site temperature
+Site_summary %>% dplyr::select(contains("SP")) #Site Secchi
 
 ```
