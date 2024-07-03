@@ -39,7 +39,7 @@ Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
                    "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
 Date_exclusion <- c("CR-W4_RetDate", "CR-E2_RetDate", "LW-L2_RetDate", "LW-L3_RetDate", "LW-R3_RetDate", "LW-R4_RetDate", "LX-N2_RetDate", "LX-N3_RetDate", "LX-S2_RetDate", "LX-S3_RetDate", "SL-C2_RetDate", "SL-C3_RetDate", "SL-N2_RetDate", "SL-N3_RetDate", "SL-S2_RetDate", "SL-S3_RetDate")
 
-Append_new_data <- c("N") #Y/N
+Append_new_data <- c("N") #Y (All), N (None), WQ (just WQ), 
 
 ```
 
@@ -98,8 +98,9 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
 ##WQ output summary
 WQ_out_list <- list()
 for(w in WQ_params){
-  WQ_Out <- WQ_combined %>% dplyr::select(StationName, AnalysisDate, w) %>% group_by(StationName, AnalysisDate) %>% summarise(count = sum(!is.na(w))) %>% pivot_wider(names_from = AnalysisDate, values_from = count) %>% rename_with(~str_replace(.x, "-01", "")) %>% ungroup()
-  WQ_out_list[[w]] <- WQ_Out
+  WQ_Out <- WQ_combined %>% group_by(StationName, AnalysisDate) %>% summarise(across(everything(), ~sum(!is.na(.))))
+  WQ_out_w <- WQ_Out %>% dplyr::select(StationName, AnalysisDate, w) %>% pivot_wider(names_from = StationName, values_from = w) %>% mutate(AnalysisDate = str_replace(AnalysisDate, "-01", "")) %>% ungroup()
+  WQ_out_list[[w]] <- WQ_out_w
 }
 
 ##Summary by Station
@@ -115,10 +116,10 @@ for(i in WQ_params){
     #
     #Join with existing data
     Station_summary <- left_join(Station_summary, Summary_jS, by = "AnalysisDate")
-  }
   #Clean columns for selection and output
   Station_summ <- Station_summary %>% dplyr::select(-contains(Date_exclusion)) %>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
     mutate(across(where(is.numeric), round, 2))
+  }
 }
 
 
@@ -145,7 +146,7 @@ for(i in WQ_params){
 }
 #
 #
-if(Append_new_data == "Y"){
+if(Append_new_data == "Y" | Append_new_data == "WQ"){
   #Load each sheet and append new data
   DO_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
   DO_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
@@ -178,7 +179,7 @@ if(Append_new_data == "Y"){
   #Save workbook
   saveWorkbook(WQ_wb, "WQ_Summary_Data.xlsx", overwrite=TRUE)
 } else {
-  print("Data was not appended within Excel summary file.")
+  print("Water quality data was not appended within Excel summary file.")
   }
 ```
 
@@ -187,7 +188,7 @@ if(Append_new_data == "Y"){
 #Report Text in area below
 ```
 ## Report summary
-This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites. \
+This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites. Counts of data consider non-NA entries. NA values are considered "0".\
 
 ## Water Quality summary
 Water quality data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
