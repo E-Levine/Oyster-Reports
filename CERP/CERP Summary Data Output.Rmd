@@ -39,7 +39,7 @@ Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
                    "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
 Date_exclusion <- c("CR-W4_RetDate", "CR-E2_RetDate", "LW-L2_RetDate", "LW-L3_RetDate", "LW-R3_RetDate", "LW-R4_RetDate", "LX-N2_RetDate", "LX-N3_RetDate", "LX-S2_RetDate", "LX-S3_RetDate", "SL-C2_RetDate", "SL-C3_RetDate", "SL-N2_RetDate", "SL-N3_RetDate", "SL-S2_RetDate", "SL-S3_RetDate")
 
-Append_new_data <- c("N") #Y (All), N (None), WQ (just WQ), Dermo (just Dermo)
+Append_new_data <- c("Rcrt") #Y (All), N (None), WQ (just WQ), Dermo (just Dermo), Rcrt (just Recruitment)
 
 ```
 
@@ -63,21 +63,31 @@ dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   collect() %>% 
   filter(Estuary %in% Estuaries & grepl("^0", FixedLocationID)) %>% #Limit to primary stations, remove "ARRA" and SLN4
   filter(!grepl("^ARRA", StationName) & StationName != "SL-N-4")
-
+#Water quality
 hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'RCRT')) #Limit to COLL (dermo) data (Pre-2023, WQ is with RCRT. 2023+ is with COLL)
 dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) #Limit to COLL (dermo) data
-
+#Dermo
 hsdbDermo <- tbl(con,in_schema("hsdb", "Dermo")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
 dboDermo <- tbl(con,in_schema("dbo", "Dermo")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
-
+#Cage
+#Recruitment
+hsdbRcrt <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
+dboRcrt <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
+#Repro
+#PBC Sediment
+#Survey
 
 DBI::dbDisconnect(con)
 ```
@@ -271,6 +281,86 @@ if(Append_new_data == "Y" | Append_new_data == "Dermo"){
   }
 ```
 
+```{r Recruitment data tables}
+
+#Combined table of all parameters
+Rcrt_combined <- left_join(rbind((hsdbRcrt %>% filter(DataStatus == "Proofed")), (dboRcrt %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         DeployedDate = as.Date(DeployedDate, format = "%Y-%m-%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         BottomMonth = NumBottom/(as.numeric(RetDate-DeployedDate)/28)) %>%
+  #Filter data to desired date range and select columns needed for summary
+  filter(RetDate > Start_date & RetDate < End_date) %>%
+  dplyr::select(AnalysisDate, RetDate, ShellID, SampleEventID, FixedLocationID, BottomMonth) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
+
+##Recruitment output summary
+Rcrt_out <- Rcrt_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = mean(BottomMonth, na.rm = T)) %>% pivot_wider(names_from = StationName, values_from = Mean)
+
+##Summary by Station
+#Create empty data frame with analysis dates
+Station_summary_R <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))
+for(j in Station_order){
+  Summary_jR <- Rcrt_combined %>% 
+    #Select columns, filter to Station by FixedLocationID, and group for summary
+    dplyr::select(StationName, AnalysisDate, RetDate, BottomMonth) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>%
+    #Calculate Mean, SD, and Pct dermo
+    summarise(Mean = mean(BottomMonth, na.rm = T), SD = sd(BottomMonth, na.rm = T)) %>%
+    #Rename columns: Add StationName to beginning, reformat RetDate for cleaning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Station_summary_R <- left_join(Station_summary_R, Summary_jR, by = "AnalysisDate")
+  #Clean columns for selection and output
+  Station_summ_R <- Station_summary_R %>% dplyr::select(-contains(Date_exclusion)) %>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
+    mutate(across(where(is.numeric), round, 2))
+  }
+
+
+##Summary by Site
+#Create empty data frame with analysis dates
+Site_summary_R <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))
+for(j in Sites){
+  Summary_jR <- Rcrt_combined  %>% 
+    #Select columns for each WQ param, filter to Site, and group for summary
+    dplyr::select(Site, AnalysisDate, RetDate, BottomMonth) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
+    #Calculate mean, SD, min, and max of parameter
+    summarise(Mean = mean(BottomMonth, na.rm = T), SD = sd(BottomMonth, na.rm = T)) %>% 
+    #Rename columns: Add Site to beginning, reformat RetDate for cleaning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Site_summary_R <- left_join(Site_summary_R, Summary_jR, by = "AnalysisDate")
+  #Clean columns for selection and output
+  Site_summ_R <- Site_summary_R %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
+    mutate(across(where(is.numeric), ~na_if(.x, -Inf)))
+  }
+#
+#
+if(Append_new_data == "Y" | Append_new_data == "Rcrt"){
+  #Load each sheet and append new data
+  Rcrt_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE) %>% bind_rows(Station_summ_R)
+  Rcrt_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Site', detectDates = TRUE) %>% bind_rows(Site_summ_R)
+  
+  #Load workbook of existing data
+  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  #Overwrite each sheet with new data appended to old
+  writeData(Data_wb, "Rcrt Station", Rcrt_Station)
+  writeData(Data_wb, "Rcrt Site", Rcrt_Site)
+   #Save workbook
+  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+} else {
+  print("Recruitment data was not appended within Excel summary file.")
+  }
+```
+
 ```{r ReportText}
 #Report Text in area below
 ```
@@ -289,3 +379,7 @@ Water quality data covers sites and stations from `r min(WQ_combined$AnalysisDat
 ## Dermo summary
 Dermo data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
 `r kable(Dermo_out, caption = "Dermo data")`
+
+## Recruitment summary
+Recruitment data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
+`r kable(Rcrt_out, caption = "Recruitment data")`
