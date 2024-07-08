@@ -39,7 +39,7 @@ Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
                    "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
 Date_exclusion <- c("CR-W4_RetDate", "CR-E2_RetDate", "LW-L2_RetDate", "LW-L3_RetDate", "LW-R3_RetDate", "LW-R4_RetDate", "LX-N2_RetDate", "LX-N3_RetDate", "LX-S2_RetDate", "LX-S3_RetDate", "SL-C2_RetDate", "SL-C3_RetDate", "SL-N2_RetDate", "SL-N3_RetDate", "SL-S2_RetDate", "SL-S3_RetDate")
 
-Append_new_data <- c("Rcrt") #Y (All), N (None), WQ (just WQ), Dermo (just Dermo), Rcrt (just Recruitment)
+Append_new_data <- c("Repro") #Y (All), N (None), WQ (just WQ), Dermo (just Dermo), Rcrt (just Recruitment)
 
 ```
 
@@ -86,6 +86,12 @@ dboRcrt <- tbl(con,in_schema("dbo", "Recruitment")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
 #Repro
+hsdbRepro <- tbl(con,in_schema("hsdb", "Repro")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
+dboRepro <- tbl(con,in_schema("dbo", "Repro")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
 #PBC Sediment
 #Survey
 
@@ -302,7 +308,7 @@ Rcrt_combined <- left_join(rbind((hsdbRcrt %>% filter(DataStatus == "Proofed")),
     dplyr::select(FixedLocationID, Site, StationName))
 
 ##Recruitment output summary
-Rcrt_out <- Rcrt_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = mean(BottomMonth, na.rm = T)) %>% pivot_wider(names_from = StationName, values_from = Mean)
+Rcrt_out <- Rcrt_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(BottomMonth, na.rm = T),2)) %>% pivot_wider(names_from = StationName, values_from = Mean)
 
 ##Summary by Station
 #Create empty data frame with analysis dates
@@ -361,6 +367,78 @@ if(Append_new_data == "Y" | Append_new_data == "Rcrt"){
   }
 ```
 
+```{r Repro data tables}
+
+#List of Repro stages
+Stages <- c("Dev","Rip", "Spe", "Ind")
+
+#Combined table of all parameters
+Repro_combined <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed")), (dboRepro %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         ReproStage = as.factor(ReproStage)) %>%
+  #Filter data to desired date range and select columns needed for summary
+  filter(RetDate > Start_date & RetDate < End_date) %>%
+  dplyr::select(AnalysisDate, RetDate, OysterID, SampleEventID, FixedLocationID, ReproStage) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
+
+##Repro output summary (Developing or Ripe Oysters)
+Repro_out <- left_join(Repro_combined %>% group_by(Site, AnalysisDate) %>% filter(ReproStage == "1" | ReproStage == "2") %>% summarise(Count = n()), Repro_combined %>% group_by(Site, AnalysisDate) %>% summarise(Total = n()))  %>%  mutate(Pct = round((Count/Total)*100,2)) %>% dplyr::select(-Count, -Total) %>% pivot_wider(names_from = Site, values_from = Pct) %>% arrange(AnalysisDate) %>% mutate(across(everything(), ~replace_na(., 0)))
+
+
+##Summary by Site
+#Create empty data frame with analysis dates
+Site_summary_Re <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))
+for(j in Sites){
+  for(s in Stages){
+    Repro_comb <- Repro_combined %>% mutate(ReproStage = factor(ReproStage, levels = c("1", "2", "3", "4", "Z"), labels = c("Dev", "Rip", "Spe", "Ind", "Z"))) %>% filter(ReproStage != "Z")
+    Repro_RetDates <- Repro_comb %>% filter(Site == j) %>% distinct(AnalysisDate, RetDate) %>% rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x))
+    Summary_jRe <- left_join(Repro_comb  %>% 
+                               #Select columns, filter to Station by FixedLocationID, and group by ReproStage for Count
+                               dplyr::select(Site, AnalysisDate, ReproStage) %>% filter(Site == j & ReproStage == s) %>% group_by(AnalysisDate, ReproStage) %>% summarise(Count = n()), 
+                             Repro_comb %>% 
+                               #Repeat for total number of samples
+                               dplyr::select(Site, AnalysisDate, ReproStage) %>% filter(Site == j) %>% group_by(AnalysisDate) %>%
+                               summarise(Total = n())) %>%
+      #Determine percent, ranme Stages, remove any "Z"s 
+      mutate(Pct = (Count/Total)*100) %>% dplyr::select(-Count, -Total) %>%
+      rename_with(., function(x){str_replace(x, "Pct",s)}) %>%
+      #Rename columns: Add Site to beginning
+      rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) %>% dplyr::select(-paste0(j,"_ReproStage"))
+    #
+    #Join with existing data
+    Site_summary_Re <- left_join(Site_summary_Re, left_join(Repro_RetDates, Summary_jRe), by = "AnalysisDate")
+  }
+  #Clean columns for selection and output
+  Site_summ_Re <- Site_summary_Re %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
+    mutate(across(where(is.numeric), ~na_if(.x, -Inf))) %>% 
+    #Remove unneeded columns and rename/clean remaining
+    dplyr::select(-ends_with(c(".y",".x.x"))) %>% rename_with(~sub("RetDate.x", "_RetDate", .x)) %>% mutate(across(everything(), ~replace_na(., 0)))
+}
+#
+#
+if(Append_new_data == "Y" | Append_new_data == "Repro"){
+  #Load each sheet and append new data
+  Repro_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>% bind_rows(Site_summ_Re)
+  
+  #Load workbook of existing data
+  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  #Overwrite each sheet with new data appended to old
+  writeData(Data_wb, "Repro", Repro_Site)
+   #Save workbook
+  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+} else {
+  print("Repro data was not appended within Excel summary file.")
+  }
+```
+
 ```{r ReportText}
 #Report Text in area below
 ```
@@ -383,3 +461,7 @@ Dermo data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% f
 ## Recruitment summary
 Recruitment data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
 `r kable(Rcrt_out, caption = "Recruitment data")`
+
+## Repro summary
+Repro data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`. Percentages are given as total percentage of Developing and Ripe oysters.\
+`r kable(Repro_out, caption = "Repro data")`
