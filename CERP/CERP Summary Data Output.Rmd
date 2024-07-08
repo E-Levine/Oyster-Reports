@@ -78,6 +78,18 @@ dboDermo <- tbl(con,in_schema("dbo", "Dermo")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
 #Cage
+hsdbCage <- tbl(con,in_schema("hsdb", "CageCount")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
+dboCage <- tbl(con,in_schema("dbo", "CageCount")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
+hsdbCageSH <- tbl(con,in_schema("hsdb", "CageSH")) %>%
+  collect() %>% mutate(FixedLocationID = substring(CageCountID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
+dboCageSH <- tbl(con,in_schema("dbo", "CageSH")) %>%
+  collect() %>% mutate(FixedLocationID = substring(CageCountID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID)
 #Recruitment
 hsdbRcrt <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
@@ -296,6 +308,135 @@ if(Append_new_data == "Y" | Append_new_data == "Dermo"){
   saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
 } else {
   print("Dermo data was not appended within Excel summary file.")
+  }
+```
+
+```{r Cage data tables}
+
+#Combined table of cage counts
+Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed")), (dboCage)) %>% #%>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         CageID = substring(CageCountID, 28, 28)) %>%
+  #Filter data to desired date range and select columns needed for summary
+  #filter(RetDate > Start_date & RetDate < End_date) %>%
+  dplyr::select(AnalysisDate, RetDate, CageID, SampleEventID, FixedLocationID, DataType, TotalCount) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName)) %>% 
+  pivot_wider(names_from = DataType, values_from = TotalCount) %>% mutate(DeadPct = 100-((Retrieved/Deployed)*100))
+CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Proofed")), (dboCageSH)) %>% #%>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(CageCountID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month"))) %>%
+  #Filter data to desired date range and select columns needed for summary
+  #filter(RetDate > Start_date & RetDate < End_date) %>%
+  dplyr::select(AnalysisDate, RetDate, ShellHeightID, CageCountID, FixedLocationID, ShellHeight) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
+
+#Cage output summary
+Cage_out <- Cage_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(Live, na.rm = T), 2)) %>% pivot_wider(names_from = StationName, values_from = Mean) %>% mutate(Survey = paste0(case_when(month(AnalysisDate) <= 3 ~ "Spring ", month(AnalysisDate) > 3 & month(AnalysisDate) <= 6 ~ "Summer ", month(AnalysisDate) > 6 & month(AnalysisDate) <= 9 ~ "Fall ", month(AnalysisDate) > 9 ~ "Winter ", TRUE ~ "UNK"), year(AnalysisDate)), .before = AnalysisDate)
+
+##Summary by Station
+#Create empty data frame with analysis dates
+Station_summary_S <- data.frame(AnalysisDate = unique(Srvy_combined$AnalysisDate))
+for(j in Station_order){
+  Summary_jS <- Srvy_combined %>% 
+    #Select columns, filter to Station by FixedLocationID, and group for summary
+    dplyr::select(StationName, AnalysisDate, Live, Dead, DeadRatio) %>% filter(StationName == j) %>% group_by(AnalysisDate) %>%
+    #Calculate Mean, SD, and Pct dermo
+    summarise(LiveMean = mean(Live, na.rm = T), LiveSD = sd(Live, na.rm = T), DeadRatioMean = mean(DeadRatio, na.rm = T), DeadRatioSD = sd(DeadRatio, na.rm = T)) %>%
+    #Rename columns: Add StationName to beginning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Station_summary_S <- left_join(Station_summary_S, Summary_jS, by = "AnalysisDate")
+  #Clean columns for selection and output
+  Station_summ_S <- Station_summary_S %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(Survey = paste0(case_when(month(AnalysisDate) <= 3 ~ "Spring ", month(AnalysisDate) > 3 & month(AnalysisDate) <= 6 ~ "Summer ", month(AnalysisDate) > 6 & month(AnalysisDate) <= 9 ~ "Fall ", month(AnalysisDate) > 9 ~ "Winter ", TRUE ~ "UNK"), year(AnalysisDate)), .before = AnalysisDate) 
+}
+
+Station_summary_SH <- data.frame(AnalysisDate = unique(Srvy_combined$AnalysisDate))
+for(j in Station_order){
+  Summary_jSH <- SH_combined %>% 
+    #Select columns, filter to Station by FixedLocationID, and group for summary
+    dplyr::select(StationName, AnalysisDate, ShellHeight) %>% filter(StationName == j) %>% group_by(AnalysisDate) %>%
+    #Calculate Mean, SD, and Pct dermo
+    summarise(SHMean = mean(ShellHeight, na.rm = T), SHSD = sd(ShellHeight, na.rm = T)) %>%
+    #Rename columns: Add StationName to beginning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Station_summary_SH <- left_join(Station_summary_SH, Summary_jSH, by = "AnalysisDate")
+  #Clean columns for selection and output
+  Station_summ_SH <- Station_summary_SH %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(Survey = paste0(case_when(month(AnalysisDate) <= 3 ~ "Spring ", month(AnalysisDate) > 3 & month(AnalysisDate) <= 6 ~ "Summer ", month(AnalysisDate) > 6 & month(AnalysisDate) <= 9 ~ "Fall ", month(AnalysisDate) > 9 ~ "Winter ", TRUE ~ "UNK"), year(AnalysisDate)), .before = AnalysisDate)
+}
+
+##Summary by Site
+#Create empty data frame with analysis dates
+Site_summary_S <- data.frame(AnalysisDate = unique(Srvy_combined$AnalysisDate))
+for(j in Sites){
+  Summary_jS <- Srvy_combined  %>% 
+    #Select columns for each WQ param, filter to Site, and group for summary
+    dplyr::select(Site, AnalysisDate, Live, Dead, DeadRatio) %>% filter(Site == j) %>% group_by(AnalysisDate) %>% 
+    #Calculate mean, SD, min, and max of parameter
+    summarise(LiveMean = mean(Live, na.rm = T), LiveSD = sd(Live, na.rm = T), DeadMean = mean(DeadRatio, na.rm = T), DeadSD = sd(DeadRatio, na.rm = T)) %>% 
+    #Rename columns: Add Site to beginning, reformat RetDate for cleaning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Site_summary_S <- left_join(Site_summary_S, Summary_jS, by = "AnalysisDate")
+  #Clean columns for selection and output
+  Site_summ_S <- Site_summary_S %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
+    mutate(across(where(is.numeric), ~na_if(.x, -Inf))) %>% mutate(Survey = paste0(case_when(month(AnalysisDate) <= 3 ~ "Spring ", month(AnalysisDate) > 3 & month(AnalysisDate) <= 6 ~ "Summer ", month(AnalysisDate) > 6 & month(AnalysisDate) <= 9 ~ "Fall ", month(AnalysisDate) > 9 ~ "Winter ", TRUE ~ "UNK"), year(AnalysisDate)), .before = AnalysisDate) 
+}
+
+Site_summary_SH <- data.frame(AnalysisDate = unique(Srvy_combined$AnalysisDate))
+for(j in Sites){
+  Summary_jSH <- SH_combined  %>% 
+    #Select columns for each WQ param, filter to Site, and group for summary
+    dplyr::select(Site, AnalysisDate, ShellHeight) %>% filter(Site == j) %>% group_by(AnalysisDate) %>% 
+    #Calculate mean, SD, min, and max of parameter
+    summarise(SHMean = mean(ShellHeight, na.rm = T), SHSD = sd(ShellHeight, na.rm = T)) %>% 
+    #Rename columns: Add Site to beginning, reformat RetDate for cleaning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Site_summary_SH <- left_join(Site_summary_SH, Summary_jSH, by = "AnalysisDate")
+  #Clean columns for selection and output
+  Site_summ_SH <- Site_summary_SH %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
+    mutate(across(where(is.numeric), ~na_if(.x, -Inf))) %>% mutate(Survey = paste0(case_when(month(AnalysisDate) <= 3 ~ "Spring ", month(AnalysisDate) > 3 & month(AnalysisDate) <= 6 ~ "Summer ", month(AnalysisDate) > 6 & month(AnalysisDate) <= 9 ~ "Fall ", month(AnalysisDate) > 9 ~ "Winter ", TRUE ~ "UNK"), year(AnalysisDate)), .before = AnalysisDate)
+  }
+#
+#
+if(Append_new_data == "Y" | Append_new_data == "Srvy"){
+  #Load each sheet and append new data
+  DeadRatio_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE) %>% bind_rows(Station_summ_S)
+  DeadRatio_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Site', detectDates = TRUE) %>% bind_rows(Site_summ_S)
+  SH_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE) %>% bind_rows(Station_summ_SH)
+  SH_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Site', detectDates = TRUE) %>% bind_rows(Site_summ_SH)
+  
+  #Load workbook of existing data
+  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  #Overwrite each sheet with new data appended to old
+  writeData(Data_wb, "DeadRatio Station", DeadRatio_Station)
+  writeData(Data_wb, "DeadRatio Site", DeadRatio_Site)
+  writeData(Data_wb, "SH Station", SH_Station)
+  writeData(Data_wb, "SH Site", SH_Site)
+   #Save workbook
+  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+} else {
+  print("Survey data was not appended within Excel summary file.")
   }
 ```
 
