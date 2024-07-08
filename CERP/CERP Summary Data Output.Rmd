@@ -39,7 +39,7 @@ Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
                    "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
 Date_exclusion <- c("CR-W4_RetDate", "CR-E2_RetDate", "LW-L2_RetDate", "LW-L3_RetDate", "LW-R3_RetDate", "LW-R4_RetDate", "LX-N2_RetDate", "LX-N3_RetDate", "LX-S2_RetDate", "LX-S3_RetDate", "SL-C2_RetDate", "SL-C3_RetDate", "SL-N2_RetDate", "SL-N3_RetDate", "SL-S2_RetDate", "SL-S3_RetDate")
 
-Append_new_data <- c("N") #Y (All), N (None), WQ (just WQ), 
+Append_new_data <- c("N") #Y (All), N (None), WQ (just WQ), Dermo (just Dermo)
 
 ```
 
@@ -194,9 +194,6 @@ if(Append_new_data == "Y" | Append_new_data == "WQ"){
 
 ```{r Dermo data tables}
 
-#List of WQ params
-WQ_params <- c("DO","Pct", "pH", "Sal", "SP", "Temp")
-
 #Combined table of all parameters
 Dermo_combined <- left_join(rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed")), (dboDermo %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
@@ -240,60 +237,37 @@ for(j in Station_order){
 ##Summary by Site
 #Create empty data frame with analysis dates
 Site_summary_D <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))
-for(i in WQ_params){
-  for(j in Sites){
-    Summary_j <- WQ_combined %>% 
-      #Select columns for each WQ param, filter to Site, and group for summary
-      dplyr::select(Site, AnalysisDate, RetDate, i) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
-      #Calculate mean, SD, min, and max of parameter
-      summarise(across(.cols = where(is.numeric), .fns = list(A_Mean = mean, B_SD = sd, C_Min = min, D_Max = max), na.rm = T, .names = "{fn}{col}")) %>% 
-      #Rename columns: Add Site to beginning, reformat RetDate for cleaning
-      rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) %>% rename_with(.fn = ~ifelse(str_detect(.x, "RetDate"), paste0(j,"_A_", i, "_RetDate"), .x), .cols = everything())
-    #
-    #Join with existing data
-    Site_summary <- left_join(Site_summary, Summary_j, by = "AnalysisDate")
-  }
+for(j in Sites){
+  Summary_jD <- Dermo_combined  %>% 
+    #Select columns for each WQ param, filter to Site, and group for summary
+    dplyr::select(Site, AnalysisDate, RetDate, DermoMantle:DermoSum) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
+    #Calculate mean, SD, min, and max of parameter
+    summarise(Mean = mean(DermoSum, na.rm = T), SD = sd(DermoSum, na.rm = T), Pct = (sum(DermoSum, na.rm = T)/n())*100) %>% 
+    #Rename columns: Add Site to beginning, reformat RetDate for cleaning
+    rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
+  #
+  #Join with existing data
+  Site_summary_D <- left_join(Site_summary_D, Summary_jD, by = "AnalysisDate")
   #Clean columns for selection and output
-  Site_summ <- Site_summary %>% rename_with(., function(x){str_replace(x, "(\\_)[A-Z]","")}) %>%
-    mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>% mutate(across(where(is.numeric), ~na_if(.x, -Inf)))
-
-}
+  Site_summ_D <- Site_summary_D %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
+    mutate(across(where(is.numeric), ~na_if(.x, -Inf)))
+  }
 #
 #
-if(Append_new_data == "Y" | Append_new_data == "WQ"){
+if(Append_new_data == "Y" | Append_new_data == "Dermo"){
   #Load each sheet and append new data
-  DO_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
-  DO_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
-  DOPct_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Pct")))
-  DOPct_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Pct"))) 
-  pH_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("pH")))
-  pH_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("pH")))
-  Sal_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Sal")))
-  Sal_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Sal")))
-  SP_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("SP")))
-  SP_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("SP")))
-  Temp_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Temp")))
-  Temp_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Temp")))
+  Dermo_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE) %>% bind_rows(Station_summ_D)
+  Dermo_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Site', detectDates = TRUE) %>% bind_rows(Site_summ_D)
   
   #Load workbook of existing data
-  WQ_wb <- loadWorkbook("WQ_Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
-  writeData(WQ_wb, "DO Station", DO_Station)
-  writeData(WQ_wb, "DO Site", DO_Site)
-  writeData(WQ_wb, "DO% Station", DOPct_Station)
-  writeData(WQ_wb, "DO% Site", DOPct_Site)
-  writeData(WQ_wb, "pH Station", pH_Station)
-  writeData(WQ_wb, "pH Site", pH_Site)
-  writeData(WQ_wb, "Salinity Station", Sal_Station)
-  writeData(WQ_wb, "Salinity Site", Sal_Site)
-  writeData(WQ_wb, "Secchi Station", SP_Station)
-  writeData(WQ_wb, "Secchi Site", SP_Site)
-  writeData(WQ_wb, "Temp Station", Temp_Station)
-  writeData(WQ_wb, "Temp Site", Temp_Site)
-  #Save workbook
-  saveWorkbook(WQ_wb, "WQ_Summary_Data.xlsx", overwrite=TRUE)
+  writeData(Data_wb, "Dermo Station", Dermo_Station)
+  writeData(Data_wb, "Dermo Site", Dermo_Site)
+   #Save workbook
+  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
 } else {
-  print("Water quality data was not appended within Excel summary file.")
+  print("Dermo data was not appended within Excel summary file.")
   }
 ```
 
@@ -301,7 +275,7 @@ if(Append_new_data == "Y" | Append_new_data == "WQ"){
 #Report Text in area below
 ```
 ## Report summary
-This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites. Counts of data consider non-NA entries. NA values are considered "0".\
+This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites. Mean values are shown.\
 
 ## Water Quality summary
 Water quality data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
@@ -311,3 +285,7 @@ Water quality data covers sites and stations from `r min(WQ_combined$AnalysisDat
 `r kable(WQ_out_list[4], caption = "Salinity data")`
 `r kable(WQ_out_list[5], caption = "Secchi penetration data")`
 `r kable(WQ_out_list[6], caption = "Temperature data")`
+
+## Dermo summary
+Dermo data covers sites and stations from `r min(WQ_combined$AnalysisDate) %>% format("%B %Y")` through `r max(WQ_combined$AnalysisDate) %>% format("%B %Y")`.\
+`r kable(Dermo_out, caption = "Dermo data")`
