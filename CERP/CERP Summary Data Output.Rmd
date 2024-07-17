@@ -246,10 +246,11 @@ Dermo_combined <- left_join(rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber)
   #Create date columns 
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         MeanDermo = rowMeans(.[, c("DermoMantle", "DermoGill")], na.rm = TRUE),
          DermoSum = as.numeric(ifelse(rowSums(select(., contains("Dermo"))) >0, 1, 0))) %>%
   #Filter data to desired date range and select columns needed for summary
   filter(RetDate > Start_date & RetDate < End_date) %>%
-  dplyr::select(AnalysisDate, RetDate, OysterID, SampleEventID, FixedLocationID, DermoMantle, DermoGill, DermoSum) %>% 
+  dplyr::select(AnalysisDate, RetDate, OysterID, SampleEventID, FixedLocationID, DermoMantle, DermoGill, MeanDermo, DermoSum) %>% 
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
   #Add simplified StationName 
@@ -259,7 +260,7 @@ Dermo_combined <- left_join(rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber)
     dplyr::select(FixedLocationID, Site, StationName))
 
 ##Dermo output summary
-Dermo_out <- Dermo_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = mean(DermoSum, na.rm = T)) %>% pivot_wider(names_from = StationName, values_from = Mean)
+Dermo_out <- Dermo_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = mean(MeanDermo, na.rm = T)) %>% pivot_wider(names_from = StationName, values_from = Mean)
 
 ##Summary by Station
 #Create empty data frame with analysis dates
@@ -269,7 +270,7 @@ for(j in Station_order){
     #Select columns, filter to Station by FixedLocationID, and group for summary
     dplyr::select(StationName, AnalysisDate, RetDate, DermoMantle:DermoSum) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>%
     #Calculate Mean, SD, and Pct dermo
-    summarise(Mean = mean(DermoSum, na.rm = T), SD = sd(DermoSum, na.rm = T), Pct = (sum(DermoSum, na.rm = T)/n())*100) %>%
+    summarise(Mean = mean(MeanDermo, na.rm = T), SD = sd(MeanDermo, na.rm = T), Pct = (sum(DermoSum, na.rm = T)/n())*100) %>%
     #Rename columns: Add StationName to beginning, reformat RetDate for cleaning
     rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
   #
@@ -289,7 +290,7 @@ for(j in Sites){
     #Select columns for each param, filter to Site, and group for summary
     dplyr::select(Site, AnalysisDate, RetDate, DermoMantle:DermoSum) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
     #Calculate mean, SD, min, and max of parameter
-    summarise(Mean = mean(DermoSum, na.rm = T), SD = sd(DermoSum, na.rm = T), Pct = (sum(DermoSum, na.rm = T)/n())*100) %>% 
+    summarise(Mean = mean(MeanDermo, na.rm = T), SD = sd(MeanDermo, na.rm = T), Pct = (sum(DermoSum, na.rm = T)/n())*100) %>% 
     #Rename columns: Add Site to beginning, reformat RetDate for cleaning
     rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
   #
