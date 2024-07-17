@@ -19,7 +19,7 @@ params:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-07-01"  #Set the local database to use
+Database <- "Oysters_24 07 17"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 Start_date <- as.Date("2022-01-01")
@@ -365,7 +365,7 @@ Cage_out <- Cage_combined %>% group_by(StationName, AnalysisDate) %>% summarise(
 #Create empty data frame with analysis dates
 Station_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate))
 for(c in Cage_reps){
-  Summary_jC <- Cage_combined %>% 
+  Summary_cC <- Cage_combined %>% 
     #Select columns, filter to Station by FixedLocationID, and group for summary
     dplyr::select(CageName, AnalysisDate, DeadPct) %>% filter(CageName == c) %>% group_by(AnalysisDate) %>%
     #Calculate Mean, SD, and Pct dermo
@@ -384,9 +384,9 @@ for(c in Cage_reps){
     rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(c, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
   #
   #Join with existing data
-  Station_summary_C <- left_join(Station_summary_C, left_join(Summary_cSH, Summary_jC, by = "AnalysisDate"), by = "AnalysisDate")
+  Station_summary_C <- left_join(Station_summary_C, left_join(Summary_cSH, Summary_cC, by = "AnalysisDate"), by = "AnalysisDate")
   #Clean columns for selection and output
-  Station_summ_C <- Station_summary_C %>% dplyr::select(-contains(c("-R_Ret", "-Y_Ret"))) %>% rename_with(~sub("-B_RetDate", "_RetDate", .x)) %>% mutate(across(where(is.numeric), round, 2)) %>% arrange(AnalysisDate)
+  Station_summ_C <- Station_summary_C %>% dplyr::select(-contains(c("-R_RetDate", "-Y_RetDate"))) %>% rename_with(~sub("-B_RetDate", "_RetDate", .x)) %>% mutate(across(where(is.numeric), round, 2)) %>% arrange(AnalysisDate)
 }
 
 ##Summary by Site
@@ -401,7 +401,7 @@ for(j in Cage_Sites){
     #Rename columns: Add Site to beginning, reformat RetDate for cleaning
     rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
   #
-  Summary_cSH <- CageSH_combined  %>% 
+  Summary_jSH <- CageSH_combined  %>% 
     #Select columns for each param, filter to Site, and group for summary
     dplyr::select(Site, AnalysisDate, DataType, ShellHeight) %>% filter(Site == j) %>% group_by(AnalysisDate, DataType) %>% 
     #Calculate mean, SD, min, and max of parameter
@@ -412,7 +412,7 @@ for(j in Cage_Sites){
     rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x), .cols = -all_of("AnalysisDate")) 
   #
   #Join with existing data
-  Site_summary_C <- left_join(Site_summary_C, left_join(Summary_cSH, Summary_jC, by = "AnalysisDate"), by = "AnalysisDate")
+  Site_summary_C <- left_join(Site_summary_C, left_join(Summary_jSH, Summary_jC, by = "AnalysisDate"), by = "AnalysisDate")
   #Clean columns for selection and output
   Site_summ_C <- Site_summary_C %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
     mutate(across(where(is.numeric), ~na_if(.x, -Inf))) %>% arrange(AnalysisDate) 
@@ -513,7 +513,7 @@ for(j in Sites){
 ```{r Repro data tables, eval = params$Repro}
 
 #List of Repro stages
-Stages <- c("Dev","Rip", "Spe", "Ind")
+Stages <- c("Ind", "Dev","Rip", "Spe")
 
 #Combined table of all parameters
 Repro_combined <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed")), (dboRepro %>% filter(DataStatus == "Proofed"))) %>%
@@ -541,7 +541,7 @@ Repro_out <- left_join(Repro_combined %>% group_by(Site, AnalysisDate) %>% filte
 Site_summary_Re <- data.frame(AnalysisDate = unique(Repro_combined$AnalysisDate))
 for(j in Sites){
   for(s in Stages){
-    Repro_comb <- Repro_combined %>% mutate(ReproStage = factor(ReproStage, levels = c("1", "2", "3", "4", "Z"), labels = c("Dev", "Rip", "Spe", "Ind", "Z"))) %>% filter(ReproStage != "Z")
+    Repro_comb <- Repro_combined %>% mutate(ReproStage = factor(ReproStage, levels = c("4" , "1", "2", "3", "Z"), labels = c("Ind", "Dev", "Rip", "Spe", "Z"))) %>% filter(ReproStage != "Z")
     Repro_RetDates <- Repro_comb %>% filter(Site == j) %>% distinct(AnalysisDate, RetDate) %>% rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x))
     Summary_jRe <- left_join(Repro_comb  %>% 
                                #Select columns, filter to Station by FixedLocationID, and group by ReproStage for Count
@@ -550,7 +550,7 @@ for(j in Sites){
                                #Repeat for total number of samples
                                dplyr::select(Site, AnalysisDate, ReproStage) %>% filter(Site == j) %>% group_by(AnalysisDate) %>%
                                summarise(Total = n())) %>%
-      #Determine percent, ranme Stages, remove any "Z"s 
+      #Determine percent, remove any "Z"s
       mutate(Pct = (Count/Total)*100) %>% dplyr::select(-Count, -Total) %>%
       rename_with(., function(x){str_replace(x, "Pct",s)}) %>%
       #Rename columns: Add Site to beginning
