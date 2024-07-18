@@ -159,7 +159,7 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
 WQ_out_list <- list()
 for(w in WQ_params){
   WQ_Out <- WQ_combined %>% group_by(StationName, AnalysisDate) %>% summarise(across(where(is.numeric), list(sum=sum))) %>% rename_with(~sub("_sum", "", .x)) #across(everything(), ~sum(!is.na(.))))
-  WQ_out_w <- WQ_Out %>% dplyr::select(StationName, AnalysisDate, w) %>% pivot_wider(names_from = StationName, values_from = w) %>% mutate(AnalysisDate = str_replace(AnalysisDate, "-01", "")) %>% ungroup()
+  WQ_out_w <- WQ_Out %>% dplyr::select(StationName, AnalysisDate, all_of(w)) %>% pivot_wider(names_from = StationName, values_from = w) %>% mutate(AnalysisDate = str_replace(AnalysisDate, "-01", "")) %>% ungroup()
   WQ_out_list[[w]] <- WQ_out_w
 }
 
