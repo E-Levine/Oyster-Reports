@@ -8,7 +8,7 @@ output:
 params:  
     WQ: FALSE
     Dermo: FALSE
-    Cage: FALSE
+    Cage: TRUE
     Rcrt: FALSE
     Repro: FALSE
     Sedi: TRUE
@@ -22,8 +22,8 @@ Author <- c("E Levine") #Change to your name
 Database <- "Oysters_24 07 17"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
-Start_date <- as.Date("2022-01-01")
-End_date <- as.Date("2022-06-30")
+Start_date <- as.Date("2024-04-01")
+End_date <- as.Date("2024-06-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -327,7 +327,7 @@ Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed")),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
          CageID = substring(CageCountID, 28, 28)) %>%
   #Filter data to desired date range and select columns needed for summary
-  filter(RetDate > Start_date & RetDate < End_date) %>%
+  #filter(RetDate > Start_date & RetDate < End_date) %>%
   dplyr::select(AnalysisDate, RetDate, CageID, SampleEventID, FixedLocationID, DataType, TotalCount) %>% 
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
@@ -346,7 +346,7 @@ CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Proofed
          DataType = substring(CageCountID, 26, 26),
          ShellHeight = as.integer(ShellHeight)) %>%
   #Filter data to desired date range and select columns needed for summary
-  filter(RetDate > Start_date & RetDate < End_date) %>%
+  #filter(RetDate > Start_date & RetDate < End_date) %>%
   dplyr::select(AnalysisDate, RetDate, CageCountID, FixedLocationID, CageID, DataType, ShellHeight) %>% 
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
@@ -363,7 +363,7 @@ Cage_out <- Cage_combined %>% group_by(StationName, AnalysisDate) %>% summarise(
 
 ##Summary by Cage
 #Create empty data frame with analysis dates
-Station_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate))
+Station_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate)) %>% arrange(AnalysisDate)
 for(c in Cage_reps){
   Summary_cC <- Cage_combined %>% 
     #Select columns, filter to Station by FixedLocationID, and group for summary
@@ -391,7 +391,7 @@ for(c in Cage_reps){
 
 ##Summary by Site
 #Create empty data frame with analysis dates
-Site_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate))
+Site_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate)) %>% arrange(AnalysisDate)
 for(j in Cage_Sites){
   Summary_jC <- Cage_combined  %>% 
     #Select columns for each param, filter to Site, and group for summary
@@ -415,7 +415,7 @@ for(j in Cage_Sites){
   Site_summary_C <- left_join(Site_summary_C, left_join(Summary_jSH, Summary_jC, by = "AnalysisDate"), by = "AnalysisDate")
   #Clean columns for selection and output
   Site_summ_C <- Site_summary_C %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
-    mutate(across(where(is.numeric), ~na_if(.x, -Inf))) %>% arrange(AnalysisDate) 
+    mutate(across(where(is.numeric), ~na_if(.x, -Inf))) 
 }
 #
 #
