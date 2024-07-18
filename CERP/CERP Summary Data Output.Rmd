@@ -327,7 +327,7 @@ Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed")),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
          CageID = substring(CageCountID, 28, 28)) %>%
   #Filter data to desired date range and select columns needed for summary
-  #filter(RetDate > Start_date & RetDate < End_date) %>%
+  filter(RetDate > Start_date & RetDate < End_date) %>%
   dplyr::select(AnalysisDate, RetDate, CageID, SampleEventID, FixedLocationID, DataType, TotalCount) %>% 
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
@@ -346,7 +346,7 @@ CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Proofed
          DataType = substring(CageCountID, 26, 26),
          ShellHeight = as.integer(ShellHeight)) %>%
   #Filter data to desired date range and select columns needed for summary
-  #filter(RetDate > Start_date & RetDate < End_date) %>%
+  filter(RetDate > Start_date & RetDate < End_date) %>%
   dplyr::select(AnalysisDate, RetDate, CageCountID, FixedLocationID, CageID, DataType, ShellHeight) %>% 
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
