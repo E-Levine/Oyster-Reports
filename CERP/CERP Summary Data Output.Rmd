@@ -1,7 +1,7 @@
 ---
 title: "Summary Data Output"
 author: "ELevine"
-date: "2024-06-26"
+date: "2024-07-18"
 output: 
   html_document:
   word_document: NULL
@@ -440,18 +440,23 @@ Rcrt_combined <- left_join(rbind((hsdbRcrt %>% filter(DataStatus == "Proofed")),
   #Create date columns 
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          DeployedDate = as.Date(DeployedDate, format = "%Y-%m-%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         BottomMonth = NumBottom/(as.numeric(RetDate-DeployedDate)/28)) %>%
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month"))) %>% 
   #Filter data to desired date range and select columns needed for summary
   filter(RetDate > Start_date & RetDate < End_date) %>%
-  dplyr::select(AnalysisDate, RetDate, ShellID, SampleEventID, FixedLocationID, BottomMonth) %>% 
+  dplyr::select(AnalysisDate, RetDate, DeployedDate, ShellID, SampleEventID, FixedLocationID, ShellReplicate, ShellPosition, NumBottom) %>% #, BottomMonth) %>% 
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
   #Add simplified StationName 
   dboFixedLocations %>% 
     mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
            Site = paste0(Estuary, "-", SectionName)) %>%
-    dplyr::select(FixedLocationID, Site, StationName))
+    dplyr::select(FixedLocationID, Site, StationName)) %>%
+  mutate(Bottom = case_when((Site == "CR-E"|Site == "CR-W") & (ShellPosition == 1 | ShellPosition == 12) ~ NA,
+                            (Site %in% c("LW-L", "LW-R", "LX-N", "LX-S", "SL-C", "SL-N", "SL-S")) & (ShellPosition == 1|ShellPosition == 6|ShellPosition == 7|ShellPosition == 12) ~ NA,
+                            TRUE ~ NumBottom),
+         BottomMonth = Bottom/(as.numeric(RetDate-DeployedDate)/28)) %>%
+  dplyr::select(-DeployedDate, -ShellReplicate, -ShellPosition, -NumBottom, -Bottom) %>%
+  drop_na(BottomMonth)
 
 ##Recruitment output summary
 Rcrt_out <- Rcrt_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(BottomMonth, na.rm = T),2)) %>% pivot_wider(names_from = StationName, values_from = Mean)
