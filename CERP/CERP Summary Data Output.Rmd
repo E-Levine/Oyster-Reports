@@ -6,13 +6,13 @@ output:
   html_document:
   word_document: NULL
 params:  
-    WQ: FALSE
+    WQ: TRUE
     Dermo: FALSE
-    Cage: TRUE
+    Cage: FALSE
     Rcrt: FALSE
     Repro: FALSE
     Sedi: FALSE
-    Srvy: TRUE
+    Srvy: FALSE
 ---
 
 ```{r setup, include=FALSE}
