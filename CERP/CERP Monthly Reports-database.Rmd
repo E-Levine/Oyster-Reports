@@ -4,7 +4,7 @@ output:
   word_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "05"  #Enter 2-digit month
+  Month: "06"  #Enter 2-digit month
   Year: "2024" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -18,7 +18,7 @@ knit: (function(inputFile, encoding) {
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-05-31"  #Set the local database to use
+Database <- "Oysters_24-06-28_test"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -423,7 +423,7 @@ This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %
 
 ## St. Lucie Central summary
 
-Here is the monthly report with the data collected from the St. Lucie Estuary on `r max(SLC_WQStats$RetDate %>% format("%B %d, %Y"))`:
+Here is the monthly report with the data collected from the St. Lucie Estuary on `r max(SLC_WQStats$RetDate) %>% format("%B %d, %Y")`:
 
 *	Mean salinity 
 `r if((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean > (SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean) {paste("decreased")} else if ((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean < (SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
