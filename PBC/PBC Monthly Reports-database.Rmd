@@ -289,10 +289,11 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
          Position = case_when(FixedLocationID %in% NorthStations ~ "North",
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
+          Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight-PanTareWeight)+(FilterDryWeight-FilterTareWeight)),
          TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
-         TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
-         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100,
-         OrganicWt = TotalDW*(PctOrganic/100)) %>%
+         TotalAsh = (AshWeight - TareCrucible)*(1/Proportion),
+         OrganicWt = TotalDW - TotalAsh, 
+         PctOrganic = (OrganicWt/TotalDW) * 100) %>%
   select(CupSampleID,
          FixedLocationID,
          SampleEventID,
@@ -302,9 +303,11 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
          Plot_Date,
          NumDays,
          Position,
+         Proportion,
          TotalDW,
-         PctOrganic,
-         OrganicWt) %>% 
+         TotalAsh,
+         OrganicWt,
+         PctOrganic) %>% 
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
@@ -528,4 +531,5 @@ Sedi_table <- LW_SediStats %>% mutate(Month = format(RetDate, "%B"), Station = p
 
 flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "all") %>% 
   hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3, 5), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") 
+
 ```
