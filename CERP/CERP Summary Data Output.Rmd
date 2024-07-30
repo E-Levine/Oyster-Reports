@@ -10,8 +10,8 @@ params:
     Dermo: FALSE
     Cage: FALSE
     Rcrt: FALSE
-    Repro: TRUE
-    Sedi: FALSE
+    Repro: FALSE
+    Sedi: TRUE
     Srvy: FALSE
 ---
 
@@ -624,9 +624,9 @@ Sedi_combined <- left_join(rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | 
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
          TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
-         Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)),
+         Proportion = round((CrucibleDW-TareCrucible)/((PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)),3),
          TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
-         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100,
+         PctOrganic = ((TotalDW-round(TotalAsh,3))/TotalDW)*100,
          OrganicWt = TotalDW*(PctOrganic/100)) %>%
   #Filter data to desired columns needed for summary
   dplyr::select(AnalysisDate, RetDate, DeployedDate, CupSampleID, SampleEventID, FixedLocationID, Position, TotalDW, PctOrganic, OrganicWt) %>% 
