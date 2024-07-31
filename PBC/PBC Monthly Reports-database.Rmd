@@ -1,10 +1,10 @@
 ---
 title: "PBC Monthly Report - `r params$Year`-`r params$Month`"
 output: 
-  word_document:
+  officedown::rdocx_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "06"  #Enter 2-digit month
+  Month: "07"  #Enter 2-digit month
   Year: "2024" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -18,7 +18,7 @@ knit: (function(inputFile, encoding) {
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-06-28_test"  #Set the local database to use
+Database <- "Oysters_24-07-31"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -37,7 +37,7 @@ Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter"
 if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  #DF manipulation
-  #readxl,          #Excel
+  officedown,          #Page orientation
   lubridate,         #Dates
   knitr, here,
   flextable,
@@ -289,11 +289,11 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
          Position = case_when(FixedLocationID %in% NorthStations ~ "North",
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
-          Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight-PanTareWeight)+(FilterDryWeight-FilterTareWeight)),
+         Proportion = round((CrucibleDW-TareCrucible)/((PanDryWeight-PanTareWeight)+(FilterDryWeight-FilterTareWeight)),3),
          TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
-         TotalAsh = (AshWeight - TareCrucible)*(1/Proportion),
-         OrganicWt = TotalDW - TotalAsh, 
-         PctOrganic = (OrganicWt/TotalDW) * 100) %>%
+         TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
+         PctOrganic = ((TotalDW-round(TotalAsh,3))/TotalDW)*100,
+         OrganicWt = TotalDW*(PctOrganic/100)) %>%
   select(CupSampleID,
          FixedLocationID,
          SampleEventID,
@@ -398,21 +398,21 @@ in
 *	The mean recruitment rate 
 `r if((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean > (LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean < (LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWL_RecruitStats %>% filter(RetDate == min(LWL_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r min(LWL_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWL_RecruitStats %>% filter(RetDate == max(LWL_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r max(LWL_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
 `r if((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct > (LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct < (LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r round((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWL_DermoStats %>% filter(RetDate == min(LWL_DermoStats$RetDate)))$DermoPct,1)`% 
 in 
 `r min(LWL_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWL_DermoStats$RetDate) %>% format("%B")`.
 * `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
@@ -435,21 +435,21 @@ in
 *	The mean recruitment rate 
 `r if((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean > (LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean < (LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r round((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWR_RecruitStats %>% filter(RetDate == min(LWR_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r min(LWR_RecruitStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean,2)` 
+`r round((LWR_RecruitStats %>% filter(RetDate == max(LWR_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
 `r max(LWR_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
 `r if((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct > (LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct < (LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
-`r round((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWR_DermoStats %>% filter(RetDate == min(LWR_DermoStats$RetDate)))$DermoPct,1)`% 
 in 
 `r min(LWR_DermoStats$RetDate) %>% format("%B")` 
 to 
-`r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,2)`% 
+`r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWR_DermoStats$RetDate) %>% format("%B")`.
 * `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
@@ -462,67 +462,69 @@ Here is the monthly report with sediment data collected from the Lake Worth Lago
 * The mean monthly sedimentation rate at the stations north of the C-51 output 
 `r if((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate > (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate < (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate`
+`r round((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$Rate,1)`
 g/month in 
 `r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate`
+`r round((Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$Rate,1)`
 g/month in
 `r max(Sedi_summary$RetDate) %>% format("%B")`,
 and the mean percent organic content
 `r if((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct > (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct < (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct`%
+`r round((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct,1)`%
 in 
 `r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct`%
+`r round((Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct,1)`%
 in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
 The mean monthly organic weight 
 `r if((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt > (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt < (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt`
+`r round((Sedi_summary %>% filter(Position == "North" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt,1)`
 g/month in 
 `r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r (Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt`
+`r round((Sedi_summary %>% filter(Position == "North" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt,1)`
 g/month in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
 
 * The mean monthly sedimentation rate at the stations south of the C-51 output 
 `r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate`
+`r round((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$Rate,1)`
 g/month in 
 `r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate`
+`r round((Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$Rate,1)`
 g/month in
 `r max(Sedi_summary$RetDate) %>% format("%B")`,
 and the mean percent organic content
 `r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct`%
+`r round((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$OrganicPct,1)`%
 in 
 `r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct`%
+`r round((Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$OrganicPct,1)`%
 in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
 The mean monthly organic weight 
 `r if((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt > (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("decreased")} else if ((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt < (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt) {paste("increased")} else {paste("stayed the same")}` 
 from 
-`r (Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt`
+`r round((Sedi_summary %>% filter(Position == "South" & RetDate == min(Sedi_summary$RetDate)))$RateOrganicWt,1)`
 g/month in 
 `r min(Sedi_summary$RetDate) %>% format("%B")` 
 to 
-`r (Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt`
+`r round((Sedi_summary %>% filter(Position == "South" & RetDate == max(Sedi_summary$RetDate)))$RateOrganicWt,1)`
 g/month in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
 \
 
+<!---BLOCK_LANDSCAPE_START--->
 ```{r echo=FALSE, restults = 'asis'}
+
 set_flextable_defaults(na_str = "--", nan_str = "--")
 
 #Create base table
@@ -530,6 +532,7 @@ Sedi_table <- LW_SediStats %>% mutate(Month = format(RetDate, "%B"), Station = p
 
 
 flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "all") %>% 
-  hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3, 5), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") 
+  hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3, 5), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") %>% width(j = c(1,4,5), width = 0.85, unit = "in") %>% width(j = c(2:3), width = 1.1, unit = "in") %>% width(j = c(6:7), width = 1.5, unit = "in")
 
 ```
+<!---BLOCK_LANDSCAPE_STOP--->

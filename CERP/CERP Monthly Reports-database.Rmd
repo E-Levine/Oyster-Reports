@@ -4,7 +4,7 @@ output:
   word_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "06"  #Enter 2-digit month
+  Month: "07"  #Enter 2-digit month
   Year: "2024" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -18,11 +18,11 @@ knit: (function(inputFile, encoding) {
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-06-28_test"  #Set the local database to use
+Database <- "Oysters_24-07-31"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
-#Don't modify code in rest of section
+####Don't modify code in rest of section
 Estuaries <- c("SL", "CR")
 LocationIDs <- c("0255", "0256", "0257", "0231", "0232")
 Month <- params$Month 
@@ -502,7 +502,8 @@ spat/shell in
 to 
 `r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,1)` 
 spat/shell in 
-`r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`.
+`r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
+at the Bird Island station.
 *	Dermo prevalence 
 `r if((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
 from
