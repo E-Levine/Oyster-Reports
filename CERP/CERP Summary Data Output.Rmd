@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 Author <- c("E Levine") #Change to your name
 Database <- "Oysters_24-07-19"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
-
+#######File locations required to be updated for use.
 Start_date <- as.Date("2024-04-01")
 End_date <- as.Date("2024-06-30")
 

@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 Author <- c("E Levine") #Change to your name
 Month <- params$Month 
 Year <- params$Year   
-
+#######File locations required to be updated for use.
 
 Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
                  ifelse(as.numeric(Month) > 2 & as.numeric(Month) < 6, paste0("Spring", Year),
@@ -36,22 +36,22 @@ pacman::p_load(tidyverse, dplyr,  #DF manipulation
                install = TRUE)
 
 #Load required data - salinity, recruitment, dermo, survey counts - all but WQ limited to 2023 data
-WaterQual <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/WaterQuality.xlsx", sheet = "RawData", skip = 3, col_names = TRUE, na = c("", "Z"), trim_ws = TRUE, .name_repair = "universal") %>% 
+WaterQual <- read_excel("...", sheet = "RawData", skip = 3, col_names = TRUE, na = c("", "Z"), trim_ws = TRUE, .name_repair = "universal") %>% 
   filter(!grepl('Proof', Date)) %>% drop_na(Date)
 
-Rcrt_df <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Recruitment/SL-CRcrt.xlsx", sheet = "Spat", skip = 22719, col_names = c("Ret.Date",	"Jul.Ret", "Jul.Dep",	"Num.Days",	"Site",	"Station",	"Rep", "Shell",	"..Bottom",	"..Top", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal")  %>%
+Rcrt_df <- read_excel("...", sheet = "Spat", skip = 22719, col_names = c("Ret.Date",	"Jul.Ret", "Jul.Dep",	"Num.Days",	"Site",	"Station",	"Rep", "Shell",	"..Bottom",	"..Top", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal")  %>%
   mutate(Ret.Date = as.Date(as.numeric(Ret.Date), origin = "1899-12-30"),
          Num.Days = as.numeric(Num.Days)) %>% drop_na(Ret.Date)
 
-Rcrt_df2 <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Recruitment/CRRcrt.xlsx", sheet = "Spat", skip = 2, col_names = c("Ret.Date",	"Jul.Ret", "Jul.Dep",	"Num.Days",	"Site",	"Station",	"Rep", "Shell",	"..Bottom",	"..Top", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% 
+Rcrt_df2 <- read_excel("...", sheet = "Spat", skip = 2, col_names = c("Ret.Date",	"Jul.Ret", "Jul.Dep",	"Num.Days",	"Site",	"Station",	"Rep", "Shell",	"..Bottom",	"..Top", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% 
   mutate(Ret.Date = as.Date(as.numeric(Ret.Date), origin = "1899-12-30"),
          Num.Days = as.numeric(Num.Days)) %>% drop_na(Ret.Date)
 
-Dermo_df <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Repro Disease/SL-CReproDisease.xlsx", sheet = "Dermo2012", skip = 1724, col_names = c("Date",	"Site",	"Sample.Number",	"Station", 	"SH..mm.",	"Total.Weight..g.",	"Shell.Wet.Wt..g.",	"Dermo.Mantle",	"Dermo.Gill", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>% drop_na(Date)
+Dermo_df <- read_excel("...", sheet = "Dermo2012", skip = 1724, col_names = c("Date",	"Site",	"Sample.Number",	"Station", 	"SH..mm.",	"Total.Weight..g.",	"Shell.Wet.Wt..g.",	"Dermo.Mantle",	"Dermo.Gill", "Comments"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>% drop_na(Date)
 
-Dermo_df2 <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Repro Disease/CRReproDisease.xlsx", sheet = "Dermo", skip = 1364, col_names = c("Date",	"Site",	"Sample.Number",	"Station", 	"SH..mm.",	"Total.Weight..g.",	"Shell.Wet.Wt..g.",	"Dermo.Mantle",	"Dermo.Gill"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>% drop_na(Date)
+Dermo_df2 <- read_excel("...", sheet = "Dermo", skip = 1364, col_names = c("Date",	"Site",	"Sample.Number",	"Station", 	"SH..mm.",	"Total.Weight..g.",	"Shell.Wet.Wt..g.",	"Dermo.Mantle",	"Dermo.Gill"), na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>% drop_na(Date)
 
-Survey_df <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {read_excel(paste0("//fwc-spfs1/FishBio/Molluscs/Oysters/CERP/Data/Survey/Survey",Survey, ".xlsx"), sheet = "Counts", skip = 3, col_names = TRUE, na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% drop_na()} else {"Survey was not conducted"}
+Survey_df <- if(Month == "03" | Month == "06" | Month == "09" | Month == "12") {read_excel(paste0("...",Survey, ".xlsx"), sheet = "Counts", skip = 3, col_names = TRUE, na = c("", "Z", "z"), trim_ws = TRUE, .name_repair = "universal") %>% drop_na()} else {"Survey was not conducted"}
 
 MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
 Start_date <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
