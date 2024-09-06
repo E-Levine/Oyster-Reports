@@ -1,17 +1,17 @@
 ---
 title: "Summary Data Output"
 author: "ELevine"
-date: "2024-07-18"
+date: "2024-07-26"
 output: 
   html_document:
   word_document: NULL
 params:  
-    WQ: TRUE
+    WQ: FALSE
     Dermo: FALSE
     Cage: FALSE
     Rcrt: FALSE
     Repro: FALSE
-    Sedi: FALSE
+    Sedi: TRUE
     Srvy: FALSE
 ---
 
@@ -19,7 +19,7 @@ params:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-07-19"  #Set the local database to use
+Database <- "Oysters_24-07-26"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
 Start_date <- as.Date("2024-04-01")
@@ -569,7 +569,7 @@ Repro_out <- left_join(Repro_combined %>% group_by(Site, AnalysisDate) %>% filte
 Site_summary_Re <- data.frame(AnalysisDate = unique(Repro_combined$AnalysisDate))
 for(j in Sites){
   for(s in Stages){
-    Repro_comb <- Repro_combined %>% mutate(ReproStage = factor(ReproStage, levels = c("4" , "1", "2", "3", "Z"), labels = c("Ind", "Dev", "Rip", "Spe", "Z"))) %>% filter(ReproStage != "Z")
+    Repro_comb <- Repro_combined %>% mutate(ReproStage = factor(ReproStage, levels = c("1", "2", "3", "4", "Z"), labels = c("Dev", "Rip", "Spe", "Ind", "Z"))) %>% mutate(ReproStage2 = fct_relevel(ReproStage, "Ind", "Dev", "Rip", "Spe", "Z")) %>% filter(ReproStage != "Z")
     Repro_RetDates <- Repro_comb %>% filter(Site == j) %>% distinct(AnalysisDate, RetDate) %>% rename_with(.fn = ~ifelse(.x != "AnalysisDate", paste0(j, "_", .x), .x))
     Summary_jRe <- left_join(Repro_comb  %>% 
                                #Select columns, filter to Station by FixedLocationID, and group by ReproStage for Count
@@ -624,9 +624,9 @@ Sedi_combined <- left_join(rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | 
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
          TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
-         Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)),
+         Proportion = round((CrucibleDW-TareCrucible)/((PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)),3),
          TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
-         PctOrganic = ((TotalDW-TotalAsh)/TotalDW)*100,
+         PctOrganic = ((TotalDW-round(TotalAsh,3))/TotalDW)*100,
          OrganicWt = TotalDW*(PctOrganic/100)) %>%
   #Filter data to desired columns needed for summary
   dplyr::select(AnalysisDate, RetDate, DeployedDate, CupSampleID, SampleEventID, FixedLocationID, Position, TotalDW, PctOrganic, OrganicWt) %>% 
