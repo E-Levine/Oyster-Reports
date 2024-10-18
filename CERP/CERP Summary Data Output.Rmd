@@ -1,25 +1,25 @@
 ---
 title: "Summary Data Output"
 author: "ELevine"
-date: "2024-07-26"
+date: "`r Sys.Date()`"
 output: 
   html_document:
   word_document: NULL
 params:  
-    WQ: FALSE
-    Dermo: FALSE
-    Cage: FALSE
-    Rcrt: FALSE
-    Repro: FALSE
+    WQ: TRUE
+    Dermo: TRUE
+    Cage: TRUE
+    Rcrt: TRUE
+    Repro: TRUE
     Sedi: TRUE
-    Srvy: FALSE
+    Srvy: TRUE
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-07-26"  #Set the local database to use
+Database <- "Oysters_24-10-17"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
 Start_date <- as.Date("2024-04-01")
@@ -72,7 +72,7 @@ dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
 #Water quality
 hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
-  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'RCRT')) %>% #Limit to COLL (dermo) data (Pre-2023, WQ is with RCRT. 2023+ is with COLL)
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) %>% #Limit to COLL (dermo) data (Pre-2023, WQ is with RCRT. 2023+ is with COLL)
   filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
 dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
   collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs

@@ -1,0 +1,69 @@
+---
+title: "Quarterly Report Information"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+  word_document: NULL
+params:
+  Start_date: "2024-04-01"
+  End_date: "2024-06-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#Database <- "Oysters_24-10-17"  #Set the local database to use
+Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
+#
+Start_date <- as.Date(params$Start_date)
+End_date <- as.Date(params$End_date)
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx,         #Excel
+  lubridate, zoo,         #Dates
+  knitr, kableExtra, scales,
+  install = TRUE)
+```
+
+```{css}
+caption {
+  color: black;
+  font-weight: bold;
+  font-size: 14;
+} 
+```
+
+```{r Data gather from summary file}
+WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
+
+```
+
+```{r Data selection and cleaning}
+WQ_Sal_CERP <- WQ_Sal_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(-SL.N_RetDate_Sal, -SL.S_RetDate_Sal, -LX.N_RetDate_Sal, -LX.S_RetDate_Sal) %>% mutate(RetDate = as.yearmon(RetDate))
+WQ_Sal_CRE <- WQ_Sal_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_Sal > Start_date & CR.E_RetDate_Sal < End_date)  %>% rename(RetDate = CR.E_RetDate_Sal) %>% dplyr::select(-CR.W_RetDate_Sal)
+WQ_Sal_PBC <- WQ_Sal_s %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate_Sal > Start_date & LW.L_RetDate_Sal < End_date) %>% rename(RetDate = LW.L_RetDate_Sal) %>% dplyr::select(-LW.R_RetDate_Sal)
+```
+
+```{r table formatting}
+#Salinity
+Sal_L2 <- WQ_Sal_CERP %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity) %>% kbl() %>% kable_paper() %>%
+  column_spec(3, color = "black", background = spec_color((WQ_Sal_CERP %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity))$Salinity[1:nrow(WQ_Sal_CERP %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity))], begin = 0.35, end = 1, option = "F")) %>% column_spec(1:3, width_min = '2in')
+
+Sal_C2 <- WQ_Sal_CRE %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity) %>% kbl() %>% kable_paper() %>%
+  column_spec(3, color = "black", background = spec_color((WQ_Sal_CRE %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity))$Salinity[1:nrow(WQ_Sal_CRE %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity))], begin = 0.35, end = 1, option = "F")) 
+
+Sal_P2 <- WQ_Sal_PBC %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity) %>% kbl() %>% kable_paper() %>%
+  column_spec(3, color = "black", background = spec_color((WQ_Sal_PBC %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity))$Salinity[1:nrow(WQ_Sal_PBC %>% gather(Station, Salinity, -RetDate) %>% arrange(Salinity))], begin = 0.35, end = 1, option = "F"))
+
+```
+## Report summary
+This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** quarterly reports from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")` .\
+
+## Water Quality summary
+Minimum and maximum values observed during the quarter and data ordered by increasing values.
+`r kable(list(Sal_L2), align = "c", caption = "CERP salinity data")`
+`r kable(list(Sal_C2), caption = "CRE salinity data")`
+`r kable(list(Sal_P2), caption = "PBC salinity data")`
