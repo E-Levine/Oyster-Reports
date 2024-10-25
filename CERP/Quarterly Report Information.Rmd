@@ -20,11 +20,12 @@ End_date <- as.Date(params$End_date)
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
+p_unlock("rlang")
 pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
   DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
-  knitr, kableExtra, scales,
+  knitr, kableExtra, scales, gt,
   install = TRUE)
 ```
 
