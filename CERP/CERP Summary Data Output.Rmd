@@ -10,7 +10,7 @@ params:
     Dermo: TRUE
     Cage: TRUE
     Rcrt: TRUE
-    Repro: TRUE
+    Repro: FALSE
     Sedi: TRUE
     Srvy: TRUE
 ---
@@ -19,11 +19,11 @@ params:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-10-17"  #Set the local database to use
+Database <- "Oysters_24-10-28"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2024-04-01")
-End_date <- as.Date("2024-06-30")
+Start_date <- as.Date("2024-07-01")
+End_date <- as.Date("2024-09-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -363,7 +363,7 @@ Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed" | 
     dplyr::select(FixedLocationID, Site, StationName)) %>% 
   pivot_wider(names_from = DataType, values_from = TotalCount) %>% mutate(CageName = paste0(Site, "-", CageID),
                                                                           DeadPct = 100-((Retrieved/Deployed)*100))
-CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Proofed")), (dboCageSH %>% filter(DataStatus == "Proofed"))) %>%
+CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Completed")), (dboCageSH %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
   mutate(RetDate = as.Date(substring(CageCountID, 8, 15), format = "%Y%m%d"),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
