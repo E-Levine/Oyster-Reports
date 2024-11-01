@@ -1,0 +1,57 @@
+---
+title: "Quarterly Figures CERP"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: word_document
+params:
+  Start_date: "2024-07-01" #Start date of reporting quarter
+  End_date: "2024-09-30"   #End date of reporting quarter
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#
+Start_date <- as.Date(params$Start_date)
+End_date <- as.Date(params$End_date)
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx,         #Excel
+  lubridate, zoo,         #Dates
+  knitr, kableExtra, scales, gt, gtExtras,
+  install = TRUE)
+```
+
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+```{r Data gather from summary file}
+WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
+WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
+Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
+Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
+Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
+Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
+SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
+Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE)
+Sedi_sta <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Stations', detectDates = TRUE, check.names = TRUE)
+Sedi_pos <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE, check.names = TRUE)
+```
+
+```{r Data selection and cleaning}
+#
+##Salinity
+Sal_East <- WQ_Sal_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SL.C_RetDate_Sal >= End_date %m-% months(13))
+Sal_West <- WQ_Sal_s %>% dplyr::select(contains("CR")) %>% filter(CR.E_RetDate_Sal >= End_date %m-% months(13))
+``
