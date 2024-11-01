@@ -6,24 +6,24 @@ output:
   html_document:
   word_document: NULL
 params:  
-    WQ: FALSE
-    Dermo: FALSE
-    Cage: FALSE
-    Rcrt: FALSE
+    WQ: TRUE
+    Dermo: TRUE
+    Cage: TRUE
+    Rcrt: TRUE
     Repro: TRUE
-    Sedi: FALSE
-    Srvy: FALSE
+    Sedi: TRUE
+    Srvy: TRUE
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-10-30"  #Set the local database to use
+Database <- "Oysters_24-10-31"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2024-07-01")
-End_date <- as.Date("2024-09-30")
+Start_date <- as.Date("2023-04-01")
+End_date <- as.Date("2024-04-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -591,7 +591,7 @@ for(j in Sites){
   Site_summ_Re <- Site_summary_Re %>% mutate(across(where(is.numeric), round, 2)) %>% mutate(across(where(is.numeric), ~na_if(.x, Inf))) %>%
     mutate(across(where(is.numeric), ~na_if(.x, -Inf))) %>% 
     #Remove unneeded columns and rename/clean remaining
-    dplyr::select(-ends_with(c(".y",".x.x"))) %>% rename_with(~sub("RetDate.x", "_RetDate", .x)) %>% mutate(across(everything(), ~replace_na(., 0)))
+    dplyr::select(-ends_with(c(".y",".x.x"))) %>% rename_with(~sub("RetDate.x", "RetDate", .x)) %>% mutate(across(where(is.numeric), ~replace(., is.na(.), 0)))
 }
 #
 #
