@@ -73,6 +73,9 @@ Station_shape_W <- scale_shape_manual("",labels = Stations_W, values = setNames(
 
 ```{r Data gather from summary file}
 WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
+WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
+WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
+WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
 WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
 Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
 Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
@@ -84,7 +87,7 @@ Sedi_sta <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Stations', detectDat
 Sedi_pos <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE, check.names = TRUE)
 ```
 
-```{r Data selection and cleaning}
+```{r Water Quality Data selection and cleaning}
 #
 ##Salinity
 names(WQ_Sal_s) <- gsub("\\.", "", names(WQ_Sal_s))
@@ -95,6 +98,39 @@ Sal_East_2 <- rbind(Sal_East_1 %>% dplyr::select(contains("SL")) %>% gather(Site
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
 
 Sal_West <- WQ_Sal_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Sal >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_Sal) %>% rename("CR_RetDate" = CRE_RetDate_Sal) %>% gather(SiteStation, Salinity, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+##Temperature
+names(WQ_Tem_s) <- gsub("\\.", "", names(WQ_Tem_s))
+Tem_East_1 <- WQ_Tem_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_Temp >= End_date %m-% months(13)) %>%
+  dplyr::select(-SLN_RetDate_Temp, -SLS_RetDate_Temp, -LXS_RetDate_Temp) %>% rename("SL_RetDate" = SLC_RetDate_Temp, "LX_RetDate" = LXN_RetDate_Temp)
+Tem_East_2 <- rbind(Tem_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Temp, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                    Tem_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Temp, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+Tem_West <- WQ_Tem_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Temp >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_Temp) %>% rename("CR_RetDate" = CRE_RetDate_Temp) %>% gather(SiteStation, Temp, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+##pH
+names(WQ_pH_s) <- gsub("\\.", "", names(WQ_pH_s))
+pH_East_1 <- WQ_pH_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_pH >= End_date %m-% months(13)) %>%
+  dplyr::select(-SLN_RetDate_pH, -SLS_RetDate_pH, -LXS_RetDate_pH) %>% rename("SL_RetDate" = SLC_RetDate_pH, "LX_RetDate" = LXN_RetDate_pH)
+pH_East_2 <- rbind(pH_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, pH, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                  pH_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, pH, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+pH_West <- WQ_pH_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_pH >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_pH) %>% rename("CR_RetDate" = CRE_RetDate_pH) %>% gather(SiteStation, pH, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+##Dissolved Oxygen
+names(WQ_DO_s) <- gsub("\\.", "", names(WQ_DO_s))
+DO_East_1 <- WQ_DO_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_DO >= End_date %m-% months(13)) %>%
+  dplyr::select(-SLN_RetDate_DO, -SLS_RetDate_DO, -LXS_RetDate_DO) %>% rename("SL_RetDate" = SLC_RetDate_DO, "LX_RetDate" = LXN_RetDate_DO)
+DO_East_2 <- rbind(DO_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, DO, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                  DO_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, DO, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+DO_West <- WQ_DO_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_DO >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_DO) %>% rename("CR_RetDate" = CRE_RetDate_DO) %>% gather(SiteStation, DO, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
 #
 #
 ##Secchi
@@ -140,6 +176,114 @@ Sal_West_Fig <- ggarrange(
 
 annotate_figure(Sal_West_Fig, 
                 left = text_grob("Salinity", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+```
+
+```{r CERP Temperature Figure, fig.cap = "Figure 19. Monthly temperature recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+Tem_East_2 %>%
+  ggplot(aes(RetDate, Temp, shape = Station)) + 
+  geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central", "LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
+  scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+  Station_fill_E + Station_color_E + Station_shape_E + BaseForm + FacetForm +East_legend
+
+```
+
+```{r CRE Temperature Figure, fig.cap = "Figure 20. Monthly temperature recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+Tem_West_Fig <- ggarrange(
+  Tem_West %>% filter(Station == 1 | Station == 2) %>%
+    ggplot(aes(RetDate, Temp, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-East") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
+  Tem_West %>% filter(Station == 3 | Station == 4) %>%
+    ggplot(aes(RetDate, Temp, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-West") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
+  nrow = 2, heights = c(0.045, 0.05, 1.4))
+
+annotate_figure(Tem_West_Fig, 
+                left = text_grob("Temperature (\u00B0C)", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+```
+
+```{r CERP pH Figure, fig.cap = "Figure 21. Monthly pH recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+pH_East_2 %>%
+  ggplot(aes(RetDate, pH, shape = Station)) + 
+  geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central", "LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
+  scale_y_continuous("pH", expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10, by = 0.5)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+  Station_fill_E + Station_color_E + Station_shape_E + BaseForm + FacetForm +East_legend
+
+```
+
+```{r CRE pH Figure, fig.cap = "Figure 22. Monthly pH recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+pH_West_Fig <- ggarrange(
+  pH_West %>% filter(Station == 1 | Station == 2) %>%
+    ggplot(aes(RetDate, pH, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10, by = 0.5)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-East") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
+  pH_West %>% filter(Station == 3 | Station == 4) %>%
+    ggplot(aes(RetDate, pH, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10, by = 0.5)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-West") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
+  nrow = 2, heights = c(0.045, 0.05, 1.4))
+
+annotate_figure(pH_West_Fig, 
+                left = text_grob("pH", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+```
+
+```{r CERP Dissolved Oxygen Figure, fig.cap = "Figure 23. Monthly dissolved oxygen recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+DO_East_2 %>%
+  ggplot(aes(RetDate, DO, shape = Station)) + 
+  geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central", "LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
+  scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), limits = c(0, 15), breaks = seq(0, 15, by = 3)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+  Station_fill_E + Station_color_E + Station_shape_E + BaseForm + FacetForm +East_legend
+
+```
+
+```{r CRE Dissolved Oxygen Figure, fig.cap = "Figure 24. Monthly dissolved oxygen recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+DO_West_Fig <- ggarrange(
+  DO_West %>% filter(Station == 1 | Station == 2) %>%
+    ggplot(aes(RetDate, DO, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 15), breaks = seq(0, 15, by = 3)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-East") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
+  DO_West %>% filter(Station == 3 | Station == 4) %>%
+    ggplot(aes(RetDate, DO, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 15), breaks = seq(0, 15, by = 3)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-West") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
+  nrow = 2, heights = c(0.045, 0.05, 1.4))
+
+annotate_figure(DO_West_Fig, 
+                left = text_grob("Dissolved oxygen (mg/L)", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
                 bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
 ```
 
