@@ -104,13 +104,15 @@ Sedi_pos <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Position', detectDat
 Surveys <- Counts_df %>% arrange(AnalysisDate) %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(AnalysisDate, Survey)
 names(Counts_df) <- gsub("\\.", "", names(Counts_df))
 Counts_East_1 <- Counts_df %>% dplyr::select(Survey, AnalysisDate, contains("SL")|contains("LX")) %>% filter(AnalysisDate >= End_date %m-% months(13))
-Counts_East_2 <- rbind(Counts_East_1 %>% dplyr::select(Survey, AnalysisDate, contains("SL")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType), 
-      Counts_East_1 %>% dplyr::select(Survey, AnalysisDate, contains("LX")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType)) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+Counts_East_2 <- Counts_East_1 %>% dplyr::select(Survey, AnalysisDate, contains("SL")|contains("LX")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+names(SH_df) <- gsub("\\.", "", names(SH_df))
+SH_East <- SH_df %>% dplyr::select(Survey, AnalysisDate, contains("SL")|contains("LX")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Value, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = substr(SiteStation, 1, 4)) %>% spread(Measure, Value) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
 #
 
 ```
 
-```{r CERP Survey Figure, fig.cap = "Figure 1. Mean semi-annual and quarterly number (± S.D.) of live oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 9.75, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Survey Figure, fig.cap = "Figure 1. Mean semi-annual and quarterly number (± S.D.) of live oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 9.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 East_Live_list <- list()
 for(i in seq_along(East_sites)){
@@ -124,8 +126,8 @@ for(i in seq_along(East_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,0), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Ratio of dead oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("SL", Working_site) ~ "St. Lucie", grepl("LX", Working_site) ~ "Loxahatchee", TRUE ~ "WRONG"), "-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + Survey_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 }
@@ -142,7 +144,7 @@ East_live_fig <- ggarrange(
 annotate_figure(East_live_fig, left = text_grob(expression("Live oysters / m"^2), rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
 ```
 
-```{r CERP DeadRatio Figure, fig.cap = "Figure 2. Mean semi-annual ratio (± S.D.) of dead oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 9.75, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP DeadRatio Figure, fig.cap = "Figure 2. Mean semi-annual ratio (± S.D.) of dead oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 9.5, fig.width = 8, fig.fullwidth=TRUE}
 
 East_Dead_list <- list()
 for(i in seq_along(East_sites)){
@@ -156,7 +158,7 @@ for(i in seq_along(East_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,0), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Ratio of dead oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("SL", Working_site) ~ "St. Lucie", grepl("LX", Working_site) ~ "Loxahatchee", TRUE ~ "WRONG"), "-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + Survey_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -173,6 +175,39 @@ East_dead_fig <- ggarrange(
 
 annotate_figure(East_dead_fig, left = text_grob("Ratio of Dead Oysters", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
 ```
+
+```{r CERP SH Figure, fig.cap = "Figure 3. Mean semi-annual shell height (± S.D.) of live oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 9.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+East_SH_list <- list()
+for(i in seq_along(East_sites)){
+  #
+  Working_site <- paste(East_sites[i])
+  df_temp <- SH_East %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  East_SH_list[[i]] <- df_temp %>% ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 25, color = "black") + 
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
+    ggtitle(paste0(case_when(grepl("SL", Working_site) ~ "St. Lucie", grepl("LX", Working_site) ~ "Loxahatchee", TRUE ~ "WRONG"), "-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
+    Station_fill_E + Station_color_E + BaseForm + PlotTitle + Survey_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+}
+
+East_SH_fig <- ggarrange(
+  East_SH_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  East_SH_list[[2]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
+  East_SH_list[[3]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
+  East_SH_list[[4]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
+  East_SH_list[[5]] + rremove("y.title") + rremove("legend"),
+  nrow = 5, heights = c(1, 1, 1, 1, 1.25)  
+  )
+
+annotate_figure(East_SH_fig, left = text_grob("Shell Height (mm)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+```
+
 
 ```{r Water Quality Data selection and cleaning}
 #
@@ -384,7 +419,7 @@ SP_East_2 %>%
   Station_fill_E + BaseForm + FacetForm + East_legend
 ```
 
-```{r CRE Seechi Figure, fig.cap = "Figure 26. Monthly percent Secchi penetration at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+```{r CRE Secchi Figure, fig.cap = "Figure 26. Monthly percent Secchi penetration at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
 SP_West_Fig <- ggarrange(
   SP_West %>% filter(Station == 1 | Station == 2) %>%
     ggplot(aes(RetDate, Secchi, fill = Station)) + 
