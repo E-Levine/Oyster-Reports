@@ -24,7 +24,7 @@ pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
   DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
-  knitr, kableExtra, scales, gt, gtExtras, ggpubr,
+  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, 
   install = TRUE)
 ```
 
@@ -89,6 +89,12 @@ Stat_pal3 <- c(rgb(255, 255, 255, maxColorValue = 255), rgb(153, 255, 255, maxCo
 Stages <- c("Ind" = "Indifferent", "Dev" = "Developing", "Rip" = "Ripe/Spawning", "Spe" = "Spent/Recyling") 
 Stage_fill <- scale_fill_manual("", labels = Stages, values = Stat_pal3, na.value = "#999999")
 #
+#Cage formatting
+Cage_sites <- c("SLC", "LXN", "CRE", "CRW")
+Stations_cages <- c("SLC" = "St. Lucie-Central Station 1", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
+Cages_fill <- scale_fill_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
+Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
+
 ```
 
 ```{r Data gather from summary file}
@@ -105,7 +111,7 @@ WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', d
 Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
 Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
 Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
-Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE)
+Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
 Sedi_sta <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Stations', detectDates = TRUE, check.names = TRUE)
 Sedi_pos <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE, check.names = TRUE)
 ```
@@ -137,8 +143,25 @@ Rcrt_West <- Rcrt_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >=
 ####REPRO DATA
 names(Repro_df) <- gsub("\\.", "", names(Repro_df))
 Repro_East_1 <- Repro_df %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC__RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN__RetDate, -SLS__RetDate, -LXS__RetDate)  %>% rename("SL__RetDate" = SLC__RetDate, "LX__RetDate" = LXN__RetDate)
-Repro_East_2 <- rbind(Repro_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL__RetDate) %>% rename("RetDate" = SL__RetDate), Repro_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX__RetDate) %>% rename("RetDate" = LX__RetDate)) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")))
-Repro_West <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE__RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW__RetDate) %>%  rename("RetDate" = CRE__RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")))
+Repro_East_2 <- rbind(Repro_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL__RetDate) %>% rename("RetDate" = SL__RetDate), Repro_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX__RetDate) %>% rename("RetDate" = LX__RetDate)) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+Repro_West <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE__RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW__RetDate) %>%  rename("RetDate" = CRE__RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+#
+####DERMO DATA
+names(Dermo_df) <- gsub("\\.", "", names(Dermo_df))
+DermoP_East_1 <- Dermo_df %>% dplyr::select(contains("SL")|contains("LX")) %>% dplyr::select(contains('RetDate')|contains('Pct'))  %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate, -LXS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate, "LX_RetDate" = LXN_RetDate)
+DermoP_East_2 <- rbind(DermoP_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate), DermoP_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoP_West <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+DermoI_East_1 <- Dermo_df %>% dplyr::select(contains("SL")|contains("LX")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate, -LXS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate, "LX_RetDate" = LXN_RetDate)
+DermoI_East_2 <- rbind(DermoI_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate), DermoI_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+DermoI_West <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate)  %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+####CAGE DATA
+names(Cage_df) <- gsub("\\.", "", names(Cage_df))
+Cage_Mort <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value)
+Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD))
 #
 ```
 
@@ -198,7 +221,7 @@ SP_East_2 <- rbind(SP_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteSt
 SP_West <- WQ_Secchi_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_SP >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_SP) %>% rename("CR_RetDate" = CRE_RetDate_SP) %>% gather(SiteStation, Secchi, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
 ```
 
-The following figures are presented for the quarterly report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`. Figures cover data beginning in `r (End_date %m-% months(12) %m-% days(5)) %>% format ("%B %Y")`.
+The following figures are presented for the quarterly report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`. Figures cover data beginning in `r (End_date %m-% months(11)) %>% format ("%B %Y")`.
 \newpage
 
 ```{r CERP Survey Figure, fig.cap = "**Figure 1.**  Mean semi-annual and quarterly number (± S.D.) of live oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 9.5, fig.width = 8, fig.fullwidth=TRUE}
@@ -384,7 +407,7 @@ West_SH_fig <- ggarrange(
 annotate_figure(West_SH_fig, left = text_grob("Shell Height (mm)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
 ```
 
-```{r CERP Recruitment Figure, fig.cap = "**Figure 7.** Mean monthly number (± S.D.) of oyster spat recruits collected per shell at stations within the five east coast study sites. Please note differences in magnitude of y-axis among sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Recruitment Figure, fig.cap = "**Figure 7.**  Mean monthly number (± S.D.) of oyster spat recruits collected per shell at stations within the five east coast study sites. Please note differences in magnitude of y-axis among sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 
 East_Rcrt_list <- list()
 for(i in seq_along(East_sites)){
@@ -442,7 +465,7 @@ West_rcrt_fig <- ggarrange(
   nrow = 2, heights = c(1.25, 1.85), align = "v" 
   )
 
-annotate_figure(West_rcrt_fig, left = text_grob("Spat / Shell)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+annotate_figure(West_rcrt_fig, left = text_grob("Spat / Shell", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
 ```
 
 ```{r CERP Repro Figure, fig.cap = "**Figure 9.**  Monthly reproductive development of oysters from the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
@@ -465,7 +488,107 @@ Repro_West %>%
   Stage_fill + BaseForm + FacetForm + West_legend
 ```
 
-```{r CERP Salinity Figure, fig.cap = "**Figure 17.** Monthly salinity recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Dermo Prevalence Figure, fig.cap = "**Figure 11.**  Monthly prevalence (%) of oysters infected with *Perkinsus marinus* (dermo) at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+DermoP_East_2 %>%
+  ggplot(aes(RetDate, Value, fill = Station)) + 
+  geom_col(position = position_dodge(12), width = 7, color = "black") +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central", "LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
+  scale_y_continuous("Dermo Prevalence (%)", expand = c(0,0), limits = c(0,100)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+  Station_fill_E + BaseForm + FacetForm + East_legend
+```
+
+```{r CERP Dermo Intensity Figure, fig.cap = "**Figure 12.**  Mean monthly infection intensity (± S.D.) of oysters infected with *Perkinsus marinus* (dermo) at stations within the five east coast study sites. Infection intensity is categorized according to the Mackin Scale.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+DermoI_East_2 %>%
+  ggplot(aes(RetDate, Mean, fill = Station)) + 
+  geom_col(position = position_dodge(12), width = 7, color = "black") + 
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(12), width = 10) +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central", "LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
+  scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), limits = c(0, 5))+
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+  Station_fill_E + Station_color_E + BaseForm + FacetForm + East_legend + theme(axis.title.y = element_text(margin = margin(r = 8)))
+
+```
+
+```{r CRE Dermo Prevalence Figure, fig.cap = "**Figure 13.**  Monthly prevalence (%) of oysters infected with *Perkinsus marinus* (dermo) at stations within the two Caloosahatchee River study sites.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+DermoP_West_Fig <- ggarrange(
+  DermoP_West %>% filter(Station == 1 | Station == 2) %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_col(position = position_dodge(12), width = 7, color = "black") +
+    scale_y_continuous("Dermo Prevalence (%)", expand = c(0,0), limits = c(0,100)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-East") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
+  DermoP_West %>% filter(Station == 3 | Station == 4) %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_col(position = position_dodge(12), width = 7, color = "black") +
+    scale_y_continuous("Dermo Prevalence (%)", expand = c(0,0), limits = c(0,100)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-West") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
+  nrow = 2, heights = c(0.04, 0.05, 1.6))
+
+annotate_figure(DermoP_West_Fig, 
+                left = text_grob("Dermo Prevalence (%)", rot = 90, hjust = 0.3, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.75))
+
+```
+
+```{r CRE Dermo Intensity Figure, fig.cap = "**Figure 14.**  Mean monthly infection intensity (± S.D.) of oysters infected with Perkinsus marinus (dermo) at stations within the two Caloosahatchee River study sites. Infection intensity is categorized according to the Mackin Scale.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+DermoI_West_Fig <- ggarrange(
+  DermoI_West %>% filter(Station == 1 | Station == 2) %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_col(position = position_dodge(12), width = 7, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(12), width = 10) +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), limits = c(0, 5))+
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill_W + Station_color_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-East") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
+  DermoI_West %>% filter(Station == 3 | Station == 4) %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_col(position = position_dodge(12), width = 7, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(12), width = 10)+ 
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), limits = c(0, 5))+
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill_W + Station_color_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-West") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
+  nrow = 2, heights = c(0.045, 0.05, 1.4))
+
+annotate_figure(DermoI_West_Fig, 
+                left = text_grob("Dermo Infection Intensity", rot = 90, hjust = 0.3, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.9))
+```
+
+```{r CERP Cage Mortality Figure, fig.cap = "**Figure 15.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+Cage_Mort %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
+  geom_col(position = position_dodge(12), width = 14, color = "black") + 
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 12) +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(Stations_cages)) +
+  scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 120)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+  Cages_fill + Cages_color + BaseForm + FacetForm + theme(legend.position = "none")
+
+```
+
+```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). No cages were retrieved at St. Lucie-Central station 1 in December 2023 nor in January 2024.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+Cage_SH %>% 
+  ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
+  geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
+  scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(Stations_cages))+
+  scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+  Cages_fill + Cages_color + BaseForm + FacetForm + theme(legend.position = "none")
+
+```
+
+```{r CERP Salinity Figure, fig.cap = "**Figure 17.**  Monthly salinity recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Sal_East_2 %>%
   ggplot(aes(RetDate, Salinity, shape = Station)) + 
   geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
@@ -476,7 +599,7 @@ Sal_East_2 %>%
 
 ```
 
-```{r CRE Salinity Figure, fig.cap = "**Figure 18.** Monthly salinity recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+```{r CRE Salinity Figure, fig.cap = "**Figure 18.**  Monthly salinity recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
 Sal_West_Fig <- ggarrange(
   Sal_West %>% filter(Station == 1 | Station == 2) %>%
     ggplot(aes(RetDate, Salinity, shape = Station)) + 
@@ -497,11 +620,11 @@ Sal_West_Fig <- ggarrange(
   nrow = 2, heights = c(0.045, 0.05, 1.4))
 
 annotate_figure(Sal_West_Fig, 
-                left = text_grob("Salinity", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+                left = text_grob("Salinity", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 1))
 ```
 
-```{r CERP Temperature Figure, fig.cap = "**Figure 19.** Monthly temperature recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Temperature Figure, fig.cap = "**Figure 19.**  Monthly temperature recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Tem_East_2 %>%
   ggplot(aes(RetDate, Temp, shape = Station)) + 
   geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
@@ -512,7 +635,7 @@ Tem_East_2 %>%
 
 ```
 
-```{r CRE Temperature Figure, fig.cap = "**Figure 20.** Monthly temperature recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+```{r CRE Temperature Figure, fig.cap = "**Figure 20.**  Monthly temperature recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
 Tem_West_Fig <- ggarrange(
   Tem_West %>% filter(Station == 1 | Station == 2) %>%
     ggplot(aes(RetDate, Temp, shape = Station)) + 
@@ -533,8 +656,8 @@ Tem_West_Fig <- ggarrange(
   nrow = 2, heights = c(0.045, 0.05, 1.4))
 
 annotate_figure(Tem_West_Fig, 
-                left = text_grob("Temperature (\u00B0C)", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+                left = text_grob("Temperature (\u00B0C)", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 1))
 ```
 
 ```{r CERP pH Figure, fig.cap = "**Figure 21.**  Monthly pH recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
@@ -569,8 +692,8 @@ pH_West_Fig <- ggarrange(
   nrow = 2, heights = c(0.045, 0.05, 1.4))
 
 annotate_figure(pH_West_Fig, 
-                left = text_grob("pH", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+                left = text_grob("pH", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 1))
 ```
 
 ```{r CERP Dissolved Oxygen Figure, fig.cap = "**Figure 23.**  Monthly dissolved oxygen recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
@@ -605,8 +728,8 @@ DO_West_Fig <- ggarrange(
   nrow = 2, heights = c(0.045, 0.05, 1.4))
 
 annotate_figure(DO_West_Fig, 
-                left = text_grob("Dissolved oxygen (mg/L)", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+                left = text_grob("Dissolved oxygen (mg/L)", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 1))
 ```
 
 ```{r CERP Secchi Figure, fig.cap = "**Figure 25.**  Monthly percent Secchi pentetration at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
@@ -640,6 +763,6 @@ SP_West_Fig <- ggarrange(
   nrow = 2, heights = c(0.045, 0.05, 1.4))
 
 annotate_figure(SP_West_Fig, 
-                left = text_grob("% Secchi Penetration", rot = 90, vjust = 0.4, family = "serif", size = 16, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16, color = "black"))
+                left = text_grob("% Secchi Penetration", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"),
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 1))
 ```
