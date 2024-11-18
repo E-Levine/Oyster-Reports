@@ -7,7 +7,7 @@ output:
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportEnd <- as.Date("2024-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
-Database = "OysterLocalMD20241114"  # Set the local database to use
+Database = "OysterLocalMD20241118"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
@@ -37,6 +37,36 @@ knitr::opts_chunk$set(
 ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") #May need to revise this
 QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month") #Probably won't need this
 Estuaries <- c("AB")
+```
+
+```{r Functions}
+### Filter Functions ###
+FilterFunction1 <- function(data) {
+  data %>% 
+    mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+         FixedLocationID = substring(QuadratID, 19, 22),
+         Year = year(TripDate)) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+    mutate(Season = case_when(
+          month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
+          month(ymd(TripDate)) > 6 ~ "Fall",
+          TRUE ~ "Invalid")) %>%
+    mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
+    mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
+    mutate(ProjectGroup = case_when(
+      grepl("RESTORE", StationName) ~ "RESTORE 2017",
+      grepl("Baywide", StationName) ~ "Baywide",
+      grepl("NFWF", StationName) & Year < 2019 ~ "NFWF 2015",
+      grepl("SBM", StationName) & TimeSinceCultched > 0 ~ "NFWF 2021",
+      TRUE ~ "Historic Uncultched")) %>%
+    mutate(CultchAge = case_when(
+      is.na(TimeSinceCultched) ~ "Historic Uncultched",
+      TimeSinceCultched < 0 ~ "Historic Uncultched",
+      TimeSinceCultched > 0 & TimeSinceCultched < 5 ~ "Recently Cultched",
+      TimeSinceCultched >= 5 ~ "Previously Cultched"))
+}
+
+
 ```
 
 ```{r DatabaseDownload}
@@ -92,171 +122,94 @@ DBI::dbDisconnect(con)
 ```{r DataFiltersBasic}
 # Filter data frames so that only data collected for inclusion in the DMFM Report are present.
 FixedLocations1 <- dboFixedLocations %>% 
-  mutate(StationNumber = as.numeric(StationNumber)) %>%
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched)) %>%
   select(FixedLocationID,
          Estuary,
          SectionName,
          StationName,
          ParcelName,
          StationNumber,
-         StationNameNumber) %>% 
+         StationNameNumber,
+         DateLastCultched) %>% 
   distinct()
  
-### Survey QUADRATS ###     
+### QUADRATS ###  
+  # Survey QUADRATS #
 Survey_Quad1 <- union_all(dboSurveyQuadrat, hsdbSurveyQuadrat) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  mutate(StationGroup = case_when(
-    grepl("RESTORE", StationName) ~ "RESTORE 2017",
-    grepl("Baywide", StationName) ~ "Baywide",
-    TRUE ~ "Historic Uncultched")) %>%
-  select(QuadratID, 
+  select(QuadratID,
+         NumLive,
+         TotalWeight,
+         Comments)
+
+  # SBM QUADRATS # 
+SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
+  rename(TotalWeight = TotalSampleWeight, # Must rename the columns so we can union them together
+         NumLive = NumLiveOysters) %>%
+  select(QuadratID,
+         NumLive,
+         TotalWeight,
+         Comments)
+
+  # ALL Quadrats # 
+Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
          FixedLocationID,
-         TripDate, 
+         TripDate,
          Estuary,
          SectionName,
          StationName,
          StationNumber,
          ParcelName,
          StationNameNumber,
-         StationGroup,
-         Season, 
-         Year, 
+         ProjectGroup,
+         CultchAge,
+         TimeSinceCultched,
+         Season,
+         Year,
          Season_Year,
-         NumLive, 
+         NumLive,
          TotalWeight,
          Comments)
 
 ##### 
-### SBM QUADRATS ###     
-SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  rename(TotalWeight = TotalSampleWeight,
-         NumLive = NumLiveOysters) %>%
-  mutate(StationGroup = case_when(
-    TripDate <= "2021-07-16" ~ "Historic Uncultched",
-    StationNumber == 6 ~ "Historic Uncultched",
-    StationNumber == 8 ~ "Historic Uncultched",
-    StationNumber == 9 ~ "Historic Uncultched",
-    StationNumber == 15 ~ "Historic Uncultched",
-    ParcelName == "Cat Point Shallow" ~ "Historic Uncultched",
-    TRUE ~ "NFWF 2021")) %>%
-  select(QuadratID, 
-         FixedLocationID,
-         TripDate, 
-         Estuary,
-         SectionName,
-         StationName,
-         StationNumber,
-         ParcelName,
-         StationNameNumber,
-         StationGroup,
-         Season, 
-         Year, 
-         Season_Year,
-         NumLive, 
-         TotalWeight,
+### SHELL HEIGHTS ###
+  # Survey SHELL HEIGHTS #
+Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
+  select(ShellHeightID, 
+         QuadratID, 
+         ShellHeight,
          Comments)
 
-#####
-### Combine all quadrat data
-####
-
-Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1)
-
-#########
-
-### Survey SHELL HEIGHTS ###
-Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  mutate(StationGroup = case_when(
-    grepl("RESTORE", StationName) ~ "RESTORE 2017",
-    grepl("Baywide", StationName) ~ "Baywide",
-    TRUE ~ "Historic Uncultched")) %>%
-  select(ShellHeightID, 
-         QuadratID, 
-         FixedLocationID,
-         TripDate, 
-         Estuary,
-         SectionName,
-         StationName,
-         StationNumber,
-         ParcelName,
-         StationNameNumber,
-         StationGroup,
-         Season, 
-         Year,
-         Season_Year,
-         ShellHeight)
-
-### SBM SHELL HEIGHTS ###
+  # SBM SHELL HEIGHTS #
 SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
   filter(LiveOrDead != "Dead") %>% ### Remove measures of dead
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  mutate(StationGroup = case_when(
-    TripDate <= "2021-07-16" ~ "Historic Uncultched",
-    StationNumber == 6 ~ "Historic Uncultched",
-    StationNumber == 8 ~ "Historic Uncultched",
-    StationNumber == 9 ~ "Historic Uncultched",
-    StationNumber == 15 ~ "Historic Uncultched",
-    ParcelName == "Cat Point Shallow" ~ "Historic Uncultched",
-    TRUE ~ "NFWF 2021")) %>%
   select(ShellHeightID, 
          QuadratID, 
+         ShellHeight,
+         Comments)
+
+  # ALL Shell Heights #
+ShellHeights_ALL <- union(Survey_SH1, SBM_SH1) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
          FixedLocationID,
-         TripDate, 
+         TripDate,
          Estuary,
          SectionName,
          StationName,
          StationNumber,
          ParcelName,
          StationNameNumber,
-         StationGroup,
-         Season, 
+         ProjectGroup,
+         CultchAge,
+         TimeSinceCultched,
+         Season,
          Year,
          Season_Year,
-         ShellHeight)
-
-#####
-### Combine all shell height data
-####
-
-ShellHeights_ALL <- union(Survey_SH1, SBM_SH1)
+         ShellHeight,
+         Comments)
 
 ```
 
