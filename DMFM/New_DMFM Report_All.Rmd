@@ -279,32 +279,32 @@ summarise_ALL <- function(data) {
   return(summarised_data)
 }
 
-# Stats for Total Oyster Density and Total Weight Density by Year and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
 QuadStats_ALL_Oys1 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ALL() %>%
   arrange(Year,
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
 QuadStats_ALL_Oys2 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
-           StationGroup,
+           ProjectGroup,
            SectionName) %>%
   summarise_ALL() %>%
   arrange(Year, 
           SectionName, 
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Total Oyster Density and Total Weight Density by Year and Season and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and Season and ProjectGroup
 QuadStats_ALL_Oys3 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
            Season,
            Season_Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ALL() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year, 
           desc(Season))
 
@@ -346,32 +346,32 @@ summarise_15mmSizeClass <- function(data) {
   return(summarised_data)
 }
 
-# Stats for Oyster Density by 15mm size class, by Year and StationGroup
+# Stats for Oyster Density by 15mm size class, by Year and ProjectGroup
 QuadStats_15mmSizeClass_1 <- QuadStats_15mmSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_15mmSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year)
 
-# Stats for Oyster Density by 15mm size class, by Year and Section and StationGroup
+# Stats for Oyster Density by 15mm size class, by Year and Section and ProjectGroup
 QuadStats_15mmSizeClass_2 <- QuadStats_15mmSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup,
+           ProjectGroup,
            SectionName) %>%
   summarise_15mmSizeClass() %>%
   arrange(Year, 
           SectionName, 
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Oyster Density by 15mm size class, by Year and Season and StationGroup
+# Stats for Oyster Density by 15mm size class, by Year and Season and ProjectGroup
 QuadStats_15mmSizeClass_3 <- QuadStats_15mmSizeClass_Oys %>%
   group_by(Year, 
            Season,
            Season_Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_15mmSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year, 
           desc(Season))
 
@@ -403,32 +403,32 @@ summarise_ClassicSizeClass <- function(data) {
   return(summarised_data)
 }
 
-# Stats for Oyster Density by classic size class, by Year and StationGroup
+# Stats for Oyster Density by classic size class, by Year and ProjectGroup
 QuadStats_ClassicSizeClass_1 <- QuadStats_ClassicSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ClassicSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year)
 
-# Stats for Oyster Density by classic size class, by Year and Section and StationGroup
+# Stats for Oyster Density by classic size class, by Year and Section and ProjectGroup
 QuadStats_ClassicSizeClass_2 <- QuadStats_ClassicSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup,
+           ProjectGroup,
            SectionName) %>%
   summarise_ClassicSizeClass() %>%
   arrange(Year, 
           SectionName, 
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Oyster Density by classic size class, by Year and Season and StationGroup
+# Stats for Oyster Density by classic size class, by Year and Season and ProjectGroup
 QuadStats_ClassicSizeClass_3 <- QuadStats_ClassicSizeClass_Oys %>%
   group_by(Year, 
            Season,
            Season_Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ClassicSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year, 
           desc(Season))
 
@@ -442,7 +442,46 @@ QuadStats_ClassicSizeClass_4 <- QuadStats_ClassicSizeClass_Oys %>%
 
 ```
 
+``` {r LegalOysONLY}
 
+# Set up
+
+QuadStats_LegalONLY_Oys <- QuadStats2 
+
+summarise_LegalONLY <- function(data) {
+  summarised_data <- data %>%
+    summarise(Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE),
+              Num_Legal_76_plus_SD = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
+    mutate(Density_Legal_76_plus_Mean = Num_Legal_76_plus_Mean * 4,
+           Density_Legal_76_plus_SD = Num_Legal_76_plus_SD * 4) %>%
+    mutate(BagsPerAcre = (Density_Legal_76_plus_Mean * 4047) / 225,
+           BagsPerAcreSD = (Density_Legal_76_plus_SD * 4047) / 225) %>%
+    mutate(MaxBags = BagsPerAcre + BagsPerAcreSD,
+           MinBags = BagsPerAcre - BagsPerAcreSD)
+  return(summarised_data)
+}
+
+# Stats for Legal Oyster Density by Year and FixedLocationID
+QuadStats_LegalONLY_1 <- QuadStats_LegalONLY_Oys %>%
+  group_by(Year, 
+           FixedLocationID,
+           StationNameNumber,
+           TripDate,
+           SectionName,
+           ProjectGroup) %>%
+  summarise_LegalONLY() %>%
+  arrange(FixedLocationID, 
+          Year)
+
+QuadStats_LegalONLY_Oys_Recent <- QuadStats_LegalONLY_1 %>%
+  group_by(FixedLocationID) %>%
+  filter(Year >= 2023,
+         TripDate == max(TripDate, na.rm = TRUE)) %>%
+  ungroup()
+
+
+
+```
 
 ``` {r dataExport}
 # Temporary section for data export to Excel so I can play around with data / displays to see what we need in the sections following
@@ -451,6 +490,7 @@ library(openxlsx)
 ALLOysfile = paste("All_Oysters_", Sys.Date(), ".xlsx", sep = "")
 SmallSizeClass = paste("Small_Size_Class_", Sys.Date(), ".xlsx", sep = "") 
 ClassiciSizeClass = paste("Classic_Size_Class_", Sys.Date(), ".xlsx", sep = "")
+LegalONLY = paste("Legal_ONLY_", Sys.Date(), ".xlsx", sep = "")
 
 # All Oysters together
   write.xlsx(list(
@@ -519,6 +559,21 @@ ClassiciSizeClass = paste("Classic_Size_Class_", Sys.Date(), ".xlsx", sep = "")
   freezePane(wb, sheet = "YearSection", firstRow = TRUE)
   # Save the modified workbook
   saveWorkbook(wb, ClassiciSizeClass, overwrite = TRUE)
+  
+# Legal ONLY
+  write.xlsx(list(
+    "LegalONLY_Recent" = QuadStats_LegalONLY_Oys_Recent), 
+    file = LegalONLY, colNames = TRUE)
+  # Open the workbook for further customization
+  wb <- loadWorkbook(LegalONLY)
+  # Auto-adjust column widths
+  setColWidths(wb, sheet = "LegalONLY_Recent", cols = 1:ncol(QuadStats_LegalONLY_Oys_Recent), widths = "auto")
+
+  # Freeze the first row
+  freezePane(wb, sheet = "LegalONLY_Recent", firstRow = TRUE)
+
+  # Save the modified workbook
+  saveWorkbook(wb, LegalONLY, overwrite = TRUE) 
 ```
 
 ```{r Placeholdingstop} 
@@ -587,24 +642,24 @@ generate_grouped_plot <- function(df, x_variable, x_label, y_variable, y_label, 
 # generate_plot(df, x_variable, x_label, y_variable, y_label, y_SD, UseColor, UseFill, title)
 
 
-# Stats for Total Oyster Density and Total Weight Density by Year and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
 # Oysters
-QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "StationGroup", "StationGroup", "AB Oyster Density by Year and StationGroup")
+QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "ProjectGroup", "ProjectGroup", "AB Oyster Density by Year and ProjectGroup")
 print(QuadStats_ALL_Oys1_fig)
 
 # Creating figures Mean Sample Weight Density
-QuadStats_ALL_Oys1_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "StationGroup", "StationGroup", "AB Sample Weight Density by Year and StationGroup")
+QuadStats_ALL_Oys1_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "ProjectGroup", "ProjectGroup", "AB Sample Weight Density by Year and ProjectGroup")
 print(QuadStats_ALL_Oys1_Sample_Weight_fig)
 
 
 
 
-# Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
-QuadStats_ALL_Oys2_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD",  "StationGroup", "StationGroup", "AB Oyster Density by Year and Section and StationGroup")
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
+QuadStats_ALL_Oys2_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD",  "ProjectGroup", "ProjectGroup", "AB Oyster Density by Year and Section and ProjectGroup")
 print(QuadStats_ALL_Oys2_fig)
 
 # Creating figures Mean Sample Weight Density
-QuadStats_ALL_Oys2_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "AB Sample Weight Density by Year and Section and StationGroup")
+QuadStats_ALL_Oys2_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "AB Sample Weight Density by Year and Section and ProjectGroup")
 print(QuadStats_ALL_Oys2_Sample_Weight_fig)
 
 
