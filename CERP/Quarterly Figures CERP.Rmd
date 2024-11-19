@@ -583,7 +583,6 @@ Cage_SH %>%
   scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
   scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
   Cages_fill + Cages_color + BaseForm + FacetForm + theme(legend.position = "none")
-
 ```
 
 ```{r CERP Salinity Figure, fig.cap = "**Figure 17.**  Monthly salinity recorded at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
@@ -727,7 +726,7 @@ DO_West_Fig <- ggarrange(
 
 annotate_figure(DO_West_Fig, 
                 left = text_grob("Dissolved oxygen (mg/L)", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 1))
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.76))
 ```
 
 ```{r CERP Secchi Figure, fig.cap = "**Figure 25.**  Monthly percent Secchi pentetration at stations within the five east coast study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
