@@ -473,13 +473,44 @@ QuadStats_LegalONLY_1 <- QuadStats_LegalONLY_Oys %>%
   arrange(FixedLocationID, 
           Year)
 
-QuadStats_LegalONLY_Oys_Recent <- QuadStats_LegalONLY_1 %>%
+QuadStats_LegalONLY_Oys_Recent_1 <- QuadStats_LegalONLY_1 %>%
   group_by(FixedLocationID) %>%
   filter(Year >= 2023,
          TripDate == max(TripDate, na.rm = TRUE)) %>%
   ungroup()
 
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
+QuadStats_LegalONLY_2 <- QuadStats_LegalONLY_Oys %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_LegalONLY() %>%
+  arrange(Year, 
+          SectionName, 
+          ProjectGroup)
 
+##### Not terribly useful
+# # Stats for Total Oyster Density and Total Weight Density by Year and Season and ProjectGroup
+# QuadStats_LegalONLY_3 <- QuadStats_LegalONLY_Oys %>%
+#   group_by(Year, 
+#            Season,
+#            Season_Year, 
+#            ProjectGroup) %>%
+#   summarise_LegalONLY() %>%
+#   arrange(ProjectGroup, 
+#           Year, 
+#           desc(Season))
+
+# Stats for Legal Oyster Density by Year and Section
+QuadStats_LegalONLY_4 <- QuadStats_LegalONLY_Oys %>%
+  group_by(Year,
+           SectionName) %>%
+  summarise_LegalONLY()
+
+QuadStats_LegalONLY_Oys_Recent_4 <- QuadStats_LegalONLY_4 %>%
+  group_by(SectionName) %>%
+  filter(Year >= 2023) %>%
+  ungroup()
 
 ```
 
@@ -562,16 +593,20 @@ LegalONLY = paste("Legal_ONLY_", Sys.Date(), ".xlsx", sep = "")
   
 # Legal ONLY
   write.xlsx(list(
-    "LegalONLY_Recent" = QuadStats_LegalONLY_Oys_Recent), 
+    "FixedLocation_Recent" = QuadStats_LegalONLY_Oys_Recent_1,
+    "YearSectionPG" = QuadStats_LegalONLY_2,
+    "YearSection" = QuadStats_LegalONLY_4), 
     file = LegalONLY, colNames = TRUE)
   # Open the workbook for further customization
   wb <- loadWorkbook(LegalONLY)
   # Auto-adjust column widths
-  setColWidths(wb, sheet = "LegalONLY_Recent", cols = 1:ncol(QuadStats_LegalONLY_Oys_Recent), widths = "auto")
-
+  setColWidths(wb, sheet = "FixedLocation_Recent", cols = 1:ncol(QuadStats_LegalONLY_Oys_Recent_1), widths = "auto")
+  setColWidths(wb, sheet = "YearSectionPG", cols = 1:ncol(QuadStats_LegalONLY_2), widths = "auto")
+  setColWidths(wb, sheet = "YearSection", cols = 1:ncol(QuadStats_LegalONLY_4), widths = "auto")
   # Freeze the first row
-  freezePane(wb, sheet = "LegalONLY_Recent", firstRow = TRUE)
-
+  freezePane(wb, sheet = "FixedLocation_Recent", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSectionPG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSection", firstRow = TRUE)
   # Save the modified workbook
   saveWorkbook(wb, LegalONLY, overwrite = TRUE) 
 ```
