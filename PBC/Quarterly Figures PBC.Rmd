@@ -258,7 +258,7 @@ Repro_PBC %>%
 DermoP_fig <- ggarrange(
   DermoP %>% filter(Site == "LWL") %>% 
     ggplot(aes(RetDate, Value, fill = Station, color = Station)) + 
-    geom_col(position = position_dodge(14), width = 12) +
+    geom_col(position = position_dodge(14), width = 12, color = "black") +
     scale_y_continuous("% Dermo Infection Prevalence", expand = c(0,0), limits = c(0,100)) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill + Station_color + BaseForm + Legend +     
@@ -266,7 +266,7 @@ DermoP_fig <- ggarrange(
     rremove("x.text") + rremove("x.title") + rremove("y.title"),
   DermoP %>% filter(Site == "LWR") %>% 
     ggplot(aes(RetDate, Value, fill = Station, color = Station)) + 
-    geom_col(position = position_dodge(14), width = 12) +
+    geom_col(position = position_dodge(14), width = 12, color = "black") +
     scale_y_continuous("% Dermo Infection Prevalence", expand = c(0,0), limits = c(0,100)) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+   
     Station_fill + Station_color + BaseForm + Legend + 

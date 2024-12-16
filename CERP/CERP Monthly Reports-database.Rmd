@@ -4,7 +4,7 @@ output:
   officedown::rdocx_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "08"  #Enter 2-digit month
+  Month: "11"  #Enter 2-digit month
   Year: "2024" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -18,7 +18,7 @@ knit: (function(inputFile, encoding) {
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-08-30"  #Set the local database to use
+Database <- "Oysters_24-11-21"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #File locations for link in output required: approx. lines 532, 648
 
@@ -426,7 +426,7 @@ This monthly report was compiled by `r Author` on `r format(Sys.Date(), "%d %B %
 Here is the monthly report with the data collected from the St. Lucie Estuary on `r max(SLC_WQStats$RetDate) %>% format("%B %d, %Y")`:
 
 *	Mean salinity 
-`r if((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean > (SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean) {paste("decreased")} else if ((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean < (SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean,2) > round((SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean,2)) {paste("decreased")} else if (round((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean,2) < round((SLC_WQStats %>% filter(RetDate == max(SLC_WQStats$RetDate)))$SalMean,2)) {paste("increased")} else {paste("stayed the same")}` 
 from 
 `r round((SLC_WQStats %>% filter(RetDate == min(SLC_WQStats$RetDate)))$SalMean,2)` 
 in 
@@ -436,7 +436,7 @@ to
 in 
 `r max(SLC_WQStats$RetDate) %>% format("%B")`.
 *	The mean recruitment rate 
-`r if((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean > (SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean) {paste("decreased")} else if ((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean < (SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean,1) > round((SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean,1)) {paste("decreased")} else if (round((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean,1) < round((SLC_RecruitStats %>% filter(RetDate == max(SLC_RecruitStats$RetDate)))$RcrtMean,1)) {paste("increased")} else {paste("stayed the same")}` 
 from 
 `r round((SLC_RecruitStats %>% filter(RetDate == min(SLC_RecruitStats$RetDate)))$RcrtMean,1)` 
 spat/shell in 
@@ -446,7 +446,7 @@ to
 spat/shell in 
 `r max(SLC_RecruitStats$RetDate) %>% format("%B")`.
 *	Dermo prevalence 
-`r if((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct > (SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct) {paste("decreased")} else if ((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct < (SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct,1) > round((SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct,1)) {paste("decreased")} else if (round((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct,1) < round((SLC_DermoStats %>% filter(RetDate == max(SLC_DermoStats$RetDate)))$DermoPct,1)) {paste("increased")} else {paste("stayed the same")}` 
 from
 `r round((SLC_DermoStats %>% filter(RetDate == min(SLC_DermoStats$RetDate)))$DermoPct,1)`% 
 in 
@@ -463,7 +463,7 @@ of the oysters sampled in
 Here is the monthly report with data collected from Caloosahatchee on `r max(CR_WQStats$RetDate) %>% format("%B %d, %Y")`:
 
 *	Mean salinity 
-`r if((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean > (CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean) {paste("decreased")} else if ((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean < (CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2) > round((CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)) {paste("decreased")} else if (round((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2) < round((CR_WQStats %>% filter(SectionName == "E" & RetDate == max((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)) {paste("increased")} else {paste("stayed the same")}` 
 from 
 `r round((CR_WQStats %>% filter(SectionName == "E" & RetDate == min((CR_WQStats %>% filter(SectionName == "E"))$RetDate)))$SalMean,2)` 
 in 
@@ -473,7 +473,7 @@ to
 in 
 `r max((CR_WQStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
 at the Iona Cove station and 
-`r if((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean > (CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean) {paste("decreased")} else if ((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean < (CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2) > round((CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)) {paste("decreased")} else if (round((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2) < round((CR_WQStats %>% filter(SectionName == "W" & RetDate == max((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)) {paste("increased")} else {paste("stayed the same")}` 
 from 
 `r round((CR_WQStats %>% filter(SectionName == "W" & RetDate == min((CR_WQStats %>% filter(SectionName == "W"))$RetDate)))$SalMean,2)` 
 in 
@@ -484,7 +484,7 @@ in
 `r max((CR_WQStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
 at the Bird Island station.
 *	The mean recruitment rate 
-`r if((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean > (CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean) {paste("decreased")} else if ((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean < (CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,1) > round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,1)) {paste("decreased")} else if (round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,1) < round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,1)) {paste("increased")} else {paste("stayed the same")}` 
 from 
 `r round((CR_RecruitStats %>% filter(SectionName == "E" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate)))$RcrtMean,1)` 
 spat/shell in 
@@ -494,7 +494,7 @@ to
 spat/shell in 
 `r max((CR_RecruitStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
 at the Iona Cove station and
-`r if((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean > (CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean) {paste("decreased")} else if ((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean < (CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,1) > round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,1)) {paste("decreased")} else if (round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,1) < round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,1)) {paste("increased")} else {paste("stayed the same")}` 
 from 
 `r round((CR_RecruitStats %>% filter(SectionName == "W" & RetDate == min((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate)))$RcrtMean,1)` 
 spat/shell in 
@@ -505,7 +505,7 @@ spat/shell in
 `r max((CR_RecruitStats %>% filter(SectionName == "W"))$RetDate) %>% format("%B")`
 at the Bird Island station.
 *	Dermo prevalence 
-`r if((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1) > round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)) {paste("decreased")} else if (round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1) < round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)) {paste("increased")} else {paste("stayed the same")}` 
 from
 `r round((CR_DermoStats %>% filter(SectionName == "E" & RetDate == min((CR_DermoStats %>% filter(SectionName == "E"))$RetDate)))$DermoPct,1)`% 
 in 
@@ -515,7 +515,7 @@ to
 in
 `r max((CR_DermoStats %>% filter(SectionName == "E"))$RetDate) %>% format("%B")`
 at the Iona Cove station and 
-`r if((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct > (CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct) {paste("decreased")} else if ((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct < (CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct) {paste("increased")} else {paste("stayed the same")}` 
+`r if(round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1) > round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)) {paste("decreased")} else if (round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1) < round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == max((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)) {paste("increased")} else {paste("stayed the same")}` 
 from
 `r round((CR_DermoStats %>% filter(SectionName == "W" & RetDate == min((CR_DermoStats %>% filter(SectionName == "W"))$RetDate)))$DermoPct,1)`% 
 in 
