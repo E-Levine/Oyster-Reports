@@ -6,7 +6,7 @@ output:
   html_document:
   word_document: NULL
 params:  
-    WQ: FALSE
+    WQ: TRUE
     Dermo: TRUE
     Cage: TRUE
     Rcrt: TRUE
@@ -19,11 +19,11 @@ params:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_24-10-31"  #Set the local database to use
+Database <- "Oysters_25-01-27"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2024-04-01")
-End_date <- as.Date("2024-09-30")
+Start_date <- as.Date("2024-10-01")
+End_date <- as.Date("2024-12-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -234,18 +234,18 @@ for(i in WQ_params){
 #
 #
   #Load each sheet and append new data
-  DO_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
-  DO_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
-  DOPct_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Pct")))
-  DOPct_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Pct"))) 
-  pH_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("pH")))
-  pH_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("pH")))
-  Sal_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Sal")))
-  Sal_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Sal")))
-  SP_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("SP")))
-  SP_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("SP")))
-  Temp_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE) %>% bind_rows(Station_summ %>% dplyr::select(contains("Temp")))
-  Temp_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Site', detectDates = TRUE) %>% bind_rows(Site_summ %>% dplyr::select(contains("Temp")))
+  DO_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
+  DO_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
+  DOPct_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>%  bind_rows(Station_summ %>% dplyr::select(contains("Pct")))
+  DOPct_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Pct"))) 
+  pH_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("pH")))
+  pH_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("pH")))
+  Sal_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("Sal")))
+  Sal_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Sal")))
+  SP_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("SP")))
+  SP_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("SP")))
+  Temp_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("Temp")))
+  Temp_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Temp")))
   
   #Load workbook of existing data
   WQ_wb <- loadWorkbook("WQ_Summary_Data.xlsx")
@@ -329,8 +329,8 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  Dermo_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE) %>% bind_rows(Station_summ_D)
-  Dermo_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Site', detectDates = TRUE) %>% bind_rows(Site_summ_D)
+  Dermo_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_D)
+  Dermo_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_D)
   
   #Load workbook of existing data
   Data_wb <- loadWorkbook("Summary_Data.xlsx")
@@ -445,8 +445,8 @@ for(j in Cage_Sites){
 #
 #
   #Load each sheet and append new data
-  SH_Mort_Cage <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE) %>% bind_rows(Station_summ_C)
-  SH_Mort_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE) %>% bind_rows(Site_summ_C)
+  SH_Mort_Cage <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_C)
+  SH_Mort_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_C)
   
   #Load workbook of existing data
   Data_wb <- loadWorkbook("Summary_Data.xlsx")
@@ -526,8 +526,8 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  Rcrt_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE) %>% bind_rows(Station_summ_R)
-  Rcrt_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Site', detectDates = TRUE) %>% bind_rows(Site_summ_R)
+  Rcrt_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_R)
+  Rcrt_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_R)
   
   #Load workbook of existing data
   Data_wb <- loadWorkbook("Summary_Data.xlsx")
@@ -596,7 +596,7 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  Repro_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>% bind_rows(Site_summ_Re)
+  Repro_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_Re)
   
   #Load workbook of existing data
   Data_wb <- loadWorkbook("Summary_Data.xlsx")
@@ -819,10 +819,10 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  DeadRatio_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE) %>% bind_rows(Station_summ_S)
-  DeadRatio_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Site', detectDates = TRUE) %>% bind_rows(Site_summ_S)
-  SH_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE) %>% bind_rows(Station_summ_SH)
-  SH_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Site', detectDates = TRUE) %>% bind_rows(Site_summ_SH)
+  DeadRatio_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Station_summ_S)
+  DeadRatio_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Site_summ_S)
+  SH_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Station_summ_SH)
+  SH_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Site_summ_SH)
   
   #Load workbook of existing data
   Data_wb <- loadWorkbook("Summary_Data.xlsx")
