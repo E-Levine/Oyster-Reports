@@ -267,12 +267,12 @@ Live Counts range: `r Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_dat
 `r Dermo_CERP %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples. *Note: Extra samples may have been collected from a different station.")`
 `r CERP_dermo %>% tab_caption(caption = "Monthly CERP dermo intensity and prevelence")`
 <p> Intensity range: `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
-`r paste(Intensity categories: 0-Uninfected; 0.5-Very light; 1-Light; 2-ight to moderate; 3-Moderate; 4-Moderate heavy, 5-Heavy)`
+`r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`\
 Prevalence range: `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
 
 
 <h3> `r paste("Cage summary")` </h3>
-`r Cage_CERP %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
+`r Cage_CERP %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`\
 `r SL_Cage %>% tab_caption(caption = "Monthly St. Lucie cage data")`
 <p>
 Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
@@ -292,6 +292,7 @@ Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX"))
 <p> Salinity range: `r WQ_Sal_CERP %>% dplyr::select(contains("Sal")) %>% unlist() %>% min()` - `r WQ_Sal_CERP %>% dplyr::select(contains("Sal")) %>% unlist() %>% max()`\
 `r CERP_Sec %>% tab_caption(caption = "Monthly CERP secchi measurements")`
 <p> Secchi range: `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% min()` - `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% max()`\
+
 
 
 \
@@ -320,7 +321,7 @@ Minimum and maximum values observed during the quarter and data ordered by incre
 `r Dermo_CRE %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_dermo %>% tab_caption(caption = "Monthly CRE dermo intensity and prevelence")`
 <p> Intensity range: `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
-`r paste(Intensity categories: 0-Uninfected; 0.5-Very light; 1-Light; 2-ight to moderate; 3-Moderate; 4-Moderate heavy, 5-Heavy)`
+`r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`
 Prevalence range: `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
 
 
@@ -382,7 +383,7 @@ Restored reef station 4 (LWR4) -- Tarpon Cove\
 `r Dermo_PBC %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_dermo %>% tab_caption(caption = "Monthly PBC dermo intensity and prevelence")`
 <p> Intensity range: `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
-`r paste(Intensity categories: 0-Uninfected; 0.5-Very light; 1-Light; 2-Light to moderate; 3-Moderate; 4-Moderately heavy, 5-Heavy)`
+`r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderately heavy,  5-Heavy")`
 Prevalence range: `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
 Summary by reef type:
 `r Dermo_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% rename("Intensity" = Mean) %>% gt()`
