@@ -6,8 +6,8 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2023-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
-Database = "OysterLocalMD20240321"  # Set the local database to use
+ReportEnd <- as.Date("2024-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
+Database = "OysterLocalMD20241118"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
@@ -37,6 +37,36 @@ knitr::opts_chunk$set(
 ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") #May need to revise this
 QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month") #Probably won't need this
 Estuaries <- c("AB")
+```
+
+```{r Functions}
+### Filter Functions ###
+FilterFunction1 <- function(data) {
+  data %>% 
+    mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+         FixedLocationID = substring(QuadratID, 19, 22),
+         Year = year(TripDate)) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+    mutate(Season = case_when(
+          month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
+          month(ymd(TripDate)) > 6 ~ "Fall",
+          TRUE ~ "Invalid")) %>%
+    mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
+    mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
+    mutate(ProjectGroup = case_when(
+      grepl("RESTORE", StationName) ~ "RESTORE 2017",
+      grepl("Baywide", StationName) ~ "Baywide",
+      grepl("NFWF", StationName) & Year < 2019 ~ "NFWF 2015",
+      grepl("SBM", StationName) & TimeSinceCultched > 0 ~ "NFWF 2021",
+      TRUE ~ "Historic Uncultched")) %>%
+    mutate(CultchAge = case_when(
+      is.na(TimeSinceCultched) ~ "Historic Uncultched",
+      TimeSinceCultched < 0 ~ "Historic Uncultched",
+      TimeSinceCultched > 0 & TimeSinceCultched < 5 ~ "Recently Cultched",
+      TimeSinceCultched >= 5 ~ "Previously Cultched"))
+}
+
+
 ```
 
 ```{r DatabaseDownload}
@@ -92,171 +122,94 @@ DBI::dbDisconnect(con)
 ```{r DataFiltersBasic}
 # Filter data frames so that only data collected for inclusion in the DMFM Report are present.
 FixedLocations1 <- dboFixedLocations %>% 
-  mutate(StationNumber = as.numeric(StationNumber)) %>%
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched)) %>%
   select(FixedLocationID,
          Estuary,
          SectionName,
          StationName,
          ParcelName,
          StationNumber,
-         StationNameNumber) %>% 
+         StationNameNumber,
+         DateLastCultched) %>% 
   distinct()
  
-### Survey QUADRATS ###     
+### QUADRATS ###  
+  # Survey QUADRATS #
 Survey_Quad1 <- union_all(dboSurveyQuadrat, hsdbSurveyQuadrat) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  mutate(StationGroup = case_when(
-    grepl("RESTORE", StationName) ~ "RESTORE 2017",
-    grepl("Baywide", StationName) ~ "Baywide",
-    TRUE ~ "Historic Uncultched")) %>%
-  select(QuadratID, 
+  select(QuadratID,
+         NumLive,
+         TotalWeight,
+         Comments)
+
+  # SBM QUADRATS # 
+SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
+  rename(TotalWeight = TotalSampleWeight, # Must rename the columns so we can union them together
+         NumLive = NumLiveOysters) %>%
+  select(QuadratID,
+         NumLive,
+         TotalWeight,
+         Comments)
+
+  # ALL Quadrats # 
+Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
          FixedLocationID,
-         TripDate, 
+         TripDate,
          Estuary,
          SectionName,
          StationName,
          StationNumber,
          ParcelName,
          StationNameNumber,
-         StationGroup,
-         Season, 
-         Year, 
+         ProjectGroup,
+         CultchAge,
+         TimeSinceCultched,
+         Season,
+         Year,
          Season_Year,
-         NumLive, 
+         NumLive,
          TotalWeight,
          Comments)
 
 ##### 
-### SBM QUADRATS ###     
-SBM_Quad1 <- union_all(dboSBMQuadrat, hsdbSBMQuadrat) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  rename(TotalWeight = TotalSampleWeight,
-         NumLive = NumLiveOysters) %>%
-  mutate(StationGroup = case_when(
-    TripDate <= "2021-07-16" ~ "Historic Uncultched",
-    StationNumber == 6 ~ "Historic Uncultched",
-    StationNumber == 8 ~ "Historic Uncultched",
-    StationNumber == 9 ~ "Historic Uncultched",
-    StationNumber == 15 ~ "Historic Uncultched",
-    ParcelName == "Cat Point Shallow" ~ "Historic Uncultched",
-    TRUE ~ "NFWF 2021")) %>%
-  select(QuadratID, 
-         FixedLocationID,
-         TripDate, 
-         Estuary,
-         SectionName,
-         StationName,
-         StationNumber,
-         ParcelName,
-         StationNameNumber,
-         StationGroup,
-         Season, 
-         Year, 
-         Season_Year,
-         NumLive, 
-         TotalWeight,
+### SHELL HEIGHTS ###
+  # Survey SHELL HEIGHTS #
+Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
+  select(ShellHeightID, 
+         QuadratID, 
+         ShellHeight,
          Comments)
 
-#####
-### Combine all quadrat data
-####
-
-Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1)
-
-#########
-
-### Survey SHELL HEIGHTS ###
-Survey_SH1 <- union_all(dboSurveySH, hsdbSurveySH) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  mutate(StationGroup = case_when(
-    grepl("RESTORE", StationName) ~ "RESTORE 2017",
-    grepl("Baywide", StationName) ~ "Baywide",
-    TRUE ~ "Historic Uncultched")) %>%
-  select(ShellHeightID, 
-         QuadratID, 
-         FixedLocationID,
-         TripDate, 
-         Estuary,
-         SectionName,
-         StationName,
-         StationNumber,
-         ParcelName,
-         StationNameNumber,
-         StationGroup,
-         Season, 
-         Year,
-         Season_Year,
-         ShellHeight)
-
-### SBM SHELL HEIGHTS ###
+  # SBM SHELL HEIGHTS #
 SBM_SH1 <- union_all(dboSBMSH, hsdbSBMSH) %>%
-  mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-       FixedLocationID = substring(QuadratID, 19, 22),
-       Year = year(TripDate)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
-  arrange(TripDate, StationNumber) %>%
-  mutate(Season = case_when(
-        month(ymd(TripDate)) >= 1 & month(ymd(TripDate)) <= 6 ~ "Spring",
-        month(ymd(TripDate)) > 6 ~ "Fall",
-        TRUE ~ "Invalid")) %>%
   filter(LiveOrDead != "Dead") %>% ### Remove measures of dead
-  mutate(Season_Year = paste(Season, Year, sep = " ")) %>%
-  mutate(StationGroup = case_when(
-    TripDate <= "2021-07-16" ~ "Historic Uncultched",
-    StationNumber == 6 ~ "Historic Uncultched",
-    StationNumber == 8 ~ "Historic Uncultched",
-    StationNumber == 9 ~ "Historic Uncultched",
-    StationNumber == 15 ~ "Historic Uncultched",
-    ParcelName == "Cat Point Shallow" ~ "Historic Uncultched",
-    TRUE ~ "NFWF 2021")) %>%
   select(ShellHeightID, 
          QuadratID, 
+         ShellHeight,
+         Comments)
+
+  # ALL Shell Heights #
+ShellHeights_ALL <- union(Survey_SH1, SBM_SH1) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
          FixedLocationID,
-         TripDate, 
+         TripDate,
          Estuary,
          SectionName,
          StationName,
          StationNumber,
          ParcelName,
          StationNameNumber,
-         StationGroup,
-         Season, 
+         ProjectGroup,
+         CultchAge,
+         TimeSinceCultched,
+         Season,
          Year,
          Season_Year,
-         ShellHeight)
-
-#####
-### Combine all shell height data
-####
-
-ShellHeights_ALL <- union(Survey_SH1, SBM_SH1)
+         ShellHeight,
+         Comments)
 
 ```
 
@@ -326,32 +279,32 @@ summarise_ALL <- function(data) {
   return(summarised_data)
 }
 
-# Stats for Total Oyster Density and Total Weight Density by Year and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
 QuadStats_ALL_Oys1 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ALL() %>%
   arrange(Year,
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
 QuadStats_ALL_Oys2 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
-           StationGroup,
+           ProjectGroup,
            SectionName) %>%
   summarise_ALL() %>%
   arrange(Year, 
           SectionName, 
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Total Oyster Density and Total Weight Density by Year and Season and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and Season and ProjectGroup
 QuadStats_ALL_Oys3 <- QuadStats_ALL_Oys %>%
   group_by(Year, 
            Season,
            Season_Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ALL() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year, 
           desc(Season))
 
@@ -393,32 +346,32 @@ summarise_15mmSizeClass <- function(data) {
   return(summarised_data)
 }
 
-# Stats for Oyster Density by 15mm size class, by Year and StationGroup
+# Stats for Oyster Density by 15mm size class, by Year and ProjectGroup
 QuadStats_15mmSizeClass_1 <- QuadStats_15mmSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_15mmSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year)
 
-# Stats for Oyster Density by 15mm size class, by Year and Section and StationGroup
+# Stats for Oyster Density by 15mm size class, by Year and Section and ProjectGroup
 QuadStats_15mmSizeClass_2 <- QuadStats_15mmSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup,
+           ProjectGroup,
            SectionName) %>%
   summarise_15mmSizeClass() %>%
   arrange(Year, 
           SectionName, 
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Oyster Density by 15mm size class, by Year and Season and StationGroup
+# Stats for Oyster Density by 15mm size class, by Year and Season and ProjectGroup
 QuadStats_15mmSizeClass_3 <- QuadStats_15mmSizeClass_Oys %>%
   group_by(Year, 
            Season,
            Season_Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_15mmSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year, 
           desc(Season))
 
@@ -450,32 +403,32 @@ summarise_ClassicSizeClass <- function(data) {
   return(summarised_data)
 }
 
-# Stats for Oyster Density by classic size class, by Year and StationGroup
+# Stats for Oyster Density by classic size class, by Year and ProjectGroup
 QuadStats_ClassicSizeClass_1 <- QuadStats_ClassicSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ClassicSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year)
 
-# Stats for Oyster Density by classic size class, by Year and Section and StationGroup
+# Stats for Oyster Density by classic size class, by Year and Section and ProjectGroup
 QuadStats_ClassicSizeClass_2 <- QuadStats_ClassicSizeClass_Oys %>%
   group_by(Year, 
-           StationGroup,
+           ProjectGroup,
            SectionName) %>%
   summarise_ClassicSizeClass() %>%
   arrange(Year, 
           SectionName, 
-          StationGroup)
+          ProjectGroup)
 
-# Stats for Oyster Density by classic size class, by Year and Season and StationGroup
+# Stats for Oyster Density by classic size class, by Year and Season and ProjectGroup
 QuadStats_ClassicSizeClass_3 <- QuadStats_ClassicSizeClass_Oys %>%
   group_by(Year, 
            Season,
            Season_Year, 
-           StationGroup) %>%
+           ProjectGroup) %>%
   summarise_ClassicSizeClass() %>%
-  arrange(StationGroup, 
+  arrange(ProjectGroup, 
           Year, 
           desc(Season))
 
@@ -489,7 +442,77 @@ QuadStats_ClassicSizeClass_4 <- QuadStats_ClassicSizeClass_Oys %>%
 
 ```
 
+``` {r LegalOysONLY}
 
+# Set up
+
+QuadStats_LegalONLY_Oys <- QuadStats2 
+
+summarise_LegalONLY <- function(data) {
+  summarised_data <- data %>%
+    summarise(Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE),
+              Num_Legal_76_plus_SD = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
+    mutate(Density_Legal_76_plus_Mean = Num_Legal_76_plus_Mean * 4,
+           Density_Legal_76_plus_SD = Num_Legal_76_plus_SD * 4) %>%
+    mutate(BagsPerAcre = (Density_Legal_76_plus_Mean * 4047) / 225,
+           BagsPerAcreSD = (Density_Legal_76_plus_SD * 4047) / 225) %>%
+    mutate(MaxBags = BagsPerAcre + BagsPerAcreSD,
+           MinBags = BagsPerAcre - BagsPerAcreSD)
+  return(summarised_data)
+}
+
+# Stats for Legal Oyster Density by Year and FixedLocationID
+QuadStats_LegalONLY_1 <- QuadStats_LegalONLY_Oys %>%
+  group_by(Year, 
+           FixedLocationID,
+           StationNameNumber,
+           TripDate,
+           SectionName,
+           ProjectGroup) %>%
+  summarise_LegalONLY() %>%
+  arrange(FixedLocationID, 
+          Year)
+
+QuadStats_LegalONLY_Oys_Recent_1 <- QuadStats_LegalONLY_1 %>%
+  group_by(FixedLocationID) %>%
+  filter(Year >= 2023,
+         TripDate == max(TripDate, na.rm = TRUE)) %>%
+  ungroup()
+
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
+QuadStats_LegalONLY_2 <- QuadStats_LegalONLY_Oys %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_LegalONLY() %>%
+  arrange(Year, 
+          SectionName, 
+          ProjectGroup)
+
+##### Not terribly useful
+# # Stats for Total Oyster Density and Total Weight Density by Year and Season and ProjectGroup
+# QuadStats_LegalONLY_3 <- QuadStats_LegalONLY_Oys %>%
+#   group_by(Year, 
+#            Season,
+#            Season_Year, 
+#            ProjectGroup) %>%
+#   summarise_LegalONLY() %>%
+#   arrange(ProjectGroup, 
+#           Year, 
+#           desc(Season))
+
+# Stats for Legal Oyster Density by Year and Section
+QuadStats_LegalONLY_4 <- QuadStats_LegalONLY_Oys %>%
+  group_by(Year,
+           SectionName) %>%
+  summarise_LegalONLY()
+
+QuadStats_LegalONLY_Oys_Recent_4 <- QuadStats_LegalONLY_4 %>%
+  group_by(SectionName) %>%
+  filter(Year >= 2023) %>%
+  ungroup()
+
+```
 
 ``` {r dataExport}
 # Temporary section for data export to Excel so I can play around with data / displays to see what we need in the sections following
@@ -498,6 +521,7 @@ library(openxlsx)
 ALLOysfile = paste("All_Oysters_", Sys.Date(), ".xlsx", sep = "")
 SmallSizeClass = paste("Small_Size_Class_", Sys.Date(), ".xlsx", sep = "") 
 ClassiciSizeClass = paste("Classic_Size_Class_", Sys.Date(), ".xlsx", sep = "")
+LegalONLY = paste("Legal_ONLY_", Sys.Date(), ".xlsx", sep = "")
 
 # All Oysters together
   write.xlsx(list(
@@ -566,6 +590,25 @@ ClassiciSizeClass = paste("Classic_Size_Class_", Sys.Date(), ".xlsx", sep = "")
   freezePane(wb, sheet = "YearSection", firstRow = TRUE)
   # Save the modified workbook
   saveWorkbook(wb, ClassiciSizeClass, overwrite = TRUE)
+  
+# Legal ONLY
+  write.xlsx(list(
+    "FixedLocation_Recent" = QuadStats_LegalONLY_Oys_Recent_1,
+    "YearSectionPG" = QuadStats_LegalONLY_2,
+    "YearSection" = QuadStats_LegalONLY_4), 
+    file = LegalONLY, colNames = TRUE)
+  # Open the workbook for further customization
+  wb <- loadWorkbook(LegalONLY)
+  # Auto-adjust column widths
+  setColWidths(wb, sheet = "FixedLocation_Recent", cols = 1:ncol(QuadStats_LegalONLY_Oys_Recent_1), widths = "auto")
+  setColWidths(wb, sheet = "YearSectionPG", cols = 1:ncol(QuadStats_LegalONLY_2), widths = "auto")
+  setColWidths(wb, sheet = "YearSection", cols = 1:ncol(QuadStats_LegalONLY_4), widths = "auto")
+  # Freeze the first row
+  freezePane(wb, sheet = "FixedLocation_Recent", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSectionPG", firstRow = TRUE)
+  freezePane(wb, sheet = "YearSection", firstRow = TRUE)
+  # Save the modified workbook
+  saveWorkbook(wb, LegalONLY, overwrite = TRUE) 
 ```
 
 ```{r Placeholdingstop} 
@@ -634,24 +677,24 @@ generate_grouped_plot <- function(df, x_variable, x_label, y_variable, y_label, 
 # generate_plot(df, x_variable, x_label, y_variable, y_label, y_SD, UseColor, UseFill, title)
 
 
-# Stats for Total Oyster Density and Total Weight Density by Year and StationGroup
+# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
 # Oysters
-QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "StationGroup", "StationGroup", "AB Oyster Density by Year and StationGroup")
+QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", "ProjectGroup", "ProjectGroup", "AB Oyster Density by Year and ProjectGroup")
 print(QuadStats_ALL_Oys1_fig)
 
 # Creating figures Mean Sample Weight Density
-QuadStats_ALL_Oys1_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "StationGroup", "StationGroup", "AB Sample Weight Density by Year and StationGroup")
+QuadStats_ALL_Oys1_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "ProjectGroup", "ProjectGroup", "AB Sample Weight Density by Year and ProjectGroup")
 print(QuadStats_ALL_Oys1_Sample_Weight_fig)
 
 
 
 
-# Stats for Total Oyster Density and Total Weight Density by Year and Section and StationGroup
-QuadStats_ALL_Oys2_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD",  "StationGroup", "StationGroup", "AB Oyster Density by Year and Section and StationGroup")
+# Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
+QuadStats_ALL_Oys2_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD",  "ProjectGroup", "ProjectGroup", "AB Oyster Density by Year and Section and ProjectGroup")
 print(QuadStats_ALL_Oys2_fig)
 
 # Creating figures Mean Sample Weight Density
-QuadStats_ALL_Oys2_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "AB Sample Weight Density by Year and Section and StationGroup")
+QuadStats_ALL_Oys2_Sample_Weight_fig <- generate_grouped_plot(QuadStats_ALL_Oys2, "Year", "Year", "WeightDensityMean", "Sample Weight (kg / m2)", "WeightDensitySD", "AB Sample Weight Density by Year and Section and ProjectGroup")
 print(QuadStats_ALL_Oys2_Sample_Weight_fig)
 
 
