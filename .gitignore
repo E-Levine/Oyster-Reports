@@ -52,5 +52,9 @@ rsconnect/
 *.html
 
 # Excel output
-*.xlsx
+CERP/*.xlsx
+DMFM/*.xlsx
+FLTIG/*.xlsx
+NFWF/*.xlsx
+PBC/*.xlsx
 *.docx

@@ -6,8 +6,8 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2023-12-31")  # Report End Date
-Database = "OysterLocalMD20240314"  # Set the local database to use
+ReportEnd <- as.Date("2024-03-31")  # Report End Date
+Database = "OysterLocalMD20240425"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
@@ -226,7 +226,7 @@ AB_SedimentStats <- ST1 %>%
             Upper = SedMean + SD)
 
 AB_SedimentText <- AB_SedimentStats %>%
-  filter(Plot_Date >= ReportStart & Plot_Date < ReportEnd)
+  filter(Plot_Date >= QuarterStart & Plot_Date < ReportEnd)
 
 ```
 

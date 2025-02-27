@@ -1,0 +1,563 @@
+---
+title: "Quarterly Figures PBC"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: 
+  word_document: 
+    reference_docx: Monthly-Reports-template.docx
+    fig_caption: yes
+params:
+  Start_date: "2024-10-01" #Start date of reporting quarter
+  End_date: "2024-12-30"   #End date of reporting quarter
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#
+Start_date <- as.Date(params$Start_date)
+End_date <- as.Date(params$End_date)
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx,         #Excel
+  lubridate, zoo,         #Dates
+  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, 
+  install = TRUE)
+```
+
+```{r FigureFormatting}
+#
+PBC_sites <- c("LWL", "LWR")
+#
+#Shared formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        axis.title = element_text(family = "serif", color = "black", size = 17), axis.title.x = element_text(margin = margin(t = 12)), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 12), axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.10, "cm"),
+        axis.ticks.length.y = unit(0.15, "cm"))
+
+Survey_legend <- theme(legend.position = "inside", legend.position.inside = c(.25, .97), legend.justification = c("left", "top"), legend.box.just = "left", #legend.box.spacing = unit(0.05, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.spacing.y = unit(0.20, "lines"),
+                     legend.key.width = unit(0.0001, "pt"), legend.key.height = unit(0.000001, "pt"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+Legend <- theme(legend.position = "inside", legend.position.inside = c(.005, .97), legend.justification = c("left", "top"), legend.box.just = "left", legend.box.spacing = unit(0.15, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.height = unit(0.7, "lines"), legend.key.spacing.y = unit(0.25, "lines"),
+                     legend.key.width = unit(1.5, "lines"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+FacetForm <- theme(strip.placement = "outside", strip.text.x.top = element_text(vjust = 1, hjust = 0, size = 13, family = "serif"), strip.clip = "off", panel.spacing.y = unit(0.5, "lines"), strip.background = element_blank())
+
+PlotTitle <- theme(plot.title = element_text(size = 13, family = "serif", margin = margin(b = 0.07, t = 0)))
+
+#Color and shape to station number
+Stat_pal <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255), rgb(0, 118, 0, maxColorValue = 255), rgb(102, 0, 102, maxColorValue = 255))
+Stations <- c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4") 
+Station_fill <- scale_fill_manual("", labels = Stations, values = setNames(Stat_pal, 1:4), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = Stations, values = setNames(Stat_pal, 1:4), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21, 25, 22, 23), 1:4))
+
+#Color to Stage
+Stat_pal3 <- c(rgb(255, 255, 255, maxColorValue = 255), rgb(153, 255, 255, maxColorValue = 255), rgb(0, 0, 255, maxColorValue = 255), rgb(0, 0, 102, maxColorValue = 255))
+Stages <- c("Ind" = "Indifferent", "Dev" = "Developing", "Rip" = "Ripe/Spawning", "Spe" = "Spent/Recyling") 
+Stage_fill <- scale_fill_manual("", labels = Stages, values = Stat_pal3, na.value = "#999999")
+#
+#Sediment formatting
+Sediment_list <- c("Rate", "OrgContent", "OrgWt")
+Stat_pal2 <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255))
+Positions <- c("N" = "North", "S" = "South")
+Position_fill <- scale_fill_manual("", labels = Positions, values = Stat_pal2, na.value = "#999999")
+Position_color <- scale_color_manual("", labels = Positions, values = Stat_pal2, na.value = "#999999")
+
+```
+
+```{r Data gather from summary file}
+#
+Counts_df <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
+SH_df <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
+Rcrt_df <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
+Repro_df <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
+Dermo_df <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
+Sedi_sta <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'Sedi Stations', detectDates = TRUE, check.names = TRUE)
+Sedi_pos <- readWorkbook("../CERP/Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE, check.names = TRUE)
+#Water Quality
+WQ_Sal_s <-  readWorkbook("../CERP/WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
+WQ_Tem_s <-  readWorkbook("../CERP/WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
+WQ_pH_s <-  readWorkbook("../CERP/WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
+WQ_DO_s <-  readWorkbook("../CERP/WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
+WQ_Secchi_s <-  readWorkbook("../CERP/WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
+
+```
+
+```{r Data selection and cleaning}
+#
+####SURVEY DATA
+names(Counts_df) <- gsub("\\.", "", names(Counts_df))
+Surveys <- Counts_df %>% arrange(AnalysisDate) %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(AnalysisDate, Survey)
+Counts <- Counts_df %>% dplyr::select(Survey, AnalysisDate, contains("LW")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+names(SH_df) <- gsub("\\.", "", names(SH_df))
+SHs <- SH_df %>% dplyr::select(Survey, AnalysisDate, contains("LW")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Value, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = substr(SiteStation, 1, 4)) %>% spread(Measure, Value) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+####REPRO DATA
+names(Repro_df) <- gsub("\\.", "", names(Repro_df))
+Repro_PBC <- Repro_df %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LWR_RetDate) %>%  rename("RetDate" = LWL_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+#
+####DERMO DATA
+names(Dermo_df) <- gsub("\\.", "", names(Dermo_df))
+DermoP <- Dermo_df %>% dplyr::select(contains("LW")) %>% dplyr::select(contains('RetDate')|contains('Pct')) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LWR_RetDate) %>%  rename("RetDate" = LWL_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoI <- Dermo_df %>% dplyr::select(contains("LW")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LWR_RetDate) %>%  rename("RetDate" = LWL_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA)) %>% dplyr::select(-SiteStation) %>% spread(Measure, Value)
+#
+#
+####RCRT DATA
+names(Rcrt_df) <- gsub("\\.", "", names(Rcrt_df))
+Recruits <- Rcrt_df %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LWR_RetDate)  %>% rename("RetDate" = LWL_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Mean = as.numeric(Mean), SD = as.numeric(SD), Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+####SEDIMENT DATA
+names(Sedi_sta) <- gsub("\\.", "", names(Sedi_sta))
+names(Sedi_pos) <- gsub("\\.", "", names(Sedi_pos))
+
+Sed_sta_rate <- Sedi_sta %>% dplyr::select(contains("Ret") | contains("Rate")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate) %>% dplyr::select(-LWR_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% dplyr::select(-SiteStation) %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+Sed_sta_org <- Sedi_sta %>% dplyr::select(contains("Ret") | contains("Pct")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate) %>% dplyr::select(-LWR_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% dplyr::select(-SiteStation) %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+Sed_sta_wt <- Sedi_sta %>% dplyr::select(contains("Ret") | contains("Wt")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate) %>% dplyr::select(-LWR_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% dplyr::select(-SiteStation) %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+Sedi_positions <- Sedi_pos %>% dplyr::select(-AnalysisDate) %>% rename("RetDate" = North_RetDate) %>% gather(Info, Value, -RetDate) %>% mutate(Position = factor(substr(Info, 1, 5)), Measure = case_when(grepl("Mean", Info) ~ "Mean", grepl("SD", Info) ~ "SD", TRUE ~ NA), Parameter = case_when(grepl("Rate", Info) ~ "Rate", grepl("Pct", Info) ~ "OrgContent", grepl("Wt", Info) ~ "OrgWt", TRUE ~ NA)) %>% dplyr::select(-Info)  %>% spread(Measure, Value)
+#
+#
+###WQ DATA
+names(WQ_Sal_s) <- gsub("\\.", "", names(WQ_Sal_s))
+PBC_Sal <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate_Sal >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate_Sal) %>% dplyr::select(-LWR_RetDate_Sal) %>% gather(SiteStation, Salinity, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Salinity) ~ "*", TRUE ~ NA))
+#
+names(WQ_Tem_s) <- gsub("\\.", "", names(WQ_Tem_s))
+PBC_Temp <- WQ_Tem_s %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate_Temp >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate_Temp) %>% dplyr::select(-LWR_RetDate_Temp) %>% gather(SiteStation, Temperature, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Temperature) ~ "*", TRUE ~ NA), Temperature = as.numeric(Temperature))
+#
+names(WQ_pH_s) <- gsub("\\.", "", names(WQ_pH_s))
+PBC_pH <- WQ_pH_s %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate_pH >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate_pH) %>% dplyr::select(-LWR_RetDate_pH) %>% gather(SiteStation, pH, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(pH) ~ "*", TRUE ~ NA))
+#
+names(WQ_DO_s) <- gsub("\\.", "", names(WQ_DO_s))
+PBC_DO <- WQ_DO_s %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate_DO >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate_DO) %>% dplyr::select(-LWR_RetDate_DO) %>%  gather(SiteStation, DO, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(DO) ~ "*", TRUE ~ NA))
+#
+names(WQ_Secchi_s) <- gsub("\\.", "", names(WQ_Secchi_s))
+PBC_SP <- WQ_Secchi_s %>% dplyr::select(contains("LW")) %>% filter(LWL_RetDate_SP >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate_SP) %>% dplyr::select(-LWR_RetDate_SP) %>%  gather(SiteStation, SP, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(SP) ~ "*", TRUE ~ NA))
+#
+```
+
+The following figures are presented for the quarterly report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`. Figures cover data beginning in `r (End_date %m-% months(11)) %>% format ("%B %Y")`.
+\
+\
+\
+
+```{r PBC Survey Figure, fig.cap = "**Figure 2.** Mean semi-annual density (± S.D.) of live oysters present at natural reef and restoration stations in Lake Worth Lagoon. Please note differences in magnitude between the y-axes.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Live_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  df_temp <- Counts %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  Live_list[[i]] <- df_temp %>% ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 18) +
+    geom_col(position = position_dodge(40), width = 30, color = "black") + 
+    #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+}
+
+Live_fig <- ggarrange(
+  Live_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  Live_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1), align = "v"  
+  )
+
+annotate_figure(Live_fig, left = text_grob(expression("Live Oysters / m"^2), rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+```
+
+```{r PBC Dead Ratio Figure, fig.cap = "**Figure 3.** Mean semi-annual ratio (± S.D.) of dead oysters present at natural reef and restoration stations in Lake Worth Lagoon. Please note differences in magnitude between the y-axes.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Dead_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  df_temp <- Counts %>% filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  Dead_list[[i]] <- df_temp %>% ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 18) +
+    geom_col(position = position_dodge(40), width = 30, color = "black") + 
+    #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+}
+
+Dead_fig <- ggarrange(
+  Dead_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  Dead_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1), align = "v"  
+  )
+
+annotate_figure(Dead_fig, left = text_grob("Ratio of Dead Oysters", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+```
+
+```{r PBC SH Figure, fig.cap = "**Figure 4.** Mean semi-annual shell height (± S.D.) of live oysters present at natural reef and restoration stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+SH_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  df_temp <- SHs %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  SH_list[[i]] <- df_temp %>% ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 18) +
+    geom_col(position = position_dodge(40), width = 30, color = "black") + 
+    #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+}
+
+SH_fig <- ggarrange(
+  SH_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  SH_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1), align = "v"  
+  )
+
+annotate_figure(SH_fig, left = text_grob("Shell Height (mm)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+```
+
+```{r PBC Repro Figure, fig.cap = "**Figure 5.**  Monthly reproductive development of oysters from the natural and restoration reef sites in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+Repro_PBC %>%
+  ggplot(aes(RetDate, Value, fill = Stage)) + 
+  geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("LWL" = "Lake Worth", "LWR" = "Lake Worth-Restoration"))) +
+  scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+  scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+  Stage_fill + BaseForm + FacetForm + Legend
+```
+
+```{r PBC Dermo Prevalence Figure, fig.cap = "**Figure 6.**  Monthly prevalence (%) of oysters infected with *Perkinsus marinus* (dermo) at natural reef and restoration reef stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+DermoP_fig <- ggarrange(
+  DermoP %>% filter(Site == "LWL") %>% 
+    ggplot(aes(RetDate, Value, fill = Station, color = Station)) + 
+    geom_col(position = position_dodge(14), width = 12, color = "black") +
+    scale_y_continuous("% Dermo Infection Prevalence", expand = c(0,0), limits = c(0,100)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + Legend +     
+    labs(title = "Lake Worth") + PlotTitle +
+    rremove("x.text") + rremove("x.title") + rremove("y.title"),
+  DermoP %>% filter(Site == "LWR") %>% 
+    ggplot(aes(RetDate, Value, fill = Station, color = Station)) + 
+    geom_col(position = position_dodge(14), width = 12, color = "black") +
+    scale_y_continuous("% Dermo Infection Prevalence", expand = c(0,0), limits = c(0,100)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+   
+    Station_fill + Station_color + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle +
+    rremove("x.title") + rremove("y.title"),
+  nrow = 2, heights = c(1, 1.3))
+
+annotate_figure(DermoP_fig, left = text_grob("% Dermo Infection Prevalence", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+```
+
+```{r PBC Dermo Intensity Figure, fig.cap = "**Figure 7.**  Mean monthly infection intensity (± S.D.) of oysters infected with *Perkinsus marinus* (dermo) at natural reef and restoration reef stations in Lake Worth Lagoon. Infection intensity is categorized according to the Mackin Scale.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+DermoI_Fig <- ggarrange(
+  DermoI %>% filter(Site == "LWL") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_col(position = position_dodge(14), width = 12, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(14), width = 10) +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), limits = c(0, 5))+
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + BaseForm + Legend + 
+    labs(title = "Lake Worth") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text"), 
+  DermoI %>% filter(Site == "LWR") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_col(position = position_dodge(14), width = 12, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(14), width = 10)+ 
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), limits = c(0, 5.01))+
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle +
+    rremove("ylab") + rremove("xlab"),
+  nrow = 2, heights = c(1, 1.3), align = 'v')
+
+annotate_figure(DermoI_Fig, 
+                left = text_grob("Dermo Infection Intensity", rot = 90, hjust = 0.3, family = "serif", size = 16.5, color = "black"))
+```
+
+```{r PBC Recruitment Figure, fig.cap = "**Figure 8.**  Mean monthly number (± S.D.) of oyster spat recruits collected per shell at stations  at natural reef and restoration stations in Lake Worth Lagoon. Please note differences in magnitude of y-axis among sites.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+
+Rcrt_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  df_temp <- Recruits %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  Rcrt_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 9) +
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) +
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend
+}
+
+Rcrt_fig <- ggarrange(
+  Rcrt_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  Rcrt_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1.5), align = "v"  
+  )
+
+annotate_figure(Rcrt_fig, left = text_grob("Spat / Shell", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+```
+
+```{r PBC Sedimentation Figure, fig.cap = "**Figure 9.**  Mean monthly sedimentation rate (± S.D.) at natural reef and restoration reef stations in Lake Worth Lagoon. Asterisks indicate when samples were unable to be collected from a station. Please note differences in magnitude between the y-axes.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+
+Sedi_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  df_temp <- Sed_sta_rate %>% filter(grepl(Working_site, Site)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling(max(df_temp$Upper, na.rm = T)*1.05)/5)
+  max_upper <- ceiling(max(df_temp$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
+  #
+  Sedi_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station, color = Station))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 9) +
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 8) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) +
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend
+}
+
+Sedi_rate_fig <- ggarrange(
+  Sedi_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  Sedi_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1.3), align = "v"  
+  )
+
+annotate_figure(Sedi_rate_fig, left = text_grob("Sedimentation Rate (g/month)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+
+```
+
+```{r PBC Organic Content Figure, fig.cap = "**Figure 10.**  Monthly organic content (%) of sedimentation at natural reef and restoration reef stations in Lake Worth Lagoon. Asterisks indicate when samples were unable to be collected from a station.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+
+Sedi_org_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  max_upper <- ceiling(max((Sed_sta_org %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)))$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
+  df_temp <- Sed_sta_org %>% filter(grepl(Working_site, Site))
+  df_temp$HelperLocation <- (ceiling(max((Sed_sta_org %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)))$Upper, na.rm = T)*1.05))/5
+  #
+  Sedi_org_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station, color = Station))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 12) +
+    geom_col(position = position_dodge(13), width = 10, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(13), size = 8) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) +
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend
+}
+
+Sedi_org_fig <- ggarrange(
+  Sedi_org_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  Sedi_org_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1.3), align = "v"  
+  )
+
+annotate_figure(Sedi_org_fig, left = text_grob("Organic Content (%)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+
+```
+
+```{r PBC Organic Weight Figure, fig.cap = "**Figure 11.**  Mean monthly organic weight (± S.D.) of sediment collected at natural reef and restoration reef stations in Lake Worth Lagoon. Asterisks indicate when samples were unable to be collected from a station.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+
+Sedi_wt_list <- list()
+for(i in seq_along(PBC_sites)){
+  #
+  Working_site <- paste(PBC_sites[i])
+  max_upper <- ceiling(max((Sed_sta_wt %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)))$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
+  df_temp <- Sed_sta_wt %>% filter(grepl(Working_site, Site))
+  df_temp$HelperLocation <- (ceiling(max((Sed_sta_wt %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)))$Upper, na.rm = T)*1.05))/5
+  #
+  Sedi_wt_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station, color = Station))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 12) +
+    geom_col(position = position_dodge(13), width = 10, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(13), size = 8) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
+    ggtitle(paste0(case_when(grepl("LWL", Working_site) ~ "Lake Worth", grepl("LWR", Working_site) ~ "Lake Worth-Restoration", TRUE ~ "WRONG"))) +
+    Station_fill + Station_color + BaseForm + PlotTitle + Legend
+}
+
+Sedi_wt_fig <- ggarrange(
+  Sedi_wt_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  Sedi_wt_list[[2]] + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1.5), align = "v"  
+  )
+
+annotate_figure(Sedi_wt_fig, left = text_grob("Organic Weight (g/month)", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
+
+```
+
+```{r PBC Position Figure, fig.cap = "**Figure 12.**  Mean monthly sedimentation rate (± S.D.), organic content (%), and organic weight (± S.D.) of sedimentation at stations north and south of C-51 in Lake Worth Lagoon.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+Posi_list <- list()
+for(i in seq_along(Sediment_list)){
+  #
+  Working_param <- paste(Sediment_list[i])
+  df_temp <- Sedi_positions %>% filter(grepl(Working_param, Parameter)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  max_upper <- ceiling(max(df_temp$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
+  #
+  Posi_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Position))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(15), width = 13) +
+    geom_col(position = position_dodge(15), width = 13, color = "black") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous(case_when(Working_param == "Rate" ~ "Sedimentation Rate (g/month)", Working_param == "OrgContent" ~ "Organic Content (%)", Working_param == "OrgWt" ~ "Organic Weight (g/month)", TRUE ~ "Something is missing."), expand = c(0,0), limits = c(0, max(pretty(0:max_upper, n = 4))), breaks = pretty(0:max_upper, n = 4))+
+    Position_fill + Position_color + BaseForm + PlotTitle + Legend + theme(axis.title.y = element_text(size = 14))
+}
+
+ggarrange(
+  Posi_list[[1]] + rremove("x.text"),
+  Posi_list[[2]] + rremove("x.text") + theme(plot.margin = margin(t = -0.25, b = -0.25)), 
+  Posi_list[[3]] + theme(plot.margin = margin(t = -0.25)),
+  nrow = 3, heights = c(1, 1, 1.2), align = "v"  
+)
+```
+
+```{r PBC Salinity Figure, fig.cap = "**Figure 13.**  Monthly salinity recorded at natural reef and restoration reef stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+PBC_Sal_fig <- ggarrange(
+  PBC_Sal %>% filter(Site == "LWL") %>% 
+    ggplot(aes(RetDate, Salinity, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth") + PlotTitle + rremove("ylab") + rremove("x.text") + rremove("xlab"),
+  PBC_Sal %>% filter(Site == "LWR") %>% 
+    ggplot(aes(RetDate, Salinity, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle  + rremove("ylab") + rremove("xlab"),
+  nrow = 2, heights = c(1, 1.3), align = 'v'
+)
+
+annotate_figure(PBC_Sal_fig, left = text_grob("Salinity", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+
+```
+
+```{r PBC Temperature Figure, fig.cap = "**Figure 14.**  Monthly temperature recorded at natural reef and restoration reef stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+PBC_Temp_fig <- ggarrange(
+  PBC_Temp %>% filter(Site == "LWL") %>% 
+    ggplot(aes(RetDate, Temperature, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth") + PlotTitle + rremove("ylab") + rremove("x.text") + rremove("xlab"),
+  PBC_Temp %>% filter(Site == "LWR") %>% 
+    ggplot(aes(RetDate, Temperature, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle  + rremove("ylab") + rremove("xlab"),
+  nrow = 2, heights = c(1, 1.3), align = 'v'
+)
+
+annotate_figure(PBC_Temp_fig, left = text_grob("Temperature (\u00B0C)", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+
+```
+
+```{r PBC pH Figure, fig.cap = "**Figure 15.**  Monthly pH recorded at natural reef and restoration reef stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+PBC_pH_fig <- ggarrange(
+  PBC_pH %>% filter(Site == "LWL") %>% 
+    ggplot(aes(RetDate, pH, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10 , by = 0.5)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth") + PlotTitle + rremove("ylab") + rremove("x.text") + rremove("xlab"),
+  PBC_pH %>% filter(Site == "LWR") %>% 
+    ggplot(aes(RetDate, pH, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10 , by = 0.5)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle  + rremove("ylab") + rremove("xlab"),
+  nrow = 2, heights = c(1, 1.3), align = 'v'
+)
+
+annotate_figure(PBC_pH_fig, left = text_grob("pH", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+
+```
+
+```{r PBC DO Figure, fig.cap = "**Figure 15.**  Monthly dissolved oxygen concentration recorded at natural reef and restoration reef stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+PBC_DO_fig <- ggarrange(
+  PBC_DO %>% filter(Site == "LWL") %>% 
+    ggplot(aes(RetDate, DO, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 14)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth") + PlotTitle + rremove("ylab") + rremove("x.text") + rremove("xlab"),
+  PBC_DO %>% filter(Site == "LWR") %>% 
+    ggplot(aes(RetDate, DO, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 14)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + Station_color + Station_shape + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle  + rremove("ylab") + rremove("xlab"),
+  nrow = 2, heights = c(1, 1.3), align = 'v'
+)
+
+annotate_figure(PBC_DO_fig, left = text_grob("Dissolved Oxygen (mg/L)", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+
+```
+
+```{r PBC Secchi Figure, fig.cap = "**Figure 15.**  Monthly percent Secchi penetration recorded at natural reef and restoration reef stations in Lake Worth Lagoon.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+PBC_SP_fig <- ggarrange(
+  PBC_SP %>% filter(Site == "LWL") %>% 
+    ggplot(aes(RetDate, SP, fill = Station)) + 
+    geom_col(position = position_dodge(15), width = 10, color = "black") +
+    scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + BaseForm + Legend + 
+    labs(title = "Lake Worth") + PlotTitle + rremove("ylab") + rremove("x.text") + rremove("xlab"),
+  PBC_SP %>% filter(Site == "LWR") %>% 
+    ggplot(aes(RetDate, SP, fill = Station)) + 
+    geom_col(position = position_dodge(15), width = 10, color = "black") +
+    scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill + BaseForm + Legend + 
+    labs(title = "Lake Worth-Restoration") + PlotTitle  + rremove("ylab") + rremove("xlab"),
+  nrow = 2, heights = c(1, 1.3), align = 'v'
+)
+
+annotate_figure(PBC_SP_fig, left = text_grob("% Secchi Penetration", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+
+```
