@@ -536,7 +536,7 @@ DermoP_West_Fig <- ggarrange(
 
 annotate_figure(DermoP_West_Fig, 
                 left = text_grob("Dermo Prevalence (%)", rot = 90, hjust = 0.3, family = "serif", size = 16.5, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.75))
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.73))
 
 ```
 
@@ -564,11 +564,11 @@ DermoI_West_Fig <- ggarrange(
     labs(title = "Caloosahatchee River-West") + PlotTitle +
     rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm"))+ 
     guides(text = "none", color = "none"),
-  nrow = 2, heights = c(0.045, 0.05, 1.4))
+  nrow = 2, heights = c(0.04, 0.05, 1.6))
 
 annotate_figure(DermoI_West_Fig, 
                 left = text_grob("Dermo Infection Intensity", rot = 90, hjust = 0.3, family = "serif", size = 16.5, color = "black"),
-                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.9))
+                bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.73))
 ```
 
 ```{r CERP Cage Mortality Figure, fig.cap = "**Figure 15.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
