@@ -1,5 +1,5 @@
 ---
-title: "Annual Report Information"
+title: "CERP Annual Report Information"
 author: "ELevine"
 date: "`r Sys.Date()`"
 output: 
@@ -80,72 +80,55 @@ Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRU
 Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
 SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
 Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
-Sedi_sta <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Stations', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
-Sedi_pos <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
 ```
 
 ```{r Data selection and cleaning}
 #
 ##Salinity
-WQ_Sal_CERP <- WQ_Sal_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(-SL.N_RetDate_Sal, -SL.S_RetDate_Sal, -LX.N_RetDate_Sal, -LX.S_RetDate_Sal) %>% mutate(RetDate = as.yearmon(RetDate))
-WQ_Sal_CRE <- WQ_Sal_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_Sal > Start_date & CR.E_RetDate_Sal < End_date)  %>% rename(RetDate = CR.E_RetDate_Sal) %>% dplyr::select(-CR.W_RetDate_Sal)
-WQ_Sal_PBC <- WQ_Sal_s %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate_Sal > Start_date & LW.L_RetDate_Sal < End_date) %>% rename(RetDate = LW.L_RetDate_Sal) %>% dplyr::select(-LW.R_RetDate_Sal)
+WQ_Sal <- WQ_Sal_s %>% subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(RetDate, everything(), -contains("_RetDate_Sal")) %>% mutate(RetDate = as.yearmon(RetDate))
 #
+#
+#
+####WORKING BELOW
 #Secchi
 WQ_Sec_CERP <- WQ_Secchi_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_SP > Start_date & SL.C_RetDate_SP < End_date) %>% rename(RetDate = SL.C_RetDate_SP) %>% dplyr::select(-SL.N_RetDate_SP, -SL.S_RetDate_SP, -LX.N_RetDate_SP, -LX.S_RetDate_SP) %>% mutate(RetDate = as.yearmon(RetDate))
 WQ_Sec_CRE <- WQ_Secchi_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_SP > Start_date & CR.E_RetDate_SP < End_date)  %>% rename(RetDate = CR.E_RetDate_SP) %>% dplyr::select(-CR.W_RetDate_SP)
-WQ_Sec_PBC <- WQ_Secchi_s %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate_SP > Start_date & LW.L_RetDate_SP < End_date) %>% rename(RetDate = LW.L_RetDate_SP) %>% dplyr::select(-LW.R_RetDate_SP)
 #
 #Dermo
 Dermo_CERP <- Dermo_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Dermo_CRE <- Dermo_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Dermo_PBC <- Dermo_df %>% dplyr::select(starts_with("LW")) %>% dplyr::select(!contains("SD")) %>% subset(LW.L_RetDate > Start_date & LW.L_RetDate < End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #Rcrt
 Rcrt_CERP <- Rcrt_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Rcrt_PBC <- Rcrt_df %>% dplyr::select(starts_with("LW")) %>% dplyr::select(!contains("SD")) %>% subset(LW.L_RetDate > Start_date & LW.L_RetDate < End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #Repro
 Repro_CERP <- Repro_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Repro_CRE <- Repro_df %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Repro_PBC <- Repro_df %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate > Start_date & LW.L_RetDate < End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 ##Survey counts
 Counts_CERP <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 Counts_CRE <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
-Counts_PBC <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("LW")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 #
 ##Survey SHs
 SH_CERP <- SH_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(6))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 SH_CRE <- SH_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
-SH_PBC <- SH_df %>% dplyr::select(AnalysisDate, starts_with("LW")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 #
 ##Cages
 Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
-##Sediment
-Rate_sta <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("RateMean")) %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date)
-Rate_annual <- Sedi_sta  %>% dplyr::select(AnalysisDate, contains("RateMean")) %>% subset(AnalysisDate > (End_date %m-% months(12)) & AnalysisDate < End_date)
-Pct_sta <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("OrganicMean")) %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date)
-Pct_annual <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("OrganicMean")) %>% subset(AnalysisDate >= (End_date %m-% months(12)) & AnalysisDate < End_date)
-Wt_sta <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("WtMean")) %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date)
-Wt_annual <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("WtMean")) %>% subset(AnalysisDate >= (End_date %m-% months(12)) & AnalysisDate < End_date)
-
-Reef_type_summ <- Sedi_sta %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(-contains("Ret"), -AnalysisDate) %>% gather("Info", Value) %>% mutate(Station = substr(Info, 1, 5), Measure = str_extract(Info, "(?<=_).*")) %>% dplyr::select(-Info) %>% filter(!grepl("SD", Measure)) %>% mutate(ReefType = case_when(grepl("LW.L", Station) ~ "Natural", grepl("LW.R", Station) ~ "Restoration"), Position = case_when(grepl(c("R4|L1|L2"), Station) ~ "North", grepl(c("R2|R3|L3"), Station) ~ "South"))
-Reef_type_annual <- Sedi_sta %>% subset(AnalysisDate >= (End_date %m-% months(12)) & AnalysisDate < End_date) %>% dplyr::select(-contains("Ret"), -AnalysisDate) %>% gather("Info", Value) %>% mutate(Station = substr(Info, 1, 5), Measure = str_extract(Info, "(?<=_).*")) %>% dplyr::select(-Info) %>% filter(!grepl("SD", Measure)) %>% mutate(ReefType = case_when(grepl("LW.L", Station) ~ "Natural", grepl("LW.R", Station) ~ "Restoration"), Position = case_when(grepl(c("R4|L1|L2"), Station) ~ "North", grepl(c("R2|R3|L3"), Station) ~ "South"))
-
+#
 ```
 
 ```{r table formatting}
 #Salinity
-CERP_Sal <- WQ_Sal_CERP %>% gt() %>% data_color(columns = contains("Sal"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal_CERP %>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13, 16), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_Sal","", .)) %>% cols_align(align = c("center"), columns = everything())
+WQ_Sal_tab <- WQ_Sal %>% gather(Site_Station, Salinity, -RetDate) %>% mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% mutate(Site = substr(Site_Station, 1, 3), Station = substr(Site_Station, 4, 5)) %>% dplyr::select(-Site_Station) %>% mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site)) 
 #
-CRE_Sal <- WQ_Sal_CRE %>% gt() %>% data_color(columns = contains("Sal"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal_CRE %>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_Sal","", .)) %>% cols_align(align = c("center"), columns = everything())
+(WQ_Sal_out <- WQ_Sal_tab %>% spread(Station, Salinity) %>% gt(groupname_col = "Site") %>% data_color(columns = contains(c("1","2","3","4")), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal%>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()))
 #
-PBC_Sal <- WQ_Sal_PBC %>% gt() %>% data_color(columns = contains("Sal"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal_PBC %>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_Sal","", .)) %>% cols_align(align = c("center"), columns = everything())
 #
+##WORKING BELOW
 #
 ##Secchi
 CERP_Sec <- WQ_Sec_CERP %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13, 16), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
