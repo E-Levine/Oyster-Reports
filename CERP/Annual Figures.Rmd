@@ -1,0 +1,263 @@
+---
+title: "Annual Figures CERP"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: 
+  word_document: 
+    reference_docx: Monthly-Reports-template.docx
+    fig_caption: yes
+params:
+  Start_date: "2024-01-01" #Start date of reporting quarter
+  End_date: "2024-12-30"   #End date of reporting quarter
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#
+Estuary_code <- c("CR", "SL", "LX")
+Start_date <- as.Date(params$Start_date)
+End_date <- as.Date(params$End_date)
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx,         #Excel
+  lubridate, zoo,         #Dates
+  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, 
+  install = TRUE)
+```
+
+```{r FigureFormatting, include = FALSE}
+#
+East_sites <- c("SLN", "SLS", "SLC", "LXN", "LXS")
+West_Sites <- c("CRE", "CRW")
+#
+#Shared formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        axis.title = element_text(family = "serif", color = "black", size = 17), axis.title.x = element_text(margin = margin(t = 12)), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 12), 
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.10, "cm"),
+        axis.ticks.length.y = unit(0.15, "cm"))
+
+Survey_legend <- theme(legend.position = "inside", legend.position.inside = c(.136, .97), legend.justification = c("right", "top"), legend.box.just = "right", #legend.box.spacing = unit(0.05, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.spacing.y = unit(0.20, "lines"),
+                     legend.key.width = unit(0.0001, "pt"), legend.key.height = unit(0.000001, "pt"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+SurveyWest_legend <- theme(legend.position = "inside", legend.position.inside = c(.005, .97), legend.justification = c("left", "top"), legend.box.just = "left", #legend.box.spacing = unit(0.05, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.spacing.y = unit(0.20, "lines"),
+                     legend.key.width = unit(0.001, "pt"), legend.key.height = unit(0.000001, "pt"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+East_legend <- theme(legend.position = "inside", legend.position.inside = c(.155, .995), legend.justification = c("right", "top"), legend.box.just = "right", legend.box.spacing = unit(0.15, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.height = unit(0.7, "lines"), legend.key.spacing.y = unit(0.25, "lines"),
+                     legend.key.width = unit(1.5, "lines"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+West_legend <- theme(legend.position = "inside", legend.position.inside = c(0.005, .980), legend.justification = c("left", "top"), legend.box.just = "left", legend.box.spacing = unit(0.25, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.height = unit(0.7, "lines"), legend.key.spacing.y = unit(0.25, "lines"),
+                     legend.key.width = unit(1.5, "lines"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12, margin = margin(r = 6, l = 5)))
+
+FacetForm <- theme(strip.placement = "outside", strip.text.x.top = element_text(vjust = 1, hjust = 0, size = 13, family = "serif"), strip.clip = "off", panel.spacing.y = unit(0.5, "lines"), strip.background = element_blank())
+
+PlotTitle <- theme(plot.title = element_text(size = 13, family = "serif", margin = margin(b = 0.07)))
+
+#Color and shape to station number - East
+Stat_pal <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255), rgb(0, 118, 0, maxColorValue = 255))
+Stations_E <- c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3") 
+Station_fill_E <- scale_fill_manual("", labels = Stations_E, values = setNames(Stat_pal, 1:3), na.value = "#999999")
+Station_color_E <- scale_color_manual("", labels = Stations_E, values = setNames(Stat_pal, 1:3), na.value = "#999999")
+Station_shape_E <- scale_shape_manual("",labels = Stations_E, values = setNames(c(21, 25, 22), 1:3))
+
+#Color and shape to station number - West
+Stat_pal2 <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255), rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255))
+Stations_W <- c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key") 
+Station_fill_W <- scale_fill_manual("", labels = Stations_W, values = setNames(Stat_pal2, 1:4), na.value = "#999999")
+Station_color_W <- scale_color_manual("", labels = Stations_W, values = setNames(Stat_pal2, 1:4), na.value = "#999999")
+Station_shape_W <- scale_shape_manual("",labels = Stations_W, values = setNames(c(21, 25, 21, 25), 1:4))
+
+#Color to Stage
+Stat_pal3 <- c(rgb(255, 255, 255, maxColorValue = 255), rgb(153, 255, 255, maxColorValue = 255), rgb(0, 0, 255, maxColorValue = 255), rgb(0, 0, 102, maxColorValue = 255))
+Stages <- c("Ind" = "Indifferent", "Dev" = "Developing", "Rip" = "Ripe/Spawning", "Spe" = "Spent/Recyling") 
+Stage_fill <- scale_fill_manual("", labels = Stages, values = Stat_pal3, na.value = "#999999")
+#
+#Cage formatting
+Cage_sites <- c("SLC", "LXN", "CRE", "CRW")
+Stations_cages <- c("SLC" = "St. Lucie-Central Station 1", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
+Cages_fill <- scale_fill_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
+Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
+
+```
+
+```{r Data gather from summary file, include=FALSE}
+##Water Quality
+WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
+WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
+WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
+WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
+#
+Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
+SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
+Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
+Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
+Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
+Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
+
+
+```
+
+```{r Water Quality Data selection and cleaning}
+#
+##Salinity
+names(WQ_Sal_s) <- gsub("\\.", "", names(WQ_Sal_s))
+Sal_SLC_1 <- WQ_Sal_s %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate_Sal > Start_date & SLC_RetDate_Sal < End_date) %>% dplyr::select(-SLN_RetDate_Sal, -SLS_RetDate_Sal) %>% rename("SL_RetDate" = SLC_RetDate_Sal)
+Sal_SLC_2 <- Sal_SLC_1 %>% gather(SiteStation, Salinity, -SL_RetDate) %>% rename("RetDate" = SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+
+Sal_West <- WQ_Sal_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Sal >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_Sal) %>% rename("CR_RetDate" = CRE_RetDate_Sal) %>% gather(SiteStation, Salinity, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+
+```
+
+```{r Data selection and cleaning - to be edited, include=FALSE}
+#
+##Temperature
+names(WQ_Tem_s) <- gsub("\\.", "", names(WQ_Tem_s))
+Tem_East_1 <- WQ_Tem_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_Temp >= End_date %m-% months(13)) %>%
+  dplyr::select(-SLN_RetDate_Temp, -SLS_RetDate_Temp, -LXS_RetDate_Temp) %>% rename("SL_RetDate" = SLC_RetDate_Temp, "LX_RetDate" = LXN_RetDate_Temp)
+Tem_East_2 <- rbind(Tem_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Temp, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                    Tem_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Temp, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+Tem_West <- WQ_Tem_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Temp >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_Temp) %>% rename("CR_RetDate" = CRE_RetDate_Temp) %>% gather(SiteStation, Temp, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+##pH
+names(WQ_pH_s) <- gsub("\\.", "", names(WQ_pH_s))
+pH_East_1 <- WQ_pH_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_pH >= End_date %m-% months(13)) %>%
+  dplyr::select(-SLN_RetDate_pH, -SLS_RetDate_pH, -LXS_RetDate_pH) %>% rename("SL_RetDate" = SLC_RetDate_pH, "LX_RetDate" = LXN_RetDate_pH)
+pH_East_2 <- rbind(pH_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, pH, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                  pH_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, pH, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+pH_West <- WQ_pH_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_pH >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_pH) %>% rename("CR_RetDate" = CRE_RetDate_pH) %>% gather(SiteStation, pH, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+##Dissolved Oxygen
+names(WQ_DO_s) <- gsub("\\.", "", names(WQ_DO_s))
+DO_East_1 <- WQ_DO_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_DO >= End_date %m-% months(13)) %>%
+  dplyr::select(-SLN_RetDate_DO, -SLS_RetDate_DO, -LXS_RetDate_DO) %>% rename("SL_RetDate" = SLC_RetDate_DO, "LX_RetDate" = LXN_RetDate_DO)
+DO_East_2 <- rbind(DO_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, DO, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                  DO_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, DO, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+DO_West <- WQ_DO_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_DO >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_DO) %>% rename("CR_RetDate" = CRE_RetDate_DO) %>% gather(SiteStation, DO, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+##Secchi
+names(WQ_Secchi_s) <- gsub("\\.", "", names(WQ_Secchi_s))
+SP_East_1 <- WQ_Secchi_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate_SP >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate_SP, -SLS_RetDate_SP, -LXS_RetDate_SP) %>% rename("SL_RetDate" = SLC_RetDate_SP, "LX_RetDate" = LXN_RetDate_SP)
+SP_East_2 <- rbind(SP_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Secchi, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
+                    SP_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Secchi, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+
+SP_West <- WQ_Secchi_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_SP >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_SP) %>% rename("CR_RetDate" = CRE_RetDate_SP) %>% gather(SiteStation, Secchi, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+#
+#
+#
+####SURVEY DATA
+Surveys <- Counts_df %>% arrange(AnalysisDate) %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(AnalysisDate, Survey)
+names(Counts_df) <- gsub("\\.", "", names(Counts_df))
+Counts_East_1 <- Counts_df %>% dplyr::select(Survey, AnalysisDate, contains("SL")|contains("LX")) %>% filter(AnalysisDate >= End_date %m-% months(13))
+Counts_East_2 <- Counts_East_1 %>% dplyr::select(Survey, AnalysisDate, contains("SL")|contains("LX")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+names(SH_df) <- gsub("\\.", "", names(SH_df))
+SH_East <- SH_df %>% dplyr::select(Survey, AnalysisDate, contains("SL")|contains("LX")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Value, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = substr(SiteStation, 1, 4)) %>% spread(Measure, Value) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+Counts_West <- Counts_df %>% dplyr::select(Survey, AnalysisDate, contains("CR")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Measure, -Survey, -AnalysisDate) %>% mutate(DataType = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) %>% mutate(Measure = case_when((Station == 1|Station == 4) & grepl("Winter", Survey) ~ NA, (Station == 1|Station == 4) & grepl("Summer", Survey) ~ NA, TRUE ~ Measure)) %>% spread(DataType, Measure) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+SH_West <- SH_df %>% dplyr::select(Survey, AnalysisDate, contains("CR")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Value, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = substr(SiteStation, 1, 4), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) %>% mutate(Value = case_when((Station == 1|Station == 4) & grepl("Winter", Survey) ~ NA, (Station == 1|Station == 4) & grepl("Summer", Survey) ~ NA, TRUE ~ Value)) %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+####RECRUITMENT DATA
+names(Rcrt_df) <- gsub("\\.", "", names(Rcrt_df))
+Rcrt_East_1 <- Rcrt_df %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>%  dplyr::select(-SLN_RetDate, -SLS_RetDate, -LXS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate, "LX_RetDate" = LXN_RetDate)
+Rcrt_East_2 <- rbind(Rcrt_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate), Rcrt_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+Rcrt_West <- Rcrt_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+####REPRO DATA
+names(Repro_df) <- gsub("\\.", "", names(Repro_df))
+Repro_East_1 <- Repro_df %>% dplyr::select(contains("SL")|contains("LX")) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate, -LXS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate, "LX_RetDate" = LXN_RetDate)
+Repro_East_2 <- rbind(Repro_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate), Repro_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+Repro_West <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+#
+####DERMO DATA
+names(Dermo_df) <- gsub("\\.", "", names(Dermo_df))
+DermoP_East_1 <- Dermo_df %>% dplyr::select(contains("SL")|contains("LX")) %>% dplyr::select(contains('RetDate')|contains('Pct'))  %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate, -LXS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate, "LX_RetDate" = LXN_RetDate)
+DermoP_East_2 <- rbind(DermoP_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate), DermoP_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoP_West <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+DermoI_East_1 <- Dermo_df %>% dplyr::select(contains("SL")|contains("LX")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate, -LXS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate, "LX_RetDate" = LXN_RetDate)
+DermoI_East_2 <- rbind(DermoI_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate), DermoI_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+DermoI_West <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate)  %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+####CAGE DATA
+names(Cage_df) <- gsub("\\.", "", names(Cage_df))
+Cage_Mort <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value)
+Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD))
+#
+```
+
+
+The following figures are presented for the annual report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`.
+\newpage
+
+```{r SLC Salinity Figure, fig.cap = "**Figure 2.**  Monthly salinity recorded in 2022 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+Sal_SLC_2 %>%
+  ggplot(aes(RetDate, Salinity, shape = Station)) + 
+  geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central"))) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+  scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+  Station_fill_E + Station_color_E + Station_shape_E + BaseForm + FacetForm +East_legend
+
+```
+
+```{r CRE Salinity Figure, fig.cap = "**Figure 18.**  Monthly salinity recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+Sal_West_Fig <- ggarrange(
+  Sal_West %>% filter(Station == 1 | Station == 2) %>%
+    ggplot(aes(RetDate, Salinity, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-East") + PlotTitle +
+    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
+  Sal_West %>% filter(Station == 3 | Station == 4) %>%
+    ggplot(aes(RetDate, Salinity, shape = Station)) + 
+    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
+    labs(title = "Caloosahatchee River-West") + PlotTitle +
+    rremove("ylab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
+  nrow = 2, heights = c(0.038, 0.05, 1.4))
+
+annotate_figure(Sal_West_Fig, 
+                left = text_grob("Salinity", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+```

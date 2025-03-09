@@ -3,8 +3,8 @@ title: "CERP Annual Report Information"
 author: "ELevine"
 date: "`r Sys.Date()`"
 output: 
-  html_document:
-  word_document: NULL
+  html_document: default
+  word_document: default
 params:
   Start_date: "2024-01-01"
   End_date: "2024-12-30"
@@ -71,7 +71,7 @@ h4 {
 }
 ```
 
-```{r Data gather from summary file}
+```{r Data gather from summary file, include=  FALSE}
 WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
@@ -80,15 +80,28 @@ Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRU
 Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
 SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
 Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
+#
+#Data selection and cleaning follows below by type of data being assessed.
 ```
 
-```{r Data selection and cleaning}
+```{r Salinity data, inlcude = FALSE}
 #
-##Salinity
+##Data cleaning
 WQ_Sal <- WQ_Sal_s %>% subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(RetDate, everything(), -contains("_RetDate_Sal")) %>% mutate(RetDate = as.yearmon(RetDate))
 #
+#Data by station
+WQ_Sal_tab <- WQ_Sal %>% gather(Site_Station, Salinity, -RetDate) %>% mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% mutate(Site = substr(Site_Station, 1, 3), Station = substr(Site_Station, 4, 5)) %>% dplyr::select(-Site_Station)
+#
+#Data table outout
+WQ_Sal_out <- WQ_Sal_tab %>% mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% spread(Station, Salinity) %>% gt(groupname_col = "Site") %>% data_color(columns = contains(c("1","2","3","4")), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal%>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything())
 #
 #
+#
+#
+```
+
+```{r Previous code requiring editing}
+
 ####WORKING BELOW
 #Secchi
 WQ_Sec_CERP <- WQ_Secchi_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_SP > Start_date & SL.C_RetDate_SP < End_date) %>% rename(RetDate = SL.C_RetDate_SP) %>% dplyr::select(-SL.N_RetDate_SP, -SL.S_RetDate_SP, -LX.N_RetDate_SP, -LX.S_RetDate_SP) %>% mutate(RetDate = as.yearmon(RetDate))
@@ -121,13 +134,7 @@ Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!cont
 #
 ```
 
-```{r table formatting}
-#Salinity
-WQ_Sal_tab <- WQ_Sal %>% gather(Site_Station, Salinity, -RetDate) %>% mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% mutate(Site = substr(Site_Station, 1, 3), Station = substr(Site_Station, 4, 5)) %>% dplyr::select(-Site_Station) %>% mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site)) 
-#
-(WQ_Sal_out <- WQ_Sal_tab %>% spread(Station, Salinity) %>% gt(groupname_col = "Site") %>% data_color(columns = contains(c("1","2","3","4")), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal%>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()))
-#
-#
+```{Previous code to be edited}
 ##WORKING BELOW
 #
 ##Secchi
@@ -185,9 +192,6 @@ CRE_SH <- SH_CRE %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% 
 #
 PBC_SH <- SH_PBC %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% tab_options(container.width = 1500)
 #
-#Survey summary table - PBC
-PBC_survey_sum <- left_join(rbind(Counts_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = str_remove(str_extract(Info, "^.{5}"), "\\."), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean), Counts_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = paste0(str_remove(str_extract(Info, "^.{4}"), "\\."),"_mean"), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean)) %>% arrange(Station) %>% ungroup() %>% dplyr::select(Station, "Live density (oysters/m2)" = LiveMean, "Dead Ratio" = DeadRatioMean), 
-      rbind(SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = str_remove(str_extract(Info, "^.{5}"), "\\."), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean), SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = paste0(str_remove(str_extract(Info, "^.{4}"), "\\."), "_mean"), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean)) %>% arrange(Station) %>% ungroup() %>% dplyr::select(Station, "Shell height (mm)" = SHMean)) %>% gt() %>% tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4, 8))) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 2, 3), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 5)))
 #
 #
 #
@@ -201,267 +205,18 @@ CRE_Cage <- Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% gt() %>% d
 CRW_Cage <- Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
 #
 #
-##Sediment
-Sta_Rates <- Rate_sta %>% replace(is.na(.), -25) %>% gt() %>% data_color(columns = contains("Rate"), fn = scales::col_numeric(palette = "plasma", domain = Rate_sta %>% replace(is.na(.), -25) %>% dplyr::select(contains("Rate")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Rate","", .)) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 4), sides = "right", color = "black")
-#
-Sta_Pcts <- Pct_sta %>% replace(is.na(.), -12) %>% gt() %>% data_color(columns = contains("Organic"), fn = scales::col_numeric(palette = "plasma", domain = Pct_sta %>% replace(is.na(.), -12) %>% dplyr::select(contains("Organic")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_PctOrganic","", .)) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 4), sides = "right", color = "black")
-#
-Sta_Wts <- Wt_sta %>% replace(is.na(.), -1) %>% gt() %>% data_color(columns = contains("OrgWt"), fn = scales::col_numeric(palette = "plasma", domain = Wt_sta %>% replace(is.na(.), -1) %>% dplyr::select(contains("OrgWt")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_OrgWt","", .)) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 4), sides = "right", color = "black")
-
-Pos_Rates <- Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% replace(is.na(.), -0.5) %>% dplyr::select(AnalysisDate, contains("RateMean")) %>% gt() %>% data_color(columns = contains("RateMean"), fn = scales::col_numeric(palette = "plasma", domain = Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% replace(is.na(.), -0.5) %>% dplyr::select(contains("Rate")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 3), sides = "right", color = "black")
-
-Pos_Pcts <- Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% replace(is.na(.), -0.5) %>% dplyr::select(AnalysisDate, contains("OrganicMean")) %>% gt() %>% data_color(columns = contains("OrganicMean"), fn = scales::col_numeric(palette = "plasma", domain = Sedi_pos %>% replace(is.na(.), -0.5) %>% dplyr::select(contains("OrganicMean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 3), sides = "right", color = "black")
-
-Pos_Wts <- Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% replace(is.na(.), -0.1) %>% dplyr::select(AnalysisDate, contains("OrgWtMean")) %>% gt() %>% data_color(columns = contains("OrgWtMean"), fn = scales::col_numeric(palette = "plasma", domain = Sedi_pos %>% replace(is.na(.), -0.1) %>% dplyr::select(contains("OrgWtMean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 3), sides = "right", color = "black")
-#
-#Summary tables 
-LWL_sum_tab <- rbind(
-  #Quarterly means by station
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWL", Station)) %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean")),
-            #Annual means by station
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWL", Station)) %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean"))), 
-  #Quarterly means
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWL", Station)) %>% group_by(Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"),
-            #Annual means
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWL", Station)) %>% group_by(Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"))) %>% 
-  rename("Sedimentation Rate (g/month)" = Quarterly_RateMean, "Sedimentation Rate (g/month) " = Annual_RateMean, "% Organic" = Quarterly_PctOrganicMean, "% Organic " = Annual_PctOrganicMean, "Organic Weight (g)" = Quarterly_OrgWtMean, "Organic Weight (g) " = Annual_OrgWtMean) %>% ungroup() %>% gt() %>% tab_spanner(label = "Quarterly", columns = c(2, 3, 4)) %>% tab_spanner(label = "Annual", columns = c(5, 6, 7)) %>%  tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4))) %>% tab_style(style = cell_borders(sides = c("bottom"), style = "hidden"), locations = cells_body(rows = c(1, 2, 4))) %>% tab_options(heading.title.font.size = "12px", heading.border.bottom.style = "solid", heading.border.bottom.color = "black", table.border.top.style = "hidden", table.font.names = c("Times New Roman"), table.font.size = "12px") %>% cols_align(align = "center") %>% tab_header(title = "Natural reefs") %>% opt_align_table_header(align = "left") %>% gt_add_divider(columns = c(1, 2, 3, 4, 5, 6), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 4))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_body(columns = c(2, 5))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_spanners(spanners = c("Quarterly", "Annual"))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_labels(columns = c(2, 5)))
-#
-LWR_sum_tab <- rbind(
-  #Quarterly means by station
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWR", Station)) %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean")), 
-            #Annual means by station
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWR", Station)) %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean"))), 
-  #Quarterly means
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWR", Station)) %>% group_by(Measure) %>% mutate(Measure = paste0("Quarterly_", Measure))  %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"),
-  #Annual means
-  Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(grepl("LWR", Station)) %>% group_by(Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"))) %>% 
-  rename("Sedimentation Rate (g/month)" = Quarterly_RateMean, "Sedimentation Rate (g/month) " = Annual_RateMean, "% Organic" = Quarterly_PctOrganicMean, "% Organic " = Annual_PctOrganicMean, "Organic Weight (g)" = Quarterly_OrgWtMean, "Organic Weight (g) " = Annual_OrgWtMean) %>% ungroup() %>% gt() %>% tab_spanner(label = "Quarterly", columns = c(2, 3, 4)) %>% tab_spanner(label = "Annual", columns = c(5, 6, 7)) %>%  tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4))) %>% tab_style(style = cell_borders(sides = c("bottom"), style = "hidden"), locations = cells_body(rows = c(1, 2, 4))) %>% tab_options(heading.title.font.size = "12px", heading.border.bottom.style = "solid", heading.border.bottom.color = "black", table.border.top.style = "hidden", table.font.names = c("Times New Roman"), table.font.size = "12px") %>% cols_align(align = "center") %>% tab_header(title = "Restoration reefs") %>% opt_align_table_header(align = "left") %>% gt_add_divider(columns = c(1, 2, 3, 4, 5, 6), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 4))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_body(columns = c(2, 5))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_spanners(spanners = c("Quarterly", "Annual"))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_labels(columns = c(2, 5)))
-#
-North_sum_tab <- rbind(
-  #Quarterly
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "North") %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean")) %>% arrange(factor(Station, levels = c("LWR4", "LWL1", "LWL2"))),
-            #Annual 
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "North") %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean"))), 
-  #Quarterly 
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "North") %>% group_by(Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"),
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "North") %>% group_by(Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"))) %>% 
-  rename("Sedimentation Rate (g/month)" = Quarterly_RateMean, "Sedimentation Rate (g/month) " = Annual_RateMean, "% Organic" = Quarterly_PctOrganicMean, "% Organic " = Annual_PctOrganicMean, "Organic Weight (g)" = Quarterly_OrgWtMean, "Organic Weight (g) " = Annual_OrgWtMean) %>% ungroup() %>% gt() %>% tab_spanner(label = "Quarterly", columns = c(2, 3, 4)) %>% tab_spanner(label = "Annual", columns = c(5, 6, 7)) %>%  tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4))) %>% tab_style(style = cell_borders(sides = c("bottom"), style = "hidden"), locations = cells_body(rows = c(1, 2, 4))) %>% tab_options(heading.title.font.size = "12px", heading.border.bottom.style = "solid", heading.border.bottom.color = "black", table.border.top.style = "hidden", table.font.names = c("Times New Roman"), table.font.size = "12px") %>% cols_align(align = "center") %>% tab_header(title = "North reefs") %>% opt_align_table_header(align = "left") %>% gt_add_divider(columns = c(1, 2, 3, 4, 5, 6), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 4))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_body(columns = c(2, 5))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_spanners(spanners = c("Quarterly", "Annual"))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_labels(columns = c(2, 5)))
-#
-South_sum_tab <- rbind(
-  #Quarterly
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "South") %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean")) %>% arrange(factor(Station, levels = c("LWR2", "LWR3", "LWL3"))),
-            #Annual 
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "South") %>% group_by(Station, Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% dplyr::select(Station, contains("RateMean"), contains("PctOrganicMean"), contains("OrgWtMean"))), 
-  #Quarterly 
-  left_join(Reef_type_summ %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "South") %>% group_by(Measure) %>% mutate(Measure = paste0("Quarterly_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"),
-            Reef_type_annual %>% mutate(Station = str_remove(Station, "\\.")) %>% filter(Position == "South") %>% group_by(Measure) %>% mutate(Measure = paste0("Annual_", Measure)) %>% summarise(meanValue = round(mean(Value, na.rm = T),2)) %>% spread(Measure, meanValue) %>% mutate(Station = "Mean"))) %>% 
-  rename("Sedimentation Rate (g/month)" = Quarterly_RateMean, "Sedimentation Rate (g/month) " = Annual_RateMean, "% Organic" = Quarterly_PctOrganicMean, "% Organic " = Annual_PctOrganicMean, "Organic Weight (g)" = Quarterly_OrgWtMean, "Organic Weight (g) " = Annual_OrgWtMean) %>% ungroup() %>% gt() %>% tab_spanner(label = "Quarterly", columns = c(2, 3, 4)) %>% tab_spanner(label = "Annual", columns = c(5, 6, 7)) %>%  tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4))) %>% tab_style(style = cell_borders(sides = c("bottom"), style = "hidden"), locations = cells_body(rows = c(1, 2, 4))) %>% tab_options(heading.title.font.size = "12px", heading.border.bottom.style = "solid", heading.border.bottom.color = "black", table.border.top.style = "hidden", table.font.names = c("Times New Roman"), table.font.size = "12px") %>% cols_align(align = "center") %>% tab_header(title = "South reefs") %>% opt_align_table_header(align = "left") %>% gt_add_divider(columns = c(1, 2, 3, 4, 5, 6), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 4))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_body(columns = c(2, 5))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_spanners(spanners = c("Quarterly", "Annual"))) %>% tab_style(style = cell_borders(sides = "left", color = "black", weight = px(2.5)), locations = cells_column_labels(columns = c(2, 5)))
 ```
+
 ## Report summary
-This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** quarterly reports from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")` .\
+This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** annual report from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")` .\
 
-<h1>`r paste("CERP Quarterly Report")`</h1>
-Minimum and maximum values observed during the quarter and data ordered by increasing values.
-<h2>`r paste("East Coast")`</h2>
-<h3> `r paste("Survey summary")` </h3>
-*Monthly CERP live oyster counts*
-`r CERP_count`
-Live Counts range: `r Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("LiveMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("LiveMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
-*Monthly CERP dead ratios*\
-`r CERP_dead`\
-<p> DeadRatio range: `r Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("DeadRatioMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("DeadRatioMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`</p>\
-*Monthly CERP shell heights*\
-`r CERP_SH`\
-<p>Shell height range: `r SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("Mean")) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("Mean")) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()` </p>\
-
-
-<h3> `r paste("Recruitment summary")` </h3>
-`r Rcrt_CERP %>% gather(Station, RateMean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
-`r CERP_rcrt %>% tab_caption(caption = "Monthly CERP recruitment rates")`
-<p> Recruitment range: `r Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)` </p>
-
-
-<h3> `r paste("Repro summary")` </h3>
-`r CERP_repro %>% tab_caption(caption = "Monthly CERP reproductive stages")`
-
-
-<h3> `r paste("Dermo summary")` </h3>
-`r Dermo_CERP %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples. *Note: Extra samples may have been collected from a different station.")`
-`r CERP_dermo %>% tab_caption(caption = "Monthly CERP dermo intensity and prevelence")`
-<p> Intensity range: `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
-`r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`\
-Prevalence range: `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
-
-
-<h3> `r paste("Cage summary")` </h3>
-`r Cage_CERP %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`\
-`r SL_Cage %>% tab_caption(caption = "Monthly St. Lucie cage data")`
-<p>
-Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Retrieved SH Range: `r Cage_CERP %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
-`r LX_Cage %>% tab_caption(caption = "Monthly Loxahatchee cage data")`
-<p>
-Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Retrieved SH Range: `r Cage_CERP %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
-
-
-<h3> `r paste("Water Quality summary")` </h3>
-`r CERP_Sal %>% tab_caption(caption = "Monthly CERP salinity measurements")`
-<p> Salinity range: `r WQ_Sal_CERP %>% dplyr::select(contains("Sal")) %>% unlist() %>% min()` - `r WQ_Sal_CERP %>% dplyr::select(contains("Sal")) %>% unlist() %>% max()`\
-`r CERP_Sec %>% tab_caption(caption = "Monthly CERP secchi measurements")`
-<p> Secchi range: `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% min()` - `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% max()`\
-
-
-
-\
-<h2>`r paste("West Coast")`</h2>
-Minimum and maximum values observed during the quarter and data ordered by increasing values.
-<h3> `r paste("Survey summary")` </h3>
-`r CRE_count %>% tab_caption(caption = "Monthly CRE live oyster counts")`
-<p> Live Counts range: `r Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("LiveMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("LiveMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`</p>
-`r CRE_dead %>% tab_caption(caption = "Monthly CRE dead ratios")`
-<p>DeadRatio range: `r Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("DeadRatioMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("DeadRatioMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`</p>
-`r CRE_SH %>% tab_caption(caption = "Monthly CRE shell heights")`
-<p>Shell height range: `r SH_CRE %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("Mean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r SH_CRE %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("Mean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()` </p>
-
-
-<h3> `r paste("Recruitment summary")` </h3>
-`r Rcrt_CRE %>% gather(Station, RateMean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
-`r CRE_rcrt %>% tab_caption(caption = "Monthly CRE recruitment rates")`
-<p> Recruitment range: `r Rcrt_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Rcrt_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)` </p>
-
-
-<h3> `r paste("Repro summary")` </h3>
-`r CRE_repro %>% tab_caption(caption = "Monthly CRE reproductive stages")`
-
-
-<h3> `r paste("Dermo summary")` </h3>
-`r Dermo_CRE %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
-`r CRE_dermo %>% tab_caption(caption = "Monthly CRE dermo intensity and prevelence")`
-<p> Intensity range: `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
-`r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`
-Prevalence range: `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
-
-
-<h3> `r paste("Cage summary")` </h3>
-`r Cage_CRE %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
-`r CRE_Cage %>% tab_caption(caption = "Monthly CRE-East cage data")`
-<p>
-Deployed SH Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.E")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.E")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
-`r CRW_Cage %>% tab_caption(caption = "Monthly CR-West cage data")`
-<p>
-Deployed SH Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
-
-
-<h3> `r paste("Water Quality summary")` </h3>
-`r CRE_Sal %>% tab_caption(caption = "Monthly CRE salinity measurements")`
-<p> Salinity range: `r WQ_Sal_CRE %>% dplyr::select(contains("Sal")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sal_CRE %>% dplyr::select(contains("Sal")) %>% unlist() %>% max(na.rm = T)`\
-`r CRE_Sec %>% tab_caption(caption = "Monthly CRE secchi measurements")`
-<p> Secchi range: `r WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`\
-
-
+<h1>`r paste("Water quality summary")`</h1>
+<h2>`r paste("Salinity")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r WQ_Sal_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(Salinity, na.rm = T), Max = max(Salinity, na.rm = T), Mean = round(mean(Salinity, na.rm = T),3)) %>% gt()`
+<h3>`r paste("Summary by site")`</h3>
+`r WQ_Sal_tab %>% group_by(Site) %>% summarise(Min = min(Salinity, na.rm = T), Max = max(Salinity, na.rm = T), Mean = round(mean(Salinity, na.rm = T),3)) %>% gt()`
+`r WQ_Sal_out %>% tab_caption(caption = "Monthly salinity measurements")`
 \
 \
-<h1>`r paste("PBC Quarterly Report")`</h1>
-Minimum and maximum values observed during the quarter and data ordered by increasing values.
-<h3> Station common names</h3>
-Natural reef station 1 (LWL1)  -- Audubon Island\
-Natural reef station 2 (LWL2)  -- John’s Island\
-Natural reef station 3 (LWL3)  -- Bird Island\
-Restored reef station 2 (LWR2) -- Grassy Flats\
-Restored reef station 3 (LWR3) -- Snook Island\
-Restored reef station 4 (LWR4) -- Tarpon Cove\
-
-
-<h3> `r paste("Survey summary")` </h3>
-`r PBC_count %>% tab_caption(caption = "Monthly PBC live oyster counts")`
-<p> Live Counts range: `r Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("LiveMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("LiveMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`</p>
-`r PBC_dead %>% tab_caption(caption = "Monthly PBC dead ratios")`
-<p>DeadRatio range: `r Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("DeadRatioMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("DeadRatioMean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`</p>
-`r PBC_SH %>% tab_caption(caption = "Monthly PBC shell heights")`
-<p>Shell height range: `r SH_PBC %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("Mean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r SH_PBC %>% filter(AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% dplyr::select(contains("Mean")) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()` </p>
-<p>Summary by reef type: 
-`r Counts_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(Mean = round(mean(Value, na.rm = T),3)) %>% spread(Measure, Mean) %>% dplyr::select(Site, LiveMean, DeadRatioMean) %>% gt()`
-`r SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), SH = substr(Info, 7, n())) %>% group_by(Site, SH) %>% summarise(Mean = round(mean(Value, na.rm = T),3)) %>% spread(SH, Mean) %>% gt()`
-<p> Survey summary table: </p>
-`r PBC_survey_sum %>% tab_caption(caption = "Survey summary by station")`
-
-
-<h3> `r paste("Repro summary")` </h3>
-`r PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")`
-
-
-<h3> `r paste("Dermo summary")` </h3>
-`r Dermo_PBC %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
-`r PBC_dermo %>% tab_caption(caption = "Monthly PBC dermo intensity and prevelence")`
-<p> Intensity range: `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
-`r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderately heavy,  5-Heavy")`
-Prevalence range: `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
-Summary by reef type:
-`r Dermo_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% rename("Intensity" = Mean) %>% gt()`
-
-
-<h3> `r paste("Recruitment summary")` </h3>
-`r Rcrt_PBC %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>%  gt() %>% tab_caption(caption = "Missing samples")`
-`r PBC_rcrt %>% tab_caption(caption = "Monthly PBC recruitment rates")`
-<p> Recruitment range: `r Rcrt_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Rcrt_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)` </p>
-Summary by reef type:
-`r Rcrt_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% gt()`
-
-
-<h3> `r paste("Sediment summary")` </h3>
-`r Rate_sta %>% gather(Station, RateMean, -AnalysisDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
-`r Sta_Rates %>% tab_caption(caption = "Monthly sedimentation rate by station")`
-*Sedimentation rate range: Overall-*`r Rate_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Rate_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`
--- -- --*by Site-* 
-LWL- `r Rate_sta %>% dplyr::select(contains("LW.L")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Rate_sta %>% dplyr::select(contains("Lw.L")) %>%  unlist() %>% setdiff(., NA) %>% max(na.rm = T)`
--- -- LWR-  `r Rate_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Rate_sta %>% dplyr::select(contains("Lw.R")) %>% unlist() %>% setdiff(., NA) %>% max(na.rm = T)`\
-*Sedimentation rate mean: Overall-*`r Rate_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA)%>% mean(na.rm = T) %>% round(2)`\
-*by Site- *`r Rate_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value) %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
-
-`r Sta_Pcts %>% tab_caption(caption = "Monthly sedimentation percent organic by station")`
-*Percent organic range: Overall-*`r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`
--- -- --*by Site-* 
-LWL- `r Pct_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Lw.L")) %>% unlist() %>% setdiff(., NA) %>% max(na.rm = T)`
--- -- LWR-  `r Pct_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Lw.R")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`\
-*Percent organic mean: Overall-*`r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% mean(na.rm = T) %>% round(2)`\
-*by Site- *`r Pct_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value)  %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
-
-`r Sta_Wts %>% tab_caption(caption = "Monthly sedimentation organic weights by station")`
-*Organic weight range: Overall-*`r Wt_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Wt_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`
--- -- --*by Site-* 
-LWL- `r Wt_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(., NA) %>% min(na.rm = T)` - `r Wt_sta %>% dplyr::select(contains("Lw.L")) %>% unlist() %>% setdiff(., NA) %>% max(na.rm = T)`
--- -- LWR-  `r Wt_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Wt_sta %>% dplyr::select(contains("Lw.R")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`\
-*Organic weight mean: Overall-*`r Wt_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% mean(na.rm = T) %>% round(2)`\
-*by Site- *`r Wt_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value)  %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
-
-`r Pos_Rates %>% tab_caption(caption = "Monthly sedimentation rate by North v South stations")`
-*Sedimentation rate mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("RateMean")) %>% colMeans() %>% round(2)`
-`r Pos_Pcts %>% tab_caption(caption = "Monthly sedimentation percent organic by North v South stations")`
-*Percent organic mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("PctOrganicMean")) %>% colMeans() %>% round(2)`
-`r Pos_Wts %>% tab_caption(caption = "Monthly sedimentation organic weights by North v South stations")`
-*Organic weight mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("OrgWtMean")) %>% colMeans() %>% round(2)`
-Sediment trap summary tables:
-`r LWL_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate of natural reef stations. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
-`r LWR_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate of restoration reef stations. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
-`r North_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations North of C-51. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
-`r South_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations South of C-51. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
-
-<h3> `r paste("Water Quality summary")` </h3>
-Salintiy and Secchi measurements observed during the quarter.
-`r PBC_Sal %>% tab_caption(caption = "Monthly PBC salinity measurements")`
-<p> Salinity range: `r WQ_Sal_PBC %>% dplyr::select(contains("Sal")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sal_PBC %>% dplyr::select(contains("Sal")) %>% unlist() %>% max(na.rm = T)`\
-`r PBC_Sec %>% tab_caption(caption = "Monthly PBC secchi measurements")`
-<p> Secchi range: `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`\
-
 \
