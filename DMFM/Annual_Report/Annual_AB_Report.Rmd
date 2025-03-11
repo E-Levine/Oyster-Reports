@@ -13,4 +13,6 @@ Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```{r SetUp, echo = FALSE, warning = FALSE, message = FALSE}
 # Performs basic set up for running all scripts
 source("scripts/ReportSetup.R")
+# Sets all needed functions
+source("scripts/ReportFunctions.R")
 ```
