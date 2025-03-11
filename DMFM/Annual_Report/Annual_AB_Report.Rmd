@@ -6,7 +6,7 @@ output: html_document
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportYear <- "2024" # Sets Year of Report
-Database = "OysterLocalMD20241118"  # Set the local database to use
+Database = "OysterLocalMD20250305"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
@@ -15,4 +15,6 @@ Server = "localhost\\LOCALSQL" # Set the local Server to use
 source("scripts/ReportSetup.R")
 # Sets all needed functions
 source("scripts/ReportFunctions.R")
+# Load data
+source("scripts/ReportLoadData.R")
 ```
