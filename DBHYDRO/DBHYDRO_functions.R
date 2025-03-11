@@ -61,3 +61,46 @@ output_shared_data <- function(Shared_file, sheet_name){
     print(paste0("Data file did NOT exist so was created. File: ", Estuary_code, "_", Data_type, ".xlsx  Sheet:", sheet_name))
   }
 }
+#
+#
+#
+#Check data ranges for summary data:
+date_range_check <- function(file_path){
+  ##Load wb and get all sheets
+  if(exists("wb")){wb <- wb} else {wb <- loadWorkbook(file_path)}
+  sheet_names <- getSheetNames(file_path)
+  # Initialize a list to store min and max dates for each sheet
+  date_ranges <- list()
+  # Loop through each sheet
+  for (sheet in sheet_names) {
+    # Read the sheet into a data frame
+    sheet_data <- read.xlsx(file_path, sheet = sheet)
+    # Check if the "Date" column exists
+    if ("Date" %in% names(sheet_data)) {
+      # Extract the Date column
+      date_column <- sheet_data$Date
+      # Check if the Date column is of Date type
+      if (inherits(date_column, "Date")) {
+        # Calculate min and max dates and store in the list
+        min_date <- min(date_column, na.rm = TRUE)
+        max_date <- max(date_column, na.rm = TRUE)
+        date_ranges[[sheet]] <- list(min_date = min_date, max_date = max_date)
+      } else {
+        #If Cate column is not of Date type, convert, get min and max dates, and store in the list
+        date_column <- as.Date(date_column, origin = "1899-12-30")
+        min_date <- min(date_column, na.rm = TRUE)
+        max_date <- max(date_column, na.rm = TRUE)
+        date_ranges[[sheet]] <- list(min_date = min_date, max_date = max_date)
+        warning(paste("The 'Date' column in sheet", sheet, "was not loaded as Date type. Column was transformed and may need checked."))
+      }
+    } else {
+      warning(paste("The 'Date' column does not exist in sheet", sheet))
+    }
+  }
+  data_ranges_table <- date_ranges %>% as.data.frame() %>% 
+    pivot_longer(cols = everything(), names_to = "Column_Name", values_to = "Value") %>% 
+    mutate(Station = sub("\\..*", "", Column_Name), Param = sub(".*\\.", "", Column_Name)) %>% 
+    dplyr::select(-Column_Name) %>% pivot_wider(names_from = "Param", values_from = "Value")
+  return(data_ranges_table)
+  print(data_ranges_table)
+}
