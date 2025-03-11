@@ -17,4 +17,6 @@ source("scripts/ReportSetup.R")
 source("scripts/ReportFunctions.R")
 # Load data
 source("scripts/ReportLoadData.R")
+# Apply basic filters to data
+source("scripts/ReportBasicFilters.R")
 ```
