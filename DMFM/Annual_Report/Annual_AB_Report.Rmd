@@ -15,8 +15,44 @@ Server = "localhost\\LOCALSQL" # Set the local Server to use
 source("scripts/ReportSetup.R")
 # Sets all needed functions
 source("scripts/ReportFunctions.R")
+# Set formatting for text and figures
+source("scripts/ReportFormat.R")
 # Load data
 source("scripts/ReportLoadData.R")
 # Apply basic filters to data
 source("scripts/ReportBasicFilters.R")
+```
+
+
+### Text Format
+```{css}
+/* Sets the fonts for the RMarkdown output */
+  p {
+    font-size: 8pt;
+  }
+
+p2 {
+  font-weight: bold;
+}
+
+h1 {
+  font-size: 18pt;
+  font-weight: bold;
+}
+
+h2 {
+  font-size: 14pt;
+  font-weight: bold;
+}
+
+h3 {
+  font-size: 12pt;
+  font-style: italic;
+}
+
+h4 {
+  font-size: 10pt;
+  text-indent: 5%;
+  font-weight: bold;
+}
 ```
