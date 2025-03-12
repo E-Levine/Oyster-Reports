@@ -101,17 +101,18 @@ Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal
 ```{r Data gather from summary file, include=FALSE}
 ##Water Quality
 WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
-WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
-WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
-WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
-WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
+SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE)
+#WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
+#WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
+#WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
+#WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
 #
-Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
-SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
-Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
-Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
-Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
-Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
+#Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
+#SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
+#Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
+#Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
+#Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
+#Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
 
 
 ```
@@ -125,7 +126,10 @@ Sal_SLC_2 <- Sal_SLC_1 %>% gather(SiteStation, Salinity, -SL_RetDate) %>% rename
 
 
 Sal_West <- WQ_Sal_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Sal >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_Sal) %>% rename("CR_RetDate" = CRE_RetDate_Sal) %>% gather(SiteStation, Salinity, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
-#
+#Flow
+SLC_Flow_2 <- rbind(SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLN"),
+                    SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLS")) %>%
+  rbind(SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLC")) %>% mutate(Station = 4)
 #
 
 ```
@@ -227,12 +231,13 @@ Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dply
 The following figures are presented for the annual report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`.
 \newpage
 
-```{r SLC Salinity Figure, fig.cap = "**Figure 2.**  Monthly salinity recorded in 2022 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r SLC Salinity Figure, fig.cap = "**Figure 2.**  Monthly salinity recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Sal_SLC_2 %>%
-  ggplot(aes(RetDate, Salinity, shape = Station)) + 
-  geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  ggplot(aes(RetDate, Salinity)) + 
+  geom_point(aes(shape = Station, fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  geom_area(data = SLC_Flow, aes(Date, SLESum), color = "darkgray")+
   facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central"))) +
-  scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 40), sec.axis = sec_axis(~.*100)) +
   scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
   Station_fill_E + Station_color_E + Station_shape_E + BaseForm + FacetForm +East_legend
 
