@@ -1,0 +1,62 @@
+---
+
+---
+# Perform basic analyses, output figures and tables for Survey data
+
+``` {r BasicStats}
+
+### Provides how many were measured for each size class for each quadrat
+SHMeasures <- ShellHeights_ALL %>%
+  group_by(QuadratID) %>%
+  summarize(TotalNumMeasured = sum(!is.na(ShellHeight)),
+            Count_Spat_1_to_30 = sum(ifelse(ShellHeight >= 1 & ShellHeight <= 30, 1, 0), na.rm = TRUE),
+            Count_Seed_31_to_75 = sum(ifelse(ShellHeight >= 31 & ShellHeight <= 75, 1, 0), na.rm = TRUE),
+            Count_Legal_76_plus = sum(ifelse(ShellHeight >= 76, 1, 0), na.rm = TRUE)
+  )
+
+### Provide stats for how many live oysters there were in each quadrat, by size class
+QuadStats1 <- left_join(Quadrats_ALL, SHMeasures, by = c("QuadratID"))
+
+QuadStats2 <- QuadStats1 %>%
+  mutate(
+    Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
+    Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
+    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)
+  ) %>%
+  select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
+
+```
+
+``` {r OysterStats}
+
+# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
+QuadStats_ALL_Oys1 <- QuadStats2 %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup,
+          SectionName)
+
+# Stats for Total Oyster Density and Total Weight Density by Year and Section
+QuadStats_ALL_Oys4 <- QuadStats2 %>%
+  group_by(Year, 
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year, 
+          SectionName)
+
+# Prep data frame for creating SH distribution histogram
+ShellHeights1 <- ShellHeights_ALL %>%
+  filter(Year == ReportYear)
+
+maxSH <- max(ShellHeights1$ShellHeight, na.rm = TRUE)
+histogram1 <- hist(ShellHeights1$ShellHeight, breaks = max(ShellHeights1$ShellHeight, na.rm = TRUE))
+
+ggplot(ShellHeights1, aes(x = ShellHeight, fill = ProjectGroup)) +
+  geom_histogram(bins = max(ShellHeights1$ShellHeight, na.rm = TRUE), color = "black") +
+  facet_wrap(~ ProjectGroup) +
+  labs(title = "Height Distribution by Category", x = "Height (cm)", y = "Frequency") +
+  theme_minimal()
+```

@@ -21,6 +21,9 @@ source("scripts/ReportFormat.R")
 source("scripts/ReportLoadData.R")
 # Apply basic filters to data
 source("scripts/ReportBasicFilters.R")
+
+# Survey portion of report
+render("scripts/Survey.Rmd", quiet = TRUE)
 ```
 
 

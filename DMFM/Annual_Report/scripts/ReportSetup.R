@@ -7,6 +7,7 @@ library(DBI)
 library(dbplyr)
 library(lubridate)
 library(knitr)
+library(rmarkdown)
 library(ggpubr)
 library(patchwork) #Required for arranging multiple plots, more flexible
 library(scales)

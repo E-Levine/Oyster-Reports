@@ -10,7 +10,6 @@ FilterFunction1 <- function(data) {
     mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
     mutate(ProjectGroup = case_when(
       grepl("RESTORE", StationName) ~ "RESTORE-2017",
-      grepl("Baywide", StationName) ~ "Baywide",
       grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
       grepl("SBM", StationName) & TimeSinceCultched > 0 ~ "NFWF-2021",
       TRUE ~ "Historic Uncultched")) 
