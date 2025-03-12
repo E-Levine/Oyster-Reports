@@ -1,0 +1,222 @@
+---
+title: "CERP Annual Report Information"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: 
+  html_document: default
+  word_document: default
+params:
+  Start_date: "2024-01-01"
+  End_date: "2024-12-30"
+---
+<style>
+.main-container {
+    max-width: 9000px;
+    margin-left: 20px;
+    margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#
+Estuary_code <- c("CR", "SL", "LX")
+Start_date <- as.Date(params$Start_date)
+End_date <- as.Date(params$End_date)
+#
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx,         #Excel
+  lubridate, zoo,         #Dates
+  knitr, kableExtra, scales, gt, gtExtras,
+  install = TRUE)
+```
+
+```{css}
+p {
+font-size: 12pt;
+}
+
+caption {
+  color: black;
+  font-weight: bold;
+  font-size: 14;
+  text-indent: 5%;
+} 
+
+h1 {
+font-size: 21pt;
+font-weight: bold;
+}
+
+h2 {
+font-size: 17pt;
+font-weight: bold;
+}
+
+h3 {
+font-size: 13pt;
+font-style: italic;
+text-decoration: underline;
+}
+
+h4 {
+  color: black;
+  font-weight: bold;
+  font-size: 17;
+  text-indent: 5%;
+}
+```
+
+```{r Data gather from summary file, include=  FALSE}
+WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
+SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
+Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
+#
+#Data selection and cleaning follows below by type of data being assessed.
+```
+
+```{r Salinity data, inlcude = FALSE}
+#
+##Data cleaning
+WQ_Sal <- WQ_Sal_s %>% subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(RetDate, everything(), -contains("_RetDate_Sal")) %>% mutate(RetDate = as.yearmon(RetDate))
+#
+#Data by station
+WQ_Sal_tab <- WQ_Sal %>% gather(Site_Station, Salinity, -RetDate) %>% mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% mutate(Site = substr(Site_Station, 1, 3), Station = substr(Site_Station, 4, 5)) %>% dplyr::select(-Site_Station)
+#
+#Data table outout
+WQ_Sal_out <- WQ_Sal_tab %>% mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% spread(Station, Salinity) %>% gt(groupname_col = "Site") %>% data_color(columns = contains(c("1","2","3","4")), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal%>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Previous code requiring editing}
+
+####WORKING BELOW
+#Secchi
+WQ_Sec_CERP <- WQ_Secchi_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_SP > Start_date & SL.C_RetDate_SP < End_date) %>% rename(RetDate = SL.C_RetDate_SP) %>% dplyr::select(-SL.N_RetDate_SP, -SL.S_RetDate_SP, -LX.N_RetDate_SP, -LX.S_RetDate_SP) %>% mutate(RetDate = as.yearmon(RetDate))
+WQ_Sec_CRE <- WQ_Secchi_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_SP > Start_date & CR.E_RetDate_SP < End_date)  %>% rename(RetDate = CR.E_RetDate_SP) %>% dplyr::select(-CR.W_RetDate_SP)
+#
+#Dermo
+Dermo_CERP <- Dermo_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Dermo_CRE <- Dermo_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+#
+#Rcrt
+Rcrt_CERP <- Rcrt_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+#
+#Repro
+Repro_CERP <- Repro_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Repro_CRE <- Repro_df %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+#
+##Survey counts
+Counts_CERP <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+Counts_CRE <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+#
+##Survey SHs
+SH_CERP <- SH_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(6))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+SH_CRE <- SH_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+#
+##Cages
+Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+#
+#
+```
+
+```{Previous code to be edited}
+##WORKING BELOW
+#
+##Secchi
+CERP_Sec <- WQ_Sec_CERP %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13, 16), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
+#
+CRE_Sec <- WQ_Sec_CRE %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
+#
+PBC_Sec <- WQ_Sec_PBC %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
+#
+#
+##Dermo
+CERP_dermo <- Dermo_CERP %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Mean","", .)) %>% cols_label_with(fn = ~gsub("_Pct","", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 2000)
+#
+CRE_dermo <- Dermo_CRE %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Mean","", .)) %>% cols_label_with(fn = ~gsub("_Pct","", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
+#
+PBC_dermo <- Dermo_PBC %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Mean","", .)) %>% cols_label_with(fn = ~gsub("_Pct","", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
+#
+#
+##Rcrt
+CERP_rcrt <- Rcrt_CERP %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1800)
+#
+CRE_rcrt <- Rcrt_CRE %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
+#
+PBC_rcrt <- Rcrt_PBC %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
+#
+#
+##Repro
+CERP_repro <- Repro_CERP %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+#
+CRE_repro <- Repro_CRE %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+#
+PBC_repro <- Repro_PBC %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+#
+#
+##Counts
+CERP_count <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_LiveSD") %>% grp_options(container.width = 2000)
+#
+CRE_count <- Counts_CRE %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black")
+#
+PBC_count <- Counts_PBC %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") %>% tab_options(container.width = 1500)
+#
+#
+##Dead Ratios
+CERP_dead <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% grp_options(container.width = 1500)
+#
+CRE_dead <- Counts_CRE %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black")
+#
+PBC_dead <- Counts_PBC %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") %>% tab_options(container.width = 1500)
+#
+#
+##SHs
+CERP_SH <- SH_CERP %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_SHMean") %>% grp_options(container.width = 1500)
+#
+CRE_SH <- SH_CRE %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black")
+#
+PBC_SH <- SH_PBC %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% tab_options(container.width = 1500)
+#
+#
+#
+#
+##Cages
+SL_Cage <- Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
+#
+LX_Cage <- Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
+#
+CRE_Cage <- Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
+#
+CRW_Cage <- Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
+#
+#
+```
+
+## Report summary
+This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** annual report from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")` .\
+
+<h1>`r paste("Water quality summary")`</h1>
+<h2>`r paste("Salinity")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r WQ_Sal_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(Salinity, na.rm = T), Max = max(Salinity, na.rm = T), Mean = round(mean(Salinity, na.rm = T),3)) %>% gt()`
+<h3>`r paste("Summary by site")`</h3>
+`r WQ_Sal_tab %>% group_by(Site) %>% summarise(Min = min(Salinity, na.rm = T), Max = max(Salinity, na.rm = T), Mean = round(mean(Salinity, na.rm = T),3)) %>% gt()`
+`r WQ_Sal_out %>% tab_caption(caption = "Monthly salinity measurements")`
+\
+\
+\
