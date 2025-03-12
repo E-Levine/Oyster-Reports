@@ -22,10 +22,16 @@ summarise_ALL <- function(data) {
   summarised_data <- data %>%
     summarise(NumLiveMean = mean(NumLive, na.rm = TRUE),
               NumLiveSD = sd(NumLive, na.rm = TRUE),
+              LiveDeadRatioMean = mean(LiveDeadRatio, na.rm = TRUE),
+              LiveDeadRatioSD = sd(LiveDeadRatio, na.rm = TRUE),
+              NumDrillsMean = mean(NumDrills, na.rm = TRUE),
+              NumDrillsSD = sd(NumDrills, na.rm = TRUE),
               TotalWeightMean = mean(TotalWeight, na.rm = TRUE),
               TotalWeightSD = sd(TotalWeight, na.rm = TRUE)) %>%
     mutate(OysterDensityMean = NumLiveMean * 4,
            OysterDensitySD = NumLiveSD * 4,
+           DrillDensityMean = NumDrillsMean * 4,
+           DrillDensitySD = NumDrillsSD * 4,
            WeightDensityMean = TotalWeightMean * 4,
            WeightDensitySD = TotalWeightSD * 4)
   return(summarised_data)
