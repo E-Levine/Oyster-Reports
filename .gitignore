@@ -58,3 +58,7 @@ FLTIG/*.xlsx
 NFWF/*.xlsx
 PBC/*.xlsx
 *.docx
+
+#DBHydro files
+DBHYDRO/Local_data/*
+!DBHYDRO/Local_data//.gitkeep
