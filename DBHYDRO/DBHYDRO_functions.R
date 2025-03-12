@@ -24,6 +24,10 @@ load_raw_data <- function(file_name){
   return(Raw_data_t)
 }
 #
+#
+#
+####Output of cleaned data
+#
 ##Write data if new, append data if additional data for existing file/sheet
 output_shared_data <- function(Shared_file, sheet_name){
   if(exists("wb")){rm(wb)}
@@ -64,6 +68,9 @@ output_shared_data <- function(Shared_file, sheet_name){
 #
 #
 #
+#
+####Summary data
+#
 #Check data ranges for summary data:
 date_range_check <- function(file_path){
   ##Load wb and get all sheets
@@ -103,4 +110,62 @@ date_range_check <- function(file_path){
     dplyr::select(-Column_Name) %>% pivot_wider(names_from = "Param", values_from = "Value")
   return(data_ranges_table)
   print(data_ranges_table)
+}
+#
+#Create summary data, add to workbook, create sheet as needed. 
+data_summary_output <- function(Station_list, Dates, Summary_sheet_name){
+  ## Read all sheets into a list of data frames and name sheets, name list elements with sheet names
+  sheets_data <- lapply(Summarize_stations, function(sheet) {
+    read.xlsx(shared_file_path, sheet = sheet) %>% 
+      mutate(Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), Date = as.Date(Date, origin = "1899-12-30")) %>%
+      filter(Date >= Date_range[1] & Date <= Date_range[2]) %>% dplyr::select(-Site, -DBKEY, -Data_Station)
+  })
+  # Rename the Date_Type column to include the sheet name for clarity
+  sheets_data <- lapply(seq_along(sheets_data), function(i) {
+    df <- sheets_data[[i]]
+    sheet_name <- Summarize_stations[i]
+    # Check if the required columns exist
+    if ("Analysis_Date" %in% names(df) && Data_type %in% names(df)) {
+      # Rename the Measurements column to include the sheet name
+      colnames(df)[which(names(df) == Data_type)] <- paste(sheet_name, Data_type, sep = "_")
+    }
+    return(df)
+  })
+  names(sheets_data) <- Summarize_stations
+  #
+  # Merge all data frames
+  merged_data <- Reduce(function(x, y) merge(x, y, by = c("Analysis_Date", "Estuary", "Date"), all = TRUE), sheets_data)
+  Summarized_data <- merged_data %>% mutate(SUMM = rowSums(select(., 4:ncol(.)), na.rm = TRUE)) %>%
+    rename(!!Site_sum_name := SUMM)
+  #
+  #Check if wb curreently loaded. Remove and reload to make sure correct data.
+  options(warn = -1)
+  if(exists("wb")){rm(wb)}
+  if(exists("existing_data")){rm(existing_data)}
+  if(exists("combined_data")){rm(combined_data)}
+  options(warn = 0)
+  #
+  #Output/save summary data - if exists append, if doesn't add new sheet
+  if (Site_sum_name %in% excel_sheets(shared_file_path)) {
+    #Load workbook
+    wb <- loadWorkbook(shared_file_path)
+    # Get the existing data from the specified sheet, add new data, keep only newest data if duplicates, and write back to same sheet
+    existing_data <- read.xlsx(shared_file_path, sheet = Site_sum_name) %>% 
+      mutate(Age = "Older", Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), Date = as.Date(Date, origin = "1899-12-30"))
+    combined_data <- rbind(existing_data, Summarized_data %>% mutate(Age = "Newer")) %>% group_by(Date) %>% arrange(Date, Age) %>% slice(1)
+    combined_data <- combined_data %>% dplyr::select(-Age) %>% arrange(Date)
+    writeData(wb, sheet = Site_sum_name, combined_data)
+    # Save the workbook
+    saveWorkbook(wb, shared_file_path, overwrite = TRUE)
+    print(paste0("Sheet exists for ", Site_sum_name, ". New data was appended to sheet."))
+  } else {
+    #Load workbook, add worksheet and write data to sheet
+    wb <- loadWorkbook(shared_file_path)
+    addWorksheet(wb, Site_sum_name)
+    writeData(wb, Site_sum_name, Summarized_data)
+    saveWorkbook(wb, shared_file_path, overwrite = TRUE)
+    print(paste0("Sheet did NOT exist for ", Site_sum_name, " so was created."))
+  }
+  print("Head of summarized data sheet:")
+  print(head(Summarized_data, 10))
 }
