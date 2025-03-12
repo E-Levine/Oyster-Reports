@@ -15,14 +15,14 @@ SHMeasures <- ShellHeights_ALL %>%
   )
 
 ### Provide stats for how many live oysters there were in each quadrat, by size class
-QuadStats1 <- left_join(Quadrats_ALL, SHMeasures, by = c("QuadratID"))
-
-QuadStats2 <- QuadStats1 %>%
+QuadStats <- left_join(Quadrats_ALL, SHMeasures, by = c("QuadratID")) %>%
   mutate(
     Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
     Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
-    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)
-  ) %>%
+    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured),
+    LiveDeadRatio = ifelse(is.null(NumLive) | is.null(NumDead) | is.na(NumLive) | is.na(NumDead) | (NumLive + NumDead == 0), 
+                           0,
+                           NumDead / (NumLive + NumDead))) %>%
   select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
 
 ```
@@ -30,7 +30,7 @@ QuadStats2 <- QuadStats1 %>%
 ``` {r OysterStats}
 
 # Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
-QuadStats_ALL_Oys1 <- QuadStats2 %>%
+QuadStats_ALL_Oys1 <- QuadStats %>%
   group_by(Year, 
            ProjectGroup,
            SectionName) %>%
@@ -40,7 +40,7 @@ QuadStats_ALL_Oys1 <- QuadStats2 %>%
           SectionName)
 
 # Stats for Total Oyster Density and Total Weight Density by Year and Section
-QuadStats_ALL_Oys4 <- QuadStats2 %>%
+QuadStats_ALL_Oys4 <- QuadStats %>%
   group_by(Year, 
            SectionName) %>%
   summarise_ALL() %>%

@@ -37,15 +37,20 @@ rm(dboFixedLocations)
 Survey_Quad1 <- hsdbSurveyQuadrat %>%
   select(QuadratID,
          NumLive,
+         NumDead,
+         NumDrills,
          TotalWeight,
          Comments)
 
     # SBM QUADRATS # 
 SBM_Quad1 <- hsdbSBMQuadrat %>%
   rename(TotalWeight = TotalSampleWeight, # Must rename the columns so we can union them together
-         NumLive = NumLiveOysters) %>%
+         NumLive = NumLiveOysters,
+         NumDead = NumDeadOysters) %>%
   select(QuadratID,
          NumLive,
+         NumDead,
+         NumDrills,
          TotalWeight,
          Comments)
 
@@ -65,6 +70,8 @@ Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1) %>%
          TimeSinceCultched,
          Year,
          NumLive,
+         NumDead,
+         NumDrills,
          TotalWeight,
          Comments)
     ###
