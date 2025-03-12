@@ -29,7 +29,7 @@ QuadStats <- left_join(Quadrats_ALL, SHMeasures, by = c("QuadratID")) %>%
 
 ``` {r OysterStats}
 
-# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
+### Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
 QuadStats_ALL_Oys1 <- QuadStats %>%
   group_by(Year, 
            ProjectGroup,
@@ -39,6 +39,15 @@ QuadStats_ALL_Oys1 <- QuadStats %>%
           ProjectGroup,
           SectionName)
 
+  # Median values
+QuadStats_ALL_Oys1median <- QuadStats_ALL_Oys1 %>%
+  filter(Year != ReportYear) %>%
+  group_by(ProjectGroup) %>%
+  summarise(OysterDensityMedian = median(OysterDensityMean, na.rm = TRUE),
+              LiveDeadRatioMedian = median(LiveDeadRatioMean, na.rm = TRUE),
+              DrillDensityMedian = median(DrillDensityMean, na.rm = TRUE),
+              WeightDensityMedian = median(WeightDensityMean, na.rm = TRUE))
+
 # Stats for Total Oyster Density and Total Weight Density by Year and Section
 QuadStats_ALL_Oys4 <- QuadStats %>%
   group_by(Year, 
@@ -47,11 +56,47 @@ QuadStats_ALL_Oys4 <- QuadStats %>%
   arrange(Year, 
           SectionName)
 
+  # Median values
+QuadStats_ALL_Oys4median <- QuadStats_ALL_Oys4 %>%
+  filter(Year != ReportYear) %>%
+  group_by(SectionName) %>%
+  summarise(OysterDensityMedian = median(OysterDensityMean, na.rm = TRUE),
+              LiveDeadRatioMedian = median(LiveDeadRatioMean, na.rm = TRUE),
+              DrillDensityMedian = median(DrillDensityMean, na.rm = TRUE),
+              WeightDensityMedian = median(WeightDensityMean, na.rm = TRUE))
+
 # Prep data frame for creating SH distribution histogram
 ShellHeights1 <- ShellHeights_ALL %>%
   filter(Year == ReportYear)
 
 maxSH <- max(ShellHeights1$ShellHeight, na.rm = TRUE)
+
+```
+
+``` {r Survey Figures}
+
+### Function explanation
+# generate_plot(df, 
+#               x_variable, x_label, 
+#               y_variable, y_label, y_SD, 
+#               UseColor, UseFill, 
+#               title)
+
+# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
+# Oysters
+QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, 
+                                                "Year", "Year", 
+                                                "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", 
+                                                "ProjectGroup", "ProjectGroup", 
+                                                "AB Oyster Density by Year and ProjectGroup")
+print(QuadStats_ALL_Oys1_fig)
+
+
+
+
+### Size Distributions
+# Histograms
+
 histogram1 <- hist(ShellHeights1$ShellHeight, breaks = max(ShellHeights1$ShellHeight, na.rm = TRUE))
 
 ggplot(ShellHeights1, aes(x = ShellHeight, fill = ProjectGroup)) +
@@ -59,4 +104,5 @@ ggplot(ShellHeights1, aes(x = ShellHeight, fill = ProjectGroup)) +
   facet_wrap(~ ProjectGroup) +
   labs(title = "Height Distribution by Category", x = "Height (cm)", y = "Frequency") +
   theme_minimal()
+
 ```
