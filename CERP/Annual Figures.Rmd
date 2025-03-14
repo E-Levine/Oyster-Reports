@@ -101,7 +101,9 @@ Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal
 ```{r Data gather from summary file, include=FALSE}
 ##Water Quality
 WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
-SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE)
+SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
+LRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/LX_Flow.xlsx", sheet = 'LOXSum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
+CRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/CR_Flow.xlsx", sheet = 'S79', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
 #WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
 #WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
 #WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
@@ -121,19 +123,31 @@ SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum'
 #
 ##Salinity
 names(WQ_Sal_s) <- gsub("\\.", "", names(WQ_Sal_s))
+#
 Sal_SLC_1 <- WQ_Sal_s %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate_Sal > Start_date & SLC_RetDate_Sal < End_date) %>% dplyr::select(-SLN_RetDate_Sal, -SLS_RetDate_Sal) %>% rename("SL_RetDate" = SLC_RetDate_Sal)
 Sal_SLC_2 <- Sal_SLC_1 %>% gather(SiteStation, Salinity, -SL_RetDate) %>% rename("RetDate" = SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4))) %>% rbind(data.frame(RetDate = NA, SiteStation = 'SLC4_Flow', Salinity = NA, Site = 'SLN',   Station = '4', stringsAsFactors = TRUE)) #Add legend placeholder for Flow data
-
+#
+Sal_LRE_1 <- WQ_Sal_s %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate_Sal > Start_date & LXN_RetDate_Sal < End_date) %>% dplyr::select(-LXS_RetDate_Sal) %>% rename("LX_RetDate" = LXN_RetDate_Sal)
+Sal_LRE_2 <- Sal_LRE_1 %>% gather(SiteStation, Salinity, -LX_RetDate) %>% rename("RetDate" = LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) %>% rbind(data.frame(RetDate = NA, SiteStation = 'LXN4_Flow', Salinity = NA, Site = 'LXN',   Station = '4', stringsAsFactors = TRUE)) #Add legend placeholder for Flow data
+#
+Sal_CRE_1 <- WQ_Sal_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Sal > Start_date & CRE_RetDate_Sal < End_date) %>% dplyr::select(-CRW_RetDate_Sal) %>% rename("CR_RetDate" = CRE_RetDate_Sal)
+Sal_CRE_2 <- Sal_CRE_1 %>% gather(SiteStation, Salinity, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) %>% rbind(data.frame(RetDate = NA, SiteStation = 'CRE4_Flow', Salinity = NA, Site = 'CRE',   Station = '5', stringsAsFactors = TRUE)) #Add legend placeholder for Flow data
+#
+#
 #Flow - Need data for each site for plotting
 SLC_Flow_2 <- rbind(SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLN"), 
                     SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLS")) %>%
   rbind(SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLC")) %>% 
   mutate(Rescale = (SLESum - min(SLESum))/(max(SLESum) - min(SLESum))*(40-0)+0) #Rescale flow to salinity axis limits for plotting
 #
-
-Sal_West <- WQ_Sal_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Sal >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_Sal) %>% rename("CR_RetDate" = CRE_RetDate_Sal) %>% gather(SiteStation, Salinity, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
-
-
+LRE_Flow_2 <- LRE_Flow %>% dplyr::select(-Analysis_Date, -LOXSum) %>% gather(Site, Flow, -Estuary, -Date) %>% mutate(Site = case_when(Site == "LOX_Flow" ~ "LXN", TRUE ~ "LXS")) %>% mutate(Rescale = (Flow - min(Flow))/(max(Flow) - min(Flow))*(40-0)+0) #Rescale flow to salinity axis limits for plotting
+#
+CRE_Flow_2 <-  rbind(CRE_Flow %>% dplyr::select(Date, Flow) %>% mutate(Site = "CRE"), 
+                    CRE_Flow %>% dplyr::select(Date, Flow) %>% mutate(Site = "CRW")) %>% 
+  mutate(Rescale = (Flow - min(Flow))/(max(Flow) - min(Flow))*(38-0)+0) #Rescale flow to salinity axis limits for plotting
+#
+#
+#
 ```
 
 ```{r Data selection and cleaning - to be edited, include=FALSE}
@@ -234,9 +248,8 @@ The following figures are presented for the annual report covering `r Start_date
 \newpage
 
 ```{r SLC Salinity Figure, fig.cap = "**Figure 2.**  Monthly salinity recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
-#max(SLC_Flow_2) - round to nearest divisible by 4
-#Sal_SLC_2 %>%
-  ggplot() +
+#max(SLC_Flow_2$SLESum) - round to nearest divisible by 4
+ggplot() +
   geom_area(data = SLC_Flow_2, aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
   geom_line(data = Sal_SLC_2, aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
   geom_point(data = Sal_SLC_2, aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
@@ -248,28 +261,62 @@ The following figures are presented for the annual report covering `r Start_date
   scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
   scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 22), breaks = c("4", "1", "2", "3"))+
   BaseForm + FacetForm + East_legend 
+#
+#
 ```
 
-```{r CRE Salinity Figure, fig.cap = "**Figure 18.**  Monthly salinity recorded at stations within the two Caloosahatchee River study sites.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
-Sal_West_Fig <- ggarrange(
-  Sal_West %>% filter(Station == 1 | Station == 2) %>%
-    ggplot(aes(RetDate, Salinity, shape = Station)) + 
-    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
-    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
-    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
-    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
-    labs(title = "Caloosahatchee River-East") + PlotTitle +
-    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")), 
-  Sal_West %>% filter(Station == 3 | Station == 4) %>%
-    ggplot(aes(RetDate, Salinity, shape = Station)) + 
-    geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
-    scale_y_continuous(expand = c(0,0), limits = c(0, 40)) +
-    scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
-    labs(title = "Caloosahatchee River-West") + PlotTitle +
+```{r LRE Salinity Figure, fig.cap = "**Figure 3.**  Monthly salinity recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites and the sum of the mean daily flow rate at the Lainhart Dam and S46 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#max(LRE_Flow_2$Flow) - round to nearest divisible by 4 -1200
+ggplot() +
+  geom_area(data = LRE_Flow_2, aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+  geom_line(data = Sal_LRE_2, aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
+  geom_point(data = Sal_LRE_2, aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
+  facet_wrap(.~Site, nrow = 2, labeller = as_labeller(c("LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
+  scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+  scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(1200/40), name = "Flow (cfc)", breaks = seq(0,1200, 300))) +
+  coord_cartesian(ylim = c(0, 40))+
+  scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
+  scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
+  scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 22), breaks = c("4", "1", "2", "3"))+
+  BaseForm + FacetForm + East_legend 
+#
+#
+```
+
+
+```{r CRE Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#max(CRE_Flow_2$Flow) - round to nearest divisible by 4 - 12569 > 13000, 3250
+CRE_salinity <- ggarrange(
+  #CRE plot
+  ggplot() +
+    geom_area(data = CRE_Flow_2 %>% filter(Site == "CRE"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_line(data = Sal_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
+    geom_point(data = Sal_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
+    labs(title = "Caloosahatchee-East") + PlotTitle +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfc)", breaks = seq(0,13000, 3250))) +
+    coord_cartesian(ylim = c(0, 40))+
+    scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+ BaseForm + FacetForm + West_legend + 
+    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")),
+  #CRW plot
+  ggplot() +
+    geom_area(data = CRE_Flow_2 %>% filter(Site == "CRW"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_line(data = Sal_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
+    geom_point(data = Sal_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
+    labs(title = "Caloosahatchee-West") + PlotTitle +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfc)", breaks = seq(0,13000, 3250))) +
+    coord_cartesian(ylim = c(0, 40))+
+    scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+ BaseForm + FacetForm + West_legend +
     rremove("ylab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm")),
   nrow = 2, heights = c(0.038, 0.05, 1.4))
-
-annotate_figure(Sal_West_Fig, 
+#
+annotate_figure(CRE_salinity, 
                 left = text_grob("Salinity", rot = 90, vjust = 0.4, family = "serif", size = 16.5, color = "black"))
+#
+#
 ```
