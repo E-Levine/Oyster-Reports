@@ -1,0 +1,70 @@
+---
+title: "Davis_StAndrew_FL-TIG_2025.04"
+output: html_document
+---
+
+### This is code for creating the data for a presentation to the St. Andrew and St Joe Bay Estuary Program (SASJBEP) Technical Committee Meeting in Panama City, FL. See Powerpoint with the same name as this file for finished result. End product is an Excel file that can create a graph via Pivot Graphs.
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportEnd <- as.Date("2024-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
+Database = "OysterLocalMD20250325"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+YearFilter = c(2023, 2024) # Data shared in presentation is 2023 only. Adjust here to show other years
+```
+
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages
+library(tidyverse)
+library(odbc)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(knitr)
+library(ggpubr)
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales)
+library(openxlsx)
+```
+
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+
+Estuaries <- c("AB", "SA", "PE")
+```
+
+```{r DatabaseDownload}
+# Connect to Local database server and pull all necessary data, then close connection 
+# Note that All data through the end of 2023 has been completed, so querying dbo tables wasn't necessary
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = Server,
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventWQID, 1, 2) %in% Estuaries)
+
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+DBI::dbDisconnect(con)
+
+```
