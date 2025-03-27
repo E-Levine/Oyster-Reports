@@ -95,8 +95,10 @@ LRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/LX_Flow.xlsx", sheet = 'LOXSum'
 CRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/CR_Flow.xlsx", sheet = 'S79', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
 #Temperature
 WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
-#WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
-#WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
+#DO
+WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+#pH
+WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
 #
 #Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
@@ -105,8 +107,6 @@ WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detect
 #Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
 #Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
 #Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
-
-
 ```
 
 ```{r Water Quality Data selection and cleaning}
@@ -148,6 +148,32 @@ Tem_LRE_2 <- Tem_LRE_1 %>% gather(SiteStation, Temperature, -LX_RetDate) %>% ren
 #
 Tem_CRE_1 <- WQ_Tem_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_Temp > Start_date & CRE_RetDate_Temp < End_date) %>% dplyr::select(-CRW_RetDate_Temp) %>% rename("CR_RetDate" = CRE_RetDate_Temp)
 Tem_CRE_2 <- Tem_CRE_1 %>% gather(SiteStation, Temperature, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)))
+#
+#
+##DO
+names(WQ_DO_s) <- gsub("\\.", "", names(WQ_DO_s))
+#
+DO_SLC_1 <- WQ_DO_s %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate_DO > Start_date & SLC_RetDate_DO < End_date) %>% dplyr::select(-SLN_RetDate_DO, -SLS_RetDate_DO) %>% rename("SL_RetDate" = SLC_RetDate_DO)
+DO_SLC_2 <- DO_SLC_1 %>% gather(SiteStation, DO, -SL_RetDate) %>% rename("RetDate" = SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)))
+#
+DO_LRE_1 <- WQ_DO_s %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate_DO > Start_date & LXN_RetDate_DO < End_date) %>% dplyr::select(-LXS_RetDate_DO) %>% rename("LX_RetDate" = LXN_RetDate_DO)
+DO_LRE_2 <- DO_LRE_1 %>% gather(SiteStation, DO, -LX_RetDate) %>% rename("RetDate" = LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)))
+#
+DO_CRE_1 <- WQ_DO_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_DO > Start_date & CRE_RetDate_DO < End_date) %>% dplyr::select(-CRW_RetDate_DO) %>% rename("CR_RetDate" = CRE_RetDate_DO)
+DO_CRE_2 <- DO_CRE_1 %>% gather(SiteStation, DO, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)))
+#
+#
+##pH
+names(WQ_pH_s) <- gsub("\\.", "", names(WQ_pH_s))
+#
+pH_SLC_1 <- WQ_pH_s %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate_pH > Start_date & SLC_RetDate_pH < End_date) %>% dplyr::select(-SLN_RetDate_pH, -SLS_RetDate_pH) %>% rename("SL_RetDate" = SLC_RetDate_pH)
+pH_SLC_2 <- pH_SLC_1 %>% gather(SiteStation, pH, -SL_RetDate) %>% rename("RetDate" = SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)))
+#
+pH_LRE_1 <- WQ_pH_s %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate_pH > Start_date & LXN_RetDate_pH < End_date) %>% dplyr::select(-LXS_RetDate_pH) %>% rename("LX_RetDate" = LXN_RetDate_pH)
+pH_LRE_2 <- pH_LRE_1 %>% gather(SiteStation, pH, -LX_RetDate) %>% rename("RetDate" = LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)))
+#
+pH_CRE_1 <- WQ_pH_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_pH > Start_date & CRE_RetDate_pH < End_date) %>% dplyr::select(-CRW_RetDate_pH) %>% rename("CR_RetDate" = CRE_RetDate_pH)
+pH_CRE_2 <- pH_CRE_1 %>% gather(SiteStation, pH, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)))
 #
 ```
 
@@ -202,7 +228,7 @@ ggarrange(
 #
 ```
 
-```{r LRE Salinity Figure, fig.cap = "**Figure 3.**  Monthly salinity recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites and the sum of the mean daily flow rate at the Lainhart Dam and S46 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 8, fig.width = 8, fig.fullwidth=TRUE}
+```{r LRE Salinity Figure, fig.cap = "**Figure 3.**  Monthly salinity recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites and the sum of the mean daily flow rate at the Lainhart Dam and S46 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #max((LRE_Flow_2 %>% filter(Site == "LXN))$Flow) - round to nearest divisible by 4 -1200
 ggarrange(
   #LNX
@@ -237,7 +263,7 @@ ggarrange(
 #
 ```
 
-```{r CRE Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites and the mean daily flow rate at the S79 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 8, fig.width = 8, fig.fullwidth=TRUE}
+```{r CRE Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites and the mean daily flow rate at the S79 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #max(CRE_Flow_2$Flow) - round to nearest divisible by 4 - 12569 > 13000, 3250
 ggarrange(
   #CRE plot
@@ -275,7 +301,7 @@ ggarrange(
 ggarrange(
   #SLN plot
   ggplot() +
-    geom_line(data = Tem_SLC_2 %>% filter(Site == "SNC"), aes(RetDate, Temperature, color = Station), linewidth = 0.8)+
+    geom_line(data = Tem_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Temperature, color = Station), linewidth = 0.7)+
     geom_point(data = Tem_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-North") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -284,7 +310,7 @@ ggarrange(
   NULL,
   #SLS plot
   ggplot() +
-    geom_line(data = Tem_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Temperature, color = Station), linewidth = 0.8)+
+    geom_line(data = Tem_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Temperature, color = Station), linewidth = 0.7)+
     geom_point(data = Tem_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-South") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -293,7 +319,7 @@ ggarrange(
   NULL,
   #SLC plot
   ggplot() +
-    geom_line(data = Tem_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Temperature, color = Station), linewidth = 0.8)+
+    geom_line(data = Tem_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Temperature, color = Station), linewidth = 0.7)+
     geom_point(data = Tem_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-Central") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -304,12 +330,12 @@ ggarrange(
 #
 ```
 
-```{r LRE Temperature Figure, fig.cap = "**Figure 6.**  Monthly water temperature recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites.", fig.height = 8, fig.width = 8, fig.fullwidth=TRUE}
+```{r LRE Temperature Figure, fig.cap = "**Figure 6.**  Monthly water temperature recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #
 ggarrange(
   #LXN plot
   ggplot() +
-   geom_line(data = Tem_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Temperature, color = Station), linewidth = 0.8) +
+   geom_line(data = Tem_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-North") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -318,7 +344,7 @@ ggarrange(
   NULL,
   #LXS plot
   ggplot() +
-    geom_line(data = Tem_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Temperature, color = Station), linewidth = 0.8) +
+    geom_line(data = Tem_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-South") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -329,12 +355,12 @@ ggarrange(
 #
 ```
 
-```{r CRE Temperature Figure, fig.cap = "**Figure 7.**  Monthly water temperature recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites.", fig.height = 8, fig.width = 8, fig.fullwidth=TRUE}
+```{r CRE Temperature Figure, fig.cap = "**Figure 7.**  Monthly water temperature recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #
 ggarrange(
   #CRE plot
   ggplot() +
-   geom_line(data = Tem_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Temperature, color = Station), linewidth = 0.8) +
+   geom_line(data = Tem_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-East") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -343,11 +369,179 @@ ggarrange(
   NULL,
   #CRW plot
   ggplot() +
-    geom_line(data = Tem_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Temperature, color = Station), linewidth = 0.8) +
+    geom_line(data = Tem_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-West") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
+    BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
+  nrow = 3, heights = c(1, -0.05, 1))
+#
+#
+```
+
+```{r SLC DO Figure, fig.cap = "**Figure 8.**  Monthly dissolved oxygen concentration recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  #SLN plot
+  ggplot() +
+    geom_line(data = DO_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, DO, color = Station), linewidth = 0.7)+
+    geom_point(data = DO_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "St. Lucie-North") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
+  NULL,
+  #SLS plot
+  ggplot() +
+    geom_line(data = DO_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, DO, color = Station), linewidth = 0.7)+
+    geom_point(data = DO_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "St. Lucie-South") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
+  NULL,
+  #SLC plot
+  ggplot() +
+    geom_line(data = DO_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, DO, color = Station), linewidth = 0.7)+
+    geom_point(data = DO_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "St. Lucie-Central") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle  + theme(legend.position = "none"),
+  nrow = 5, heights = c(1, -0.05, 1, -0.05, 1))
+#
+#
+```
+
+```{r LRE DO Figure, fig.cap = "**Figure 9.**  Monthly dissoolved oxygen concentration recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  #LXN plot
+  ggplot() +
+   geom_line(data = DO_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
+    geom_point(data = DO_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Loxahatchee-North") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
+  NULL,
+  #LXS plot
+  ggplot() +
+    geom_line(data = DO_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
+    geom_point(data = DO_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Loxahatchee-South") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
+  nrow = 3, heights = c(1, -0.05, 1))
+#
+#
+```
+
+```{r CRE DO Figure, fig.cap = "**Figure 10.**  Monthly dissolved oxygen concentration recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  #CRE plot
+  ggplot() +
+   geom_line(data = DO_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
+    geom_point(data = DO_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Caloosahatchee-East") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
+  NULL,
+  #CRW plot
+  ggplot() +
+    geom_line(data = DO_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
+    geom_point(data = DO_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Caloosahatchee-West") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
+    BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
+  nrow = 3, heights = c(1, -0.05, 1))
+#
+#
+```
+
+```{r SLC pH Figure, fig.cap = "**Figure 11.**  Monthly pH recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  #SLN plot
+  ggplot() +
+    geom_line(data = pH_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, pH, color = Station), linewidth = 0.7)+
+    geom_point(data = pH_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "St. Lucie-North") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
+  NULL,
+  #SLS plot
+  ggplot() +
+    geom_line(data = pH_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, pH, color = Station), linewidth = 0.7)+
+    geom_point(data = pH_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "St. Lucie-South") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
+  NULL,
+  #SLC plot
+  ggplot() +
+    geom_line(data = pH_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, pH, color = Station), linewidth = 0.7)+
+    geom_point(data = pH_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "St. Lucie-Central") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle  + theme(legend.position = "none"),
+  nrow = 5, heights = c(1, -0.05, 1, -0.05, 1))
+#
+#
+```
+
+```{r LRE pH Figure, fig.cap = "**Figure 12.**  Monthly pH recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  #LXN plot
+  ggplot() +
+   geom_line(data = pH_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
+    geom_point(data = pH_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Loxahatchee-North") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
+  NULL,
+  #LXS plot
+  ggplot() +
+    geom_line(data = pH_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
+    geom_point(data = pH_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Loxahatchee-South") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
+  nrow = 3, heights = c(1, -0.05, 1))
+#
+#
+```
+
+```{r CRE pH Figure, fig.cap = "**Figure 13.**  Monthly pH recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  #CRE plot
+  ggplot() +
+   geom_line(data = pH_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
+    geom_point(data = pH_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Caloosahatchee-East") +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
+  NULL,
+  #CRW plot
+  ggplot() +
+    geom_line(data = pH_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
+    geom_point(data = pH_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
+    labs(title = "Caloosahatchee-West") +     
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   nrow = 3, heights = c(1, -0.05, 1))
 #
