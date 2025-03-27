@@ -55,16 +55,122 @@ dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
 
 hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
   collect() %>%
-  filter(substring(SampleEventWQID, 1, 2) %in% Estuaries)
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
+         substring(SampleEventID, 8, 11) %in% YearFilter)
+
+hsdbStarOddi <- tbl(con,in_schema("hsdb", "DataLoggerWQ")) %>%
+  collect() %>%
+  filter(FixedLocationID != "0021") # this filters out the AB datalogger data
 
 hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
   collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
+         substring(SampleEventID, 8, 11) %in% YearFilter)
 
 hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
   collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
+         substring(SampleEventID, 8, 11) %in% YearFilter)
 
 DBI::dbDisconnect(con)
+```
+
+```{r BasicStats}
+# Arrange data frames using data from the database, doing basic filters, adding necessary columns for statistics and performing statistics.
+
+# Fixed Locations
+FixedLocations <- dboFixedLocations %>% 
+  mutate(StationNumber = as.factor(StationNumber)) %>% #changed to factor based on EL's code
+  select(FixedLocationID,
+         Estuary,
+         SectionName, 
+         StationNumber) %>% 
+  distinct()
+
+# WaterQuality
+WaterQuality <- hsdbWaterQuality %>%
+  mutate(SampleDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         Year = year(SampleDate),
+         Month = month(SampleDate),
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         AnalysisDate = floor_date(SampleDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14) %>%
+  select(SampleEventWQID,
+         SampleDate,
+         AnalysisDate,
+         Plot_Date,
+         Year,
+         Month,
+         FixedLocationID,
+         Temperature,
+         Salinity,
+         DissolvedOxygen, 
+         TurbidityYSI) %>%
+  left_join(FixedLocations, by = c("FixedLocationID")) 
+
+WaterQualityStats1 <- WaterQuality %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
+            SalSD = ifelse(all(is.na(Salinity)), NA, sd(Salinity, na.rm = TRUE)),
+            SalMax = ifelse(all(is.na(Salinity)), NA, max(Salinity, na.rm = TRUE)),
+            SalMin = ifelse(all(is.na(Salinity)), NA, min(Salinity, na.rm = TRUE)))
+
+
+
+
+
+
+# Recruitment
+Recruitment <- hsdbRecruitment %>% 
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         Year = year(RetDate),
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate - DeployedDate),
+         BottomMonth= NumBottom/(NumDays/28),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14) %>%
+  select(ShellID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         Year,
+         NumDays,
+         ShellPosition,
+         NumBottom,
+         BottomMonth) %>% 
+  filter(Year %in% YearFilter) %>%
+  distinct() %>%
+  left_join(FixedLocations, by = c("FixedLocationID")) %>%
+  unique()
+
+RecruitmentStats1 <- Recruitment %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE))
+
+RecruitmentStats2 <- RecruitmentStats1 %>% # Shows the mean and max monthly recruitment rate for each estuary
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary) %>% 
+  summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
+            RecMax = max(RecMean, na.rm = TRUE))
+
+RecruitmentStats3 <- RecruitmentStats1 %>% # Shows the mean and max recruitment rate for each station in each estuary
+  group_by(Estuary,
+           StationNumber) %>% 
+  summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
+            RecMax = max(RecMean, na.rm = TRUE))
 
 ```
