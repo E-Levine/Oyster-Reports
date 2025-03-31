@@ -268,5 +268,19 @@ SedimentStats3 <- Sediment %>%
   summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
             SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
 
+```
+
+``` {r DataExport}
+
+mydatasets <- list('WaterQualityStats1' = WaterQualityStats1, 
+                   'WaterQualityStats2' = WaterQualityStats2,
+                   'StarOddi' = StarOddiStats1,
+                   'RecruitmentStats1' = RecruitmentStats1,
+                   'RecruitmentStats2' = RecruitmentStats2,
+                   'RecruitmentStats3' = RecruitmentStats3,
+                   'SedimentStats1' = SedimentStats1,
+                   'SedimentStats2' = SedimentStats2,
+                   'SedimentStats3' = SedimentStats3)
+write.xlsx(mydatasets, "Davis_StAndrew_FL-TIG_.2025.04_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
 
 ```
