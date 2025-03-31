@@ -5,7 +5,7 @@ output:
       reference_docx: Monthly-Reports-template.docx
 params: 
 
-  Month: "02"  #Enter 2-digit month
+  Month: "03"  #Enter 2-digit month
   Year: "2025" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
 
-Database <- "Oysters_25-02-27"  #Set the local database to use
+Database <- "Oysters_25-03-31"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
@@ -292,7 +292,7 @@ Sedi1 <- union(hsdbSediment, dboSediment) %>%
                              FixedLocationID %in% SouthStations ~ "South",
                              TRUE ~ NA),
          Proportion = round((CrucibleDW-TareCrucible)/((PanDryWeight-PanTareWeight)+(FilterDryWeight-FilterTareWeight)),3),
-         TotalDW = (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight),
+         TotalDW = case_when(is.na(PanDryWeight) ~ (FilterDryWeight - FilterTareWeight), TRUE ~ (PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)), #If no pan, TotalDW is based on filter.
          TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
          PctOrganic = ((TotalDW-round(TotalAsh,3))/TotalDW)*100,
          OrganicWt = TotalDW*(PctOrganic/100)) %>%
@@ -326,6 +326,17 @@ LW_SediStats <- Sedi1 %>%
             MeanOrganic = mean(PctOrganic, na.rm = T),
             MonthOrgWt = mean(OrganicWt/(NumDays/28), na.rm = T))
 
+```
+
+```{r Missing data summary}
+#
+WQ_check <- WQ1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber)) %>% dplyr::select(ID, Temperature:SecchiPercent) %>% filter(is.na(Temperature) | is.na(Salinity) | is.na(DissolvedOxygen) | is.na(pH) | is.na(SecchiPercent))
+#
+Rcrt_check <- R1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Stringer = case_when(as.numeric(str_sub(ShellID, -2)) < 7 ~ "1A", as.numeric(str_sub(ShellID, -2)) > 6 & as.numeric(str_sub(ShellID, -2)) < 13 ~ "1B", as.numeric(str_sub(ShellID, -2)) > 12 & as.numeric(str_sub(ShellID, -2)) < 19 ~ "2A", as.numeric(str_sub(ShellID, -2)) > 18 & as.numeric(str_sub(ShellID, -2)) < 25 ~ "2B", as.numeric(str_sub(ShellID, -2)) > 24 & as.numeric(str_sub(ShellID, -2)) < 31 ~ "3A", as.numeric(str_sub(ShellID, -2)) > 30 ~ "3B", TRUE ~ "TEMP")) %>% group_by(ID, Stringer) %>% summarise(MeanBott = mean(NumBottom)) %>% filter(is.na(MeanBott))
+#
+Dermo_check <- Dermo1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber)) %>% dplyr::select(ID, DermoMantle, DermoGill) %>% filter(is.na(DermoMantle) | is.na(DermoGill))
+#
+Sdtp_check <- Sedi1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, TotalDW, TotalAsh) %>% filter(is.na(TotalDW) | is.na(TotalAsh))
 ```
 
 ```{r Data summary tables}
@@ -368,7 +379,7 @@ Sedi_summary <- LW_SediStats %>% group_by(AnalysisDate, RetDate, Position) %>%
 
 ```
 
-```{r Surevy Text}
+```{r Survey Text}
 #Text for survey section of monthly report
 LWL_Srvy_note <- if(Month == "03" | Month == "09") {paste0("During the biannual ", if(Month == "03") {paste("spring")} else {paste("fall")}, " survey there were approximately ", round(LWL_SurveyStats$LiveMean,0), " live and ", round(LWL_SurveyStats$DeadMean,0), " dead oysters per 1 m2 quadrat.")} else {paste("Survey was not conducted this month")}
 
@@ -538,3 +549,25 @@ flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "
 
 ```
 <!---BLOCK_LANDSCAPE_STOP--->
+## Lake Worth Lagoon missing data
+
+**Any samples listed below were missing in `r paste(MonYr)`:**
+\
+\
+*Water quality*
+\
+`r if(nrow(WQ_check) > 0) {flextable(WQ_checks) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
+\
+\
+*Recruitment*
+\
+`r if(nrow(Rcrt_check) > 0) {flextable(Rcrt_check %>% dplyr::select(-MeanBott)) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing recruitment data.")}`
+\
+\
+*Dermo*
+\
+`r if(nrow(Dermo_check) > 0) {flextable(Dermo_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing dermo data.")}`
+\
+\
+*Sediment*
+`r if(nrow(Sdtp_check) > 0) {flextable(Sdtp_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {print("No missing sedimentation data.")}`
