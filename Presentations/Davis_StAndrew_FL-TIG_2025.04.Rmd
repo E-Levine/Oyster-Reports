@@ -108,21 +108,73 @@ WaterQuality <- hsdbWaterQuality %>%
          TurbidityYSI) %>%
   left_join(FixedLocations, by = c("FixedLocationID")) 
 
-WaterQualityStats1 <- WaterQuality %>%
+WaterQualityStats1 <- WaterQuality %>% # Show the mean and SD; max and min for all WQ parameters per STATION, per month
   group_by(AnalysisDate, 
            Plot_Date, 
            Estuary, 
            StationNumber, 
            SectionName) %>% 
-  summarise(SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
+  summarise(TempMean = ifelse(all(is.na(Temperature)), NA, mean(Temperature, na.rm = TRUE)),
+            TempSD = ifelse(all(is.na(Temperature)), NA, sd(Temperature, na.rm = TRUE)),
+            TempMax = ifelse(all(is.na(Temperature)), NA, max(Temperature, na.rm = TRUE)),
+            TempMin = ifelse(all(is.na(Temperature)), NA, min(Temperature, na.rm = TRUE)),
+            SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
             SalSD = ifelse(all(is.na(Salinity)), NA, sd(Salinity, na.rm = TRUE)),
             SalMax = ifelse(all(is.na(Salinity)), NA, max(Salinity, na.rm = TRUE)),
-            SalMin = ifelse(all(is.na(Salinity)), NA, min(Salinity, na.rm = TRUE)))
+            SalMin = ifelse(all(is.na(Salinity)), NA, min(Salinity, na.rm = TRUE)),
+            DOMean = ifelse(all(is.na(DissolvedOxygen)), NA, mean(DissolvedOxygen, na.rm = TRUE)),
+            DOSD = ifelse(all(is.na(DissolvedOxygen)), NA, sd(DissolvedOxygen, na.rm = TRUE)),
+            DOMax = ifelse(all(is.na(DissolvedOxygen)), NA, max(DissolvedOxygen, na.rm = TRUE)),
+            DOMin = ifelse(all(is.na(DissolvedOxygen)), NA, min(DissolvedOxygen, na.rm = TRUE)),
+            TurbMean = ifelse(all(is.na(TurbidityYSI)), NA, mean(TurbidityYSI, na.rm = TRUE)),
+            TurbSD = ifelse(all(is.na(TurbidityYSI)), NA, sd(TurbidityYSI, na.rm = TRUE)),
+            TurbMax = ifelse(all(is.na(TurbidityYSI)), NA, max(TurbidityYSI, na.rm = TRUE)),
+            TurbMin = ifelse(all(is.na(TurbidityYSI)), NA, min(TurbidityYSI, na.rm = TRUE)))
 
+WaterQualityStats2 <- WaterQuality %>% # Show the mean and SD; max and min for all WQ parameters per SECTION, per month
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary,  
+           SectionName) %>% 
+  summarise(TempMean = ifelse(all(is.na(Temperature)), NA, mean(Temperature, na.rm = TRUE)),
+            TempSD = ifelse(all(is.na(Temperature)), NA, sd(Temperature, na.rm = TRUE)),
+            TempMax = ifelse(all(is.na(Temperature)), NA, max(Temperature, na.rm = TRUE)),
+            TempMin = ifelse(all(is.na(Temperature)), NA, min(Temperature, na.rm = TRUE)),
+            SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
+            SalSD = ifelse(all(is.na(Salinity)), NA, sd(Salinity, na.rm = TRUE)),
+            SalMax = ifelse(all(is.na(Salinity)), NA, max(Salinity, na.rm = TRUE)),
+            SalMin = ifelse(all(is.na(Salinity)), NA, min(Salinity, na.rm = TRUE)),
+            DOMean = ifelse(all(is.na(DissolvedOxygen)), NA, mean(DissolvedOxygen, na.rm = TRUE)),
+            DOSD = ifelse(all(is.na(DissolvedOxygen)), NA, sd(DissolvedOxygen, na.rm = TRUE)),
+            DOMax = ifelse(all(is.na(DissolvedOxygen)), NA, max(DissolvedOxygen, na.rm = TRUE)),
+            DOMin = ifelse(all(is.na(DissolvedOxygen)), NA, min(DissolvedOxygen, na.rm = TRUE)),
+            TurbMean = ifelse(all(is.na(TurbidityYSI)), NA, mean(TurbidityYSI, na.rm = TRUE)),
+            TurbSD = ifelse(all(is.na(TurbidityYSI)), NA, sd(TurbidityYSI, na.rm = TRUE)),
+            TurbMax = ifelse(all(is.na(TurbidityYSI)), NA, max(TurbidityYSI, na.rm = TRUE)),
+            TurbMin = ifelse(all(is.na(TurbidityYSI)), NA, min(TurbidityYSI, na.rm = TRUE)))
 
+# Star-Oddi
+StarOddi <- hsdbStarOddi %>%
+  mutate(SampleDate = as.Date(WQDateTime, unit = "date"),
+         AnalysisDate = floor_date(SampleDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14) %>%
+  select(SampleDate,
+         AnalysisDate,
+         Plot_Date,
+         FixedLocationID,
+         Temperature,
+         Salinity) %>%
+  left_join(FixedLocations, by = c("FixedLocationID")) 
 
-
-
+StarOddiStats1 <- StarOddi %>% # Show the DAILY mean and SD of Temp and Salinity
+  group_by(SampleDate,  
+           Estuary,  
+           SectionName) %>% 
+  summarise(TempMean = ifelse(all(is.na(Temperature)), NA, mean(Temperature, na.rm = TRUE)),
+            TempSD = ifelse(all(is.na(Temperature)), NA, sd(Temperature, na.rm = TRUE)),
+            SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
+            SalSD = ifelse(all(is.na(Salinity)), NA, sd(Salinity, na.rm = TRUE))) %>%
+  arrange(Estuary, SectionName, SampleDate)
 
 # Recruitment
 Recruitment <- hsdbRecruitment %>% 
@@ -147,10 +199,7 @@ Recruitment <- hsdbRecruitment %>%
          ShellPosition,
          NumBottom,
          BottomMonth) %>% 
-  filter(Year %in% YearFilter) %>%
-  distinct() %>%
-  left_join(FixedLocations, by = c("FixedLocationID")) %>%
-  unique()
+  left_join(FixedLocations, by = c("FixedLocationID")) 
 
 RecruitmentStats1 <- Recruitment %>%
   group_by(AnalysisDate, 
@@ -172,5 +221,52 @@ RecruitmentStats3 <- RecruitmentStats1 %>% # Shows the mean and max recruitment 
            StationNumber) %>% 
   summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
             RecMax = max(RecMean, na.rm = TRUE))
+
+# SedimentTrap
+Sediment <- hsdbSedimentTrap %>% 
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         FixedLocationID = substring(SampleEventID, 19, 22), 
+         NumDays = as.numeric(RetDate - DeployedDate),
+         SedWt = (FilterDryWeight + PanDryWeight) - (FilterTareWeight + FilterTareWeight),
+         SedRate = SedWt / (NumDays / 28),
+         AnalysisDate = floor_date(RetDate, unit = "month"),
+         Plot_Date = AnalysisDate + 14,
+         ExcessBiota = ifelse(NumDrills > 5 | NumCrabs > 2 | NumHermitCrabs > 20 | NumFish > 2 | NumOtherBiota > 2, "Y", "N")) %>%
+  select(CupSampleID,
+         FixedLocationID,
+         SampleEventID,
+         DeployedDate,
+         RetDate,
+         AnalysisDate,
+         Plot_Date,
+         NumDays,
+         SedWt,
+         SedRate,
+         ExcessBiota) %>% 
+  left_join(FixedLocations, by = c("FixedLocationID")) 
+
+SedimentStats1 <- Sediment %>%
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary, 
+           StationNumber, 
+           SectionName) %>% 
+  summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
+            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
+
+SedimentStats2 <- Sediment %>% 
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary) %>% 
+  summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
+            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
+
+SedimentStats3 <- Sediment %>% 
+  group_by(Estuary,
+           StationNumber) %>% 
+  summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
+            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
+
 
 ```
