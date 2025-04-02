@@ -376,7 +376,7 @@ West_dead_fig <- ggarrange(
 annotate_figure(West_dead_fig, left = text_grob("Ratio of Dead Oysters", rot = 90, vjust = 0.4, family = "serif", size = 18, color = "black"))
 ```
 
-```{r CRE SH Figure, fig.cap = "**Figure 6.**  Mean semi-annual shell height (± S.D.) of live oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at St. Lucie-Central station 1. Please note differences in magnitude of y-axis among sites.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r CRE SH Figure, fig.cap = "**Figure 6.**  Mean semi-annual shell height (± S.D.) of live oysters present at stations within the five east coast study sites. Asterisks indicate when sampling was not conducted at specific stations. Winter and summer surveys were only conducted at the Iona Cove and Bird Island stations. Please note differences in magnitude of y-axis among sites.", fig.height = 4.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 West_SH_list <- list()
 for(i in seq_along(West_Sites)){
