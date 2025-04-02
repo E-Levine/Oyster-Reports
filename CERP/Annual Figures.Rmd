@@ -107,8 +107,10 @@ Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', dete
 SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
 #
 Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+#
+Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(starts_with(Estuary_code))
 #Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
-#Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
+
 #Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
 ```
 
@@ -225,6 +227,17 @@ DermoI_SLE <- Dermo_df %>% dplyr::select(contains("SL")) %>% dplyr::select(conta
 DermoI_LRE <- Dermo_df %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LXS_RetDate)  %>% rename("LX_RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
 DermoI_CRE <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate)  %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+#
+####REPRO DATA
+names(Repro_df) <- gsub("\\.", "", names(Repro_df))
+Repro_SLE <- Repro_df %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+Repro_LRE <- Repro_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LXS_RetDate)  %>% rename("RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
+Repro_CRE <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+#
 #
 ```
 
@@ -1012,8 +1025,7 @@ ggarrange(
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_W + Station_color_W + BaseForm + West_legend + 
-    labs(title = "Caloosahatchee-East") + PlotTitle +
-    rremove("ylab") + rremove("xlab") + rremove("x.text") + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm"))+
+    labs(title = "Caloosahatchee-East") + PlotTitle + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm"))+
     guides(text = "none", color = "none"), 
   NULL,
   DermoP_CRE %>% filter(Station == 3 | Station == 4) %>%
@@ -1023,8 +1035,7 @@ ggarrange(
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
     Station_fill_W + Station_color_W + BaseForm + West_legend + 
-    labs(title = "Caloosahatchee-West") + PlotTitle +
-    rremove("ylab") + rremove("xlab") + theme(plot.margin = unit(c(0,0.5,0,0), "cm"))+ 
+    labs(title = "Caloosahatchee-West") + PlotTitle + theme(plot.margin = unit(c(0,0.5,0,0), "cm"))+ 
     guides(text = "none", color = "none"),
   nrow = 3, heights = c(1, -0.05, 1)) 
 #
@@ -1036,31 +1047,34 @@ ggarrange(
   DermoI_SLE %>% filter(Site == "SLN") %>%
     ggplot(aes(SL_RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-North") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + guides(text = "none", color = "none") + PlotTitle,
   NULL,
   DermoI_SLE %>% filter(Site == "SLS") %>%
     ggplot(aes(SL_RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-South") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   NULL,
   DermoI_SLE %>% filter(Site == "SLC") %>%
     ggplot(aes(SL_RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-Central") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm"))+ 
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   nrow =  5, heights = c(1, -0.05, 1, -0.05, 1))
 #
@@ -1072,21 +1086,23 @@ ggarrange(
   DermoI_LRE %>% filter(Site == "LXN") %>%
     ggplot(aes(LX_RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Loxahatchee-North") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + guides(text = "none", color = "none") + PlotTitle,
   NULL,
   DermoI_LRE %>% filter(Site == "LXS") %>%
     ggplot(aes(LX_RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Loxahatchee-South") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   nrow =  3, heights = c(1, -0.05, 1))
 #
@@ -1097,22 +1113,96 @@ ggarrange(
   DermoI_CRE %>% filter(Station == 1 | Station == 2) %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
-    Station_fill_W + Station_color_W + BaseForm + West_legend + labs(title = "Caloosahatchee-East") + PlotTitle +
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) + Station_fill_W + Station_color_W + BaseForm + West_legend + labs(title = "Caloosahatchee-East") + PlotTitle +
     guides(text = "none", color = "none"), 
   NULL,
   DermoI_CRE %>% filter(Station == 3 | Station == 4) %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
     geom_col(position = position_dodge(12), width = 7, color = "black") +
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 10) +
-    geom_text(aes(y = 1, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_W + Station_color_W + BaseForm + West_legend + labs(title = "Caloosahatchee-West") + PlotTitle + 
     guides(text = "none", color = "none"),
   nrow = 3, heights = c(1, -0.05, 1)) 
+#
+```
+
+```{r SLE Repro Figure, fig.cap = "**Figure 32.**  Monthly reproductive development of oysters collected from the St. Lucie-North (top), St. Lucie-South (middle) and St. Lucie-Central (bottom) study sites in 2024.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  Repro_SLE %>% filter(Site == "SLN") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "St. Lucie-North") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + West_legend + PlotTitle,
+  NULL,
+  Repro_SLE %>% filter(Site == "SLS") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "St. Lucie-South") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
+  NULL,
+  Repro_SLE %>% filter(Site == "SLC") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "St. Lucie-Central") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
+  nrow =  5, heights = c(1, -0.05, 1, -0.05, 1))
+#
+```
+
+```{r LRE Repro Figure, fig.cap = "**Figure 33.**  Monthly reproductive development of oysters collected from the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites in 2024.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+  Repro_LRE %>% filter(Site == "LXN") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "Loxahatchee-North") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + West_legend + PlotTitle,
+  NULL,
+  Repro_LRE %>% filter(Site == "LXS") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "Loxahatchee-South") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
+  nrow =  3, heights = c(1, -0.05, 1))
+#
+```
+
+```{r CRE Repro Figure, fig.cap = "**Figure 34.**  Monthly reproductive development of oysters collected from the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites in 2024.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+ggarrange(
+  Repro_CRE %>% filter(Site == "CRE") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "Caloosahatchee-East") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + West_legend + PlotTitle,
+  NULL,
+  Repro_CRE %>% filter(Site == "CRW") %>%
+    ggplot(aes(RetDate, Value, fill = Stage)) + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    labs(title = "Caloosahatchee-West") +
+    scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
+  nrow =  3, heights = c(1, -0.05, 1))
 #
 ```
