@@ -1,5 +1,5 @@
 ---
-title: "Annual Figures CERP"
+title: "CERP Annual Figures"
 author: "ELevine"
 date: "`r Sys.Date()`"
 output: 
@@ -25,7 +25,7 @@ pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
   DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
-  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, 
+  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, flextable,
   install = TRUE)
 ```
 
@@ -81,9 +81,9 @@ Stage_fill <- scale_fill_manual("", labels = Stages, values = Stat_pal3, na.valu
 #
 #Cage formatting
 Cage_sites <- c("SLC", "LXN", "CRE", "CRW")
-Stations_cages <- c("SLC" = "St. Lucie-Central Station 1", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
-Cages_fill <- scale_fill_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
-Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
+Stations_cages <- c("SLC" = "St. Lucie-Central Station 1", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee-East Iona Cove", "CRW" = "Caloosahatchee-West Bird Island")
+Cages_fill <- c("SLC" = rgb(0, 0, 228, maxColorValue = 255), "LXN" = rgb(245, 0, 0, maxColorValue = 255), "CRE" = rgb(0, 0, 228, maxColorValue = 255), "CRW" = rgb(245, 0, 0, maxColorValue = 255))#scale_fill_manual("", labels = Cage_sites, values = Stat_pal2, na.value = "#999999")
+Cages_color <- c("SLC" = rgb(0, 0, 228, maxColorValue = 255), "LXN" = rgb(245, 0, 0, maxColorValue = 255), "CRE" = rgb(0, 0, 228, maxColorValue = 255), "CRW" = rgb(245, 0, 0, maxColorValue = 255))#scale_color_manual("", labels = Cage_sites, values = Stat_pal2, na.value = "#999999")
 
 ```
 
@@ -109,9 +109,11 @@ SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = T
 Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #
 Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(starts_with(Estuary_code))
-#Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
-
-#Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
+#
+Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+#
+Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
+#
 ```
 
 ```{r Water Quality Data selection and cleaning}
@@ -239,9 +241,97 @@ Repro_LRE <- Repro_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >
 Repro_CRE <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
 #
+#
+####RECRUITMENT DATA
+names(Rcrt_df) <- gsub("\\.", "", names(Rcrt_df))
+Rcrt_SLE <- Rcrt_df %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>%  dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+Rcrt_LRE <- Rcrt_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>%  dplyr::select(-LXS_RetDate)  %>% rename("RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+Rcrt_CRE <- Rcrt_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+#
+#
+#
+####CAGE DATA
+names(Cage_df) <- gsub("\\.", "", names(Cage_df))
+Cage_Mort <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value)
+Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD))
+#
+#
+```
+
+```{r Missing Data summary}
+#
+##Water quality 
+WQ_check <- full_join(WQ_Sal_s %>% filter(CRE_RetDate_Sal > Start_date & CRE_RetDate_Sal < End_date) %>% mutate(MonYr = substr(CRE_RetDate_Sal, 1, 7)) %>% dplyr::select(MonYr, everything(), -matches("RetDate")) %>% rename_with(~str_remove(., "_Sal")) %>% gather("Station", "Salinity", -MonYr),
+          WQ_Tem_s %>% filter(CRE_RetDate_Temp > Start_date & CRE_RetDate_Temp < End_date) %>% mutate(MonYr = substr(CRE_RetDate_Temp, 1, 7)) %>% dplyr::select(MonYr, everything(), -matches("RetDate")) %>% rename_with(~str_remove(., "_Temp")) %>% gather("Station", "Temperature", -MonYr)) %>%
+  full_join(WQ_DO_s %>% filter(CRE_RetDate_DO > Start_date & CRE_RetDate_DO < End_date) %>% mutate(MonYr = substr(CRE_RetDate_DO, 1, 7)) %>% dplyr::select(MonYr, everything(), -matches("RetDate")) %>% rename_with(~str_remove(., "_DO")) %>% gather("Station", "DO", -MonYr)) %>%
+  full_join(WQ_pH_s %>% filter(CRE_RetDate_pH > Start_date & CRE_RetDate_pH < End_date) %>% mutate(MonYr = substr(CRE_RetDate_pH, 1, 7)) %>% dplyr::select(MonYr, everything(), -matches("RetDate")) %>% rename_with(~str_remove(., "_pH")) %>% gather("Station", "pH", -MonYr)) %>%
+  full_join(WQ_Secchi_s %>% filter(CRE_RetDate_SP > Start_date & CRE_RetDate_SP < End_date) %>% mutate(MonYr = substr(CRE_RetDate_SP, 1, 7)) %>% dplyr::select(MonYr, everything(), -matches("RetDate")) %>% rename_with(~str_remove(., "_SP")) %>% gather("Station", "Secchi", -MonYr)) %>%
+  filter(is.na(Temperature) | is.na(Salinity) | is.na(DO) | is.na(pH) | is.na(Secchi))
+#
+##Survey - Counts_df, SH_df
+Survey_check <- rbind(Counts_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% dplyr::select(Survey, contains("LiveMean")) %>% filter(str_detect(Survey, "Spring|Fall")) %>% rename_with(~str_remove(., "_LiveMean")) %>% gather("Station", "LiveCount", -Survey), 
+                      Counts_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% dplyr::select(Survey, contains("LiveMean")) %>% filter(str_detect(Survey, "Summer|Winter")) %>% rename_with(~str_remove(., "_LiveMean")) %>% gather("Station", "LiveCount", -Survey) %>% filter(Station %in% c("SLC1", "CRE2", "CRW3"))) %>% filter(is.na(LiveCount)) %>% dplyr::select(Survey, Station)
+#
+SH_check <- rbind(SH_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% dplyr::select(Survey, contains("Mean")) %>%                     filter(str_detect(Survey, "Spring|Fall")) %>% rename_with(~str_remove(., "_SHMean")) %>% gather("Station", "SH", -Survey),
+                  SH_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% dplyr::select(Survey, contains("Mean")) %>% filter(str_detect(Survey, "Summer|Winter")) %>% rename_with(~str_remove(., "_SHMean")) %>% gather("Station", "SH", -Survey) %>% filter(Station %in% c("SLC1", "CRE2", "CRW3"))) %>% filter(is.na(SH)) %>% dplyr::select(Survey, Station)
+#
+##Dermo
+Dermo_check <- Dermo_df %>% filter(CRE_RetDate > Start_date & CRE_RetDate < End_date) %>% mutate(MonYr = substr(CRE_RetDate, 1, 7)) %>% dplyr::select(MonYr, contains("Mean")) %>% rename_with(~str_remove(., "_Mean")) %>% gather("Station", "Dermo", -MonYr)  %>% filter(is.na(Dermo)) %>% dplyr::select(MonYr, Station)
+#
+##Repro
+Repro_check <- Repro_df %>% filter(CRE_RetDate > Start_date & CRE_RetDate < End_date) %>% mutate(MonYr = substr(CRE_RetDate, 1, 7)) %>% dplyr::select(MonYr, contains("Dev")) %>% rename_with(~str_remove(., "_Dev")) %>% gather("Station", "Repro", -MonYr) %>% filter(is.na(Repro)) %>% dplyr::select(MonYr, Station)
+#
+##Recruitment
+Rcrt_check <- Rcrt_df %>% filter(CRE_RetDate > Start_date & CRE_RetDate < End_date) %>% mutate(MonYr = substr(CRE_RetDate, 1, 7)) %>% dplyr::select(MonYr, contains("Mean")) %>% rename_with(~str_remove(., "_Mean")) %>% gather("Station", "Spat", -MonYr) %>% filter(is.na(Spat)) %>% dplyr::select(MonYr, Station)
+#
+##Cages
+CageMort_check <- Cage_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% dplyr::select(MonYr, contains("PctMean")) %>% rename_with(~str_remove(., "_DeadPctMean")) %>% gather("Station", "Mortality", -MonYr)  %>% filter(is.na(Mortality)) %>% dplyr::select(MonYr, Station)
+CageSH_check <- Cage_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% dplyr::select(MonYr, contains("SHMean")) %>% rename_with(~str_remove(., "_SHMean")) %>% gather("Station", "SH", -MonYr)  %>% separate(Station, into = c("Site", "Type"), sep = "_") %>% filter(is.na(SH)) %>% dplyr::select(MonYr, Site, Type)
+#
 ```
 
 The following figures are presented for the annual report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`.
+\
+\
+**CERP missing data**
+
+Any samples listed below were missing in during the monitoring period:
+\
+\
+*Water quality*
+\
+`r if(nrow(WQ_check) > 0) {flextable(WQ_checks) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
+\
+\
+*Survey*
+\
+`r if(nrow(Survey_check) > 0) {flextable(Survey_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey count data.")}`
+`r if(nrow(SH_check) > 0) {flextable(SH_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey shell height data.")}`
+\
+\
+*Dermo*
+\
+`r if(nrow(Dermo_check) > 0) {flextable(Dermo_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing dermo data.")}`
+\
+\
+*Repro - site based data*
+\
+`r if(nrow(Repro_check) > 0) {flextable(Repro_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing repro data.")}`
+\
+\
+*Recruitment*
+\
+`r if(nrow(Rcrt_check) > 0) {flextable(Rcrt_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing recruitment data.")}`
+\
+\
+*Cages - site based data*
+\
+`r if(nrow(CageMort_check) > 0) {flextable(CageMort_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing cage mortality data.")}`
+`r if(nrow(CageSH_check) > 0) {flextable(CageSH_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing cage shell height data.")}`
+\
+\
 \newpage
 
 ```{r SLC Salinity Figure, fig.cap = "**Figure 2.**  Monthly salinity recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
@@ -1139,7 +1229,7 @@ ggarrange(
 ggarrange(
   Repro_SLE %>% filter(Site == "SLN") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "St. Lucie-North") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -1147,7 +1237,7 @@ ggarrange(
   NULL,
   Repro_SLE %>% filter(Site == "SLS") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "St. Lucie-South") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -1155,7 +1245,7 @@ ggarrange(
   NULL,
   Repro_SLE %>% filter(Site == "SLC") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "St. Lucie-Central") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -1169,7 +1259,7 @@ ggarrange(
 ggarrange(
   Repro_LRE %>% filter(Site == "LXN") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Loxahatchee-North") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -1177,7 +1267,7 @@ ggarrange(
   NULL,
   Repro_LRE %>% filter(Site == "LXS") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Loxahatchee-South") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -1190,7 +1280,7 @@ ggarrange(
 ggarrange(
   Repro_CRE %>% filter(Site == "CRE") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Caloosahatchee-East") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -1198,11 +1288,188 @@ ggarrange(
   NULL,
   Repro_CRE %>% filter(Site == "CRW") %>%
     ggplot(aes(RetDate, Value, fill = Stage)) + 
-    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 10, color = "black") + 
+    geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Caloosahatchee-West") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
   nrow =  3, heights = c(1, -0.05, 1))
+#
+```
+
+```{r SLE Recruitment Figure, fig.cap = "**Figure 35.**  Mean monthly number (± S.D.) of oyster spat recruits collected per shell from stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites in 2024. Please note differences in y-axis range among sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+
+SLE_Rcrt_list <- list()
+for(i in seq_along(SLE_sites)){
+  #
+  Working_site <- paste(SLE_sites[i])
+  df_temp <- Rcrt_SLE %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  SLE_Rcrt_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_col(position = position_dodge(12), width = 7, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
+  ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
+    Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend
+}
+
+SLE_rcrt_fig <- ggarrange(
+  SLE_Rcrt_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  SLE_Rcrt_list[[2]] + rremove("x.title") + rremove("legend"),
+  SLE_Rcrt_list[[3]] + rremove("x.title") + rremove("legend"),
+  nrow = 3, heights = c(1, 1, 1), align = "v"  
+  )
+
+SLE_rcrt_fig
+#
+```
+
+```{r LRE Recruitment Figure, fig.cap = "**Figure 36.**  Mean monthly number (± S.D.) of oyster spat recruits collected per shell from stations in the St. Lucie-North (top), St. Lucie-South (middle) and St. Lucie-Central (bottom) study sites in 2024. Please note differences in y-axis range among sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+
+LRE_Rcrt_list <- list()
+for(i in seq_along(LRE_sites)){
+  #
+  Working_site <- paste(LRE_sites[i])
+  df_temp <- Rcrt_LRE %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  LRE_Rcrt_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station))+ 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_col(position = position_dodge(12), width = 7, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
+  ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
+    Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend
+}
+
+LRE_rcrt_fig <- ggarrange(
+  LRE_Rcrt_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  LRE_Rcrt_list[[2]] + rremove("x.title") + rremove("legend"),
+  nrow = 2, heights = c(1, 1), align = "v"  
+  )
+
+LRE_rcrt_fig
+#
+```
+
+```{r CRE Recruitment Figure, fig.cap = "**Figure 37.**  Mean monthly number (± S.D.) of oyster spat recruits collected per shell from stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites in 2024. Please note differences in magnitude of y-axis among sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+CRE_Rcrt_list <- list()
+for(i in seq_along(CRE_Sites)){
+  #
+  Working_site <- paste(CRE_Sites[i])
+  df_temp <- Rcrt_CRE %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  #
+  CRE_Rcrt_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_col(position = position_dodge(12), width = 7, color = "black") +
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+ 
+    ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee-East", grepl("CRW", Working_site) ~ "Caloosahatchee-West", TRUE ~ "WRONG"))) + 
+    Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend
+}
+
+CRE_rcrt_fig <- ggarrange(
+  CRE_Rcrt_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
+  CRE_Rcrt_list[[2]] + guides(color = guide_legend(override.aes = list(size=2))),
+  nrow = 2, heights = c(1, 1), align = "v" 
+  )
+
+CRE_rcrt_fig
+#
+```
+
+```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+ggarrange(
+  Cage_Mort %>% filter(Site == "SLC") %>%
+    ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
+    geom_col(position = position_dodge(12), width = 14, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    labs(title = "St. Lucie-Central Staion 1") +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  NULL,
+  Cage_Mort %>% filter(Site == "LXN") %>%
+    ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
+    geom_col(position = position_dodge(12), width = 14, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    labs(title = "Loxahatchee-North Staion 2") +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  NULL,
+  Cage_Mort %>% filter(Site == "CRE") %>%
+    ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
+    geom_col(position = position_dodge(12), width = 14, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    labs(title = "Caloosahatchee-East Iona Cove") +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  NULL,
+  Cage_Mort %>% filter(Site == "CRW") %>%
+    ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
+    geom_col(position = position_dodge(12), width = 14, color = "black") + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    labs(title = "Caloosahatchee-West Bird Island") +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
+#
+```
+
+```{r Cage SH Figure, fig.cap = "**Figure 39.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West in 2024.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+ggarrange(
+  Cage_SH %>% filter(Site == "SLC") %>%  
+    ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
+    geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
+    scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    labs(title = "St. Lucie-Central Staion 1") +
+    scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  NULL,
+  Cage_SH %>% filter(Site == "LXN") %>%  
+    ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
+    geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
+    scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    labs(title = "Loxahatchee-North Staion 2") +
+    scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  NULL,
+   Cage_SH %>% filter(Site == "CRE") %>%  
+    ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
+    geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
+    scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    labs(title = "Caloosahatchee-East Iona Cove") +
+    scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  NULL,
+  Cage_SH %>% filter(Site == "CRW") %>%  
+    ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
+    geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
+    scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    labs(title = "Caloosahatchee-West Bird Island") +
+    scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+  nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
 #
 ```
