@@ -53,6 +53,10 @@ dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   collect() %>% 
   filter(Estuary %in% Estuaries)
 
+dboWaterQuality <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
+         substring(SampleEventID, 8, 11) %in% YearFilter)
 hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
@@ -62,11 +66,19 @@ hsdbStarOddi <- tbl(con,in_schema("hsdb", "DataLoggerWQ")) %>%
   collect() %>%
   filter(FixedLocationID != "0021") # this filters out the AB datalogger data
 
+dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
+         substring(SampleEventID, 8, 11) %in% YearFilter)
 hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
          substring(SampleEventID, 8, 11) %in% YearFilter)
 
+dboSedimentTrap <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
+         substring(SampleEventID, 8, 11) %in% YearFilter)
 hsdbSedimentTrap <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries, 
@@ -88,7 +100,7 @@ FixedLocations <- dboFixedLocations %>%
   distinct()
 
 # WaterQuality
-WaterQuality <- hsdbWaterQuality %>%
+WaterQuality <- union_all(dboWaterQuality,hsdbWaterQuality) %>%
   mutate(SampleDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          Year = year(SampleDate),
          Month = month(SampleDate),
@@ -111,29 +123,6 @@ WaterQuality <- hsdbWaterQuality %>%
 WaterQualityStats1 <- WaterQuality %>% # Show the mean and SD; max and min for all WQ parameters per STATION, per month
   group_by(AnalysisDate, 
            Plot_Date, 
-           Estuary, 
-           StationNumber, 
-           SectionName) %>% 
-  summarise(TempMean = ifelse(all(is.na(Temperature)), NA, mean(Temperature, na.rm = TRUE)),
-            TempSD = ifelse(all(is.na(Temperature)), NA, sd(Temperature, na.rm = TRUE)),
-            TempMax = ifelse(all(is.na(Temperature)), NA, max(Temperature, na.rm = TRUE)),
-            TempMin = ifelse(all(is.na(Temperature)), NA, min(Temperature, na.rm = TRUE)),
-            SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
-            SalSD = ifelse(all(is.na(Salinity)), NA, sd(Salinity, na.rm = TRUE)),
-            SalMax = ifelse(all(is.na(Salinity)), NA, max(Salinity, na.rm = TRUE)),
-            SalMin = ifelse(all(is.na(Salinity)), NA, min(Salinity, na.rm = TRUE)),
-            DOMean = ifelse(all(is.na(DissolvedOxygen)), NA, mean(DissolvedOxygen, na.rm = TRUE)),
-            DOSD = ifelse(all(is.na(DissolvedOxygen)), NA, sd(DissolvedOxygen, na.rm = TRUE)),
-            DOMax = ifelse(all(is.na(DissolvedOxygen)), NA, max(DissolvedOxygen, na.rm = TRUE)),
-            DOMin = ifelse(all(is.na(DissolvedOxygen)), NA, min(DissolvedOxygen, na.rm = TRUE)),
-            TurbMean = ifelse(all(is.na(TurbidityYSI)), NA, mean(TurbidityYSI, na.rm = TRUE)),
-            TurbSD = ifelse(all(is.na(TurbidityYSI)), NA, sd(TurbidityYSI, na.rm = TRUE)),
-            TurbMax = ifelse(all(is.na(TurbidityYSI)), NA, max(TurbidityYSI, na.rm = TRUE)),
-            TurbMin = ifelse(all(is.na(TurbidityYSI)), NA, min(TurbidityYSI, na.rm = TRUE)))
-
-WaterQualityStats2 <- WaterQuality %>% # Show the mean and SD; max and min for all WQ parameters per SECTION, per month
-  group_by(AnalysisDate, 
-           Plot_Date, 
            Estuary,  
            SectionName) %>% 
   summarise(TempMean = ifelse(all(is.na(Temperature)), NA, mean(Temperature, na.rm = TRUE)),
@@ -151,7 +140,30 @@ WaterQualityStats2 <- WaterQuality %>% # Show the mean and SD; max and min for a
             TurbMean = ifelse(all(is.na(TurbidityYSI)), NA, mean(TurbidityYSI, na.rm = TRUE)),
             TurbSD = ifelse(all(is.na(TurbidityYSI)), NA, sd(TurbidityYSI, na.rm = TRUE)),
             TurbMax = ifelse(all(is.na(TurbidityYSI)), NA, max(TurbidityYSI, na.rm = TRUE)),
-            TurbMin = ifelse(all(is.na(TurbidityYSI)), NA, min(TurbidityYSI, na.rm = TRUE)))
+            TurbMin = ifelse(all(is.na(TurbidityYSI)), NA, min(TurbidityYSI, na.rm = TRUE))) %>%
+  arrange(Estuary, SectionName, Plot_Date)
+
+WaterQualityStats2 <- WaterQuality %>% # Show the mean and SD; max and min for all WQ parameters per SECTION, per month
+  group_by(AnalysisDate, 
+           Plot_Date, 
+           Estuary) %>% 
+  summarise(TempMean = ifelse(all(is.na(Temperature)), NA, mean(Temperature, na.rm = TRUE)),
+            TempSD = ifelse(all(is.na(Temperature)), NA, sd(Temperature, na.rm = TRUE)),
+            TempMax = ifelse(all(is.na(Temperature)), NA, max(Temperature, na.rm = TRUE)),
+            TempMin = ifelse(all(is.na(Temperature)), NA, min(Temperature, na.rm = TRUE)),
+            SalMean = ifelse(all(is.na(Salinity)), NA, mean(Salinity, na.rm = TRUE)),
+            SalSD = ifelse(all(is.na(Salinity)), NA, sd(Salinity, na.rm = TRUE)),
+            SalMax = ifelse(all(is.na(Salinity)), NA, max(Salinity, na.rm = TRUE)),
+            SalMin = ifelse(all(is.na(Salinity)), NA, min(Salinity, na.rm = TRUE)),
+            DOMean = ifelse(all(is.na(DissolvedOxygen)), NA, mean(DissolvedOxygen, na.rm = TRUE)),
+            DOSD = ifelse(all(is.na(DissolvedOxygen)), NA, sd(DissolvedOxygen, na.rm = TRUE)),
+            DOMax = ifelse(all(is.na(DissolvedOxygen)), NA, max(DissolvedOxygen, na.rm = TRUE)),
+            DOMin = ifelse(all(is.na(DissolvedOxygen)), NA, min(DissolvedOxygen, na.rm = TRUE)),
+            TurbMean = ifelse(all(is.na(TurbidityYSI)), NA, mean(TurbidityYSI, na.rm = TRUE)),
+            TurbSD = ifelse(all(is.na(TurbidityYSI)), NA, sd(TurbidityYSI, na.rm = TRUE)),
+            TurbMax = ifelse(all(is.na(TurbidityYSI)), NA, max(TurbidityYSI, na.rm = TRUE)),
+            TurbMin = ifelse(all(is.na(TurbidityYSI)), NA, min(TurbidityYSI, na.rm = TRUE))) %>%
+  arrange(Estuary, Plot_Date)
 
 # Star-Oddi
 StarOddi <- hsdbStarOddi %>%
@@ -177,7 +189,7 @@ StarOddiStats1 <- StarOddi %>% # Show the DAILY mean and SD of Temp and Salinity
   arrange(Estuary, SectionName, SampleDate)
 
 # Recruitment
-Recruitment <- hsdbRecruitment %>% 
+Recruitment <- union_all(dboRecruitment,hsdbRecruitment) %>% 
   filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
   mutate(DeployedDate = as.Date(DeployedDate), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
@@ -207,7 +219,8 @@ RecruitmentStats1 <- Recruitment %>%
            Estuary, 
            StationNumber, 
            SectionName) %>% 
-  summarise(RecMean = mean(BottomMonth, na.rm = TRUE))
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE)) %>%
+  arrange(Estuary, SectionName, Plot_Date)
 
 RecruitmentStats2 <- RecruitmentStats1 %>% # Shows the mean and max monthly recruitment rate for each estuary
   group_by(AnalysisDate, 
@@ -223,7 +236,7 @@ RecruitmentStats3 <- RecruitmentStats1 %>% # Shows the mean and max recruitment 
             RecMax = max(RecMean, na.rm = TRUE))
 
 # SedimentTrap
-Sediment <- hsdbSedimentTrap %>% 
+Sediment <- union_all(dboSedimentTrap,hsdbSedimentTrap) %>% 
   mutate(DeployedDate = as.Date(DeployedDate), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          FixedLocationID = substring(SampleEventID, 19, 22), 
@@ -283,4 +296,63 @@ mydatasets <- list('WaterQualityStats1' = WaterQualityStats1,
                    'SedimentStats3' = SedimentStats3)
 write.xlsx(mydatasets, "Davis_StAndrew_FL-TIG_.2025.04_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
 
+```
+
+
+```{r FigureFormatting}
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 12), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 12), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 10),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
+
+#Color and shape to station number
+Stations <- c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Station 5",
+              "6" = "Station 6", "7" = "Station 7", "8" = "Station 8", "9" = "Station 9", "10" = "Station 10",
+              "11" = "Station 11", "12" = "Station 12", "13" = "Station 13", "14" = "Station 14", "15" = "Station 15")
+Stat_pal <- c(rgb(0, 64, 0, maxColorValue = 255), rgb(0, 255, 0, maxColorValue = 255), rgb(0, 128, 0, maxColorValue = 255), rgb(192, 255, 0, maxColorValue = 255), rgb(64, 192, 0, maxColorValue = 255),
+              rgb(128, 0, 0, maxColorValue = 255), rgb(192, 192, 0, maxColorValue = 255), rgb(96, 0, 0, maxColorValue = 255), rgb(255, 128, 0, maxColorValue = 255), rgb(128, 64, 0, maxColorValue = 255),
+              rgb(0, 0, 128, maxColorValue = 255), rgb(0, 128, 255, maxColorValue = 255), rgb(0, 0, 96, maxColorValue = 255), rgb(0, 128, 128, maxColorValue = 255), rgb(0, 64, 128, maxColorValue = 255))
+Station_fill <- scale_fill_manual("", labels = Stations, values = setNames(Stat_pal, 1:15), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = Stations, values = setNames(Stat_pal, 1:15), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21, 25, 22, 23, 24, 21, 25, 22, 23, 24, 21, 25, 22, 23, 24), 1:15))
+#
+
+#Color and shape to Estuary
+Estuary_Names <- c("AB" = "Apalachicola Bay", "PE" = "Pensacola Bay", "SA" = "St. Andrew Bay")
+Estuary_pal <- c(rgb(0, 64, 0, maxColorValue = 255), rgb(0, 255, 0, maxColorValue = 255), rgb(0, 128, 0, maxColorValue = 255))
+Estuary_fill <- scale_fill_manual("", labels = Estuary_Names, values = setNames(Estuary_pal, 1:3), na.value = "#999999")
+Estuary_color <- scale_color_manual("", labels = Estuary_Names, values = setNames(Estuary_pal, 1:3), na.value = "#999999")
+Estuary_shape <- scale_shape_manual("",labels = Estuary_Names, values = setNames(c(21, 25, 22), 1:3))
+#
+```
+
+```{r TempFigs}
+#Creating Temperature figures per section for better customization
+#wqtemp_plot_list <- list()
+
+#for (i in seq_along(Estuaries)) {
+#  df_source <- get(paste0(Estuaries[i], "_WQStats")) 
+#  wqtemp_plot_list[[i]] <- df_source %>% 
+#  filter(SectionName == lv3[i]) %>%
+TempPlot <- WaterQualityStats2 %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, color = as.factor(Estuary), group = as.factor(Estuary)))+ #Set base data to present
+  geom_line(color = "black") + #Add connecting lines
+  geom_point(aes(shape = as.factor(Estuary), fill = as.factor(Estuary)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
+  scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
+                   date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
+                   guide = guide_axis(angle = 45))+
+  scale_y_continuous("Temperature (°C)", expand = c(0, 0),
+                     limits = c(0, 40), pretty_breaks())+
+  ggtitle("Mean Temperatures") + BaseForm + Station_color + Station_fill + Station_shape
+
+# You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
+#print(wqtemp_plot_list)
 ```
