@@ -8,7 +8,7 @@ output: html_document
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportEnd <- as.Date("2024-12-31")  # Report End Date, currently no filter is set to use this. May need to modify somewhere
-Database = "OysterLocalMD20250325"  # Set the local database to use
+Database = "OysterLocalMD20250404"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 YearFilter = c(2023, 2024) # Data shared in presentation is 2023 only. Adjust here to show other years
 ```
@@ -196,7 +196,7 @@ Recruitment <- union_all(dboRecruitment,hsdbRecruitment) %>%
          Year = year(RetDate),
          FixedLocationID = substring(ShellID, 19, 22), 
          NumDays = as.numeric(RetDate - DeployedDate),
-         BottomMonth= NumBottom/(NumDays/28),
+         RecruitRate= NumBottom/(NumDays/28),
          AnalysisDate = floor_date(RetDate, unit = "month"),
          Plot_Date = AnalysisDate + 14) %>%
   select(ShellID,
@@ -210,30 +210,28 @@ Recruitment <- union_all(dboRecruitment,hsdbRecruitment) %>%
          NumDays,
          ShellPosition,
          NumBottom,
-         BottomMonth) %>% 
+         RecruitRate) %>% 
   left_join(FixedLocations, by = c("FixedLocationID")) 
 
-RecruitmentStats1 <- Recruitment %>%
+RecruitmentStats1 <- Recruitment %>% # Shows the mean and sd monthly recruitment rate for each station in each estuary
   group_by(AnalysisDate, 
            Plot_Date, 
            Estuary, 
            StationNumber, 
            SectionName) %>% 
-  summarise(RecMean = mean(BottomMonth, na.rm = TRUE)) %>%
-  arrange(Estuary, SectionName, Plot_Date)
+  summarise(RecruitMean = ifelse(all(is.na(RecruitRate)), NA, mean(RecruitRate, na.rm = TRUE)),
+            RecruitSD = ifelse(all(is.na(RecruitRate)), NA, sd(RecruitRate, na.rm = TRUE))) %>%
+  arrange(Estuary, StationNumber, Plot_Date)
 
-RecruitmentStats2 <- RecruitmentStats1 %>% # Shows the mean and max monthly recruitment rate for each estuary
+RecruitmentStats2 <- RecruitmentStats1 %>% # Shows the median and max monthly recruitment rate for each estuary
   group_by(AnalysisDate, 
            Plot_Date, 
            Estuary) %>% 
-  summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
-            RecMax = max(RecMean, na.rm = TRUE))
+  summarise(RecruitMedian = ifelse(all(is.na(RecruitMean)), NA, median(RecruitMean, na.rm = TRUE)),
+            RecruitMax = ifelse(all(is.na(RecruitMean)), NA, max(RecruitMean, na.rm = TRUE))) %>%
+  arrange(Estuary, Plot_Date)
 
-RecruitmentStats3 <- RecruitmentStats1 %>% # Shows the mean and max recruitment rate for each station in each estuary
-  group_by(Estuary,
-           StationNumber) %>% 
-  summarise(RecruitMean = mean(RecMean, na.rm = TRUE),
-            RecMax = max(RecMean, na.rm = TRUE))
+
 
 # SedimentTrap
 Sediment <- union_all(dboSedimentTrap,hsdbSedimentTrap) %>% 
@@ -290,7 +288,6 @@ mydatasets <- list('WaterQualityStats1' = WaterQualityStats1,
                    'StarOddi' = StarOddiStats1,
                    'RecruitmentStats1' = RecruitmentStats1,
                    'RecruitmentStats2' = RecruitmentStats2,
-                   'RecruitmentStats3' = RecruitmentStats3,
                    'SedimentStats1' = SedimentStats1,
                    'SedimentStats2' = SedimentStats2,
                    'SedimentStats3' = SedimentStats3)
