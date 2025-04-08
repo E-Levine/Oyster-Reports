@@ -84,52 +84,117 @@ dsFlow <- rbind(readWorkbook("DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum
 #
 ####Modify columns as needed for output####
 #
+WQ_df <- hsdbSampleEventWQ %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
+  mutate(Project = 'CERP',
+         AnalysisDate = as.Date(paste0(substr(SampleEventID, 12, 13), "/01/", substr(SampleEventID, 8, 11)), "%m/%d/%Y"),
+         Month = as.numeric(substr(SampleEventID, 12, 13)),
+         Year = as.numeric(substr(SampleEventID, 8, 11)),
+         Date = as.Date(substr(SampleEventID, 8, 15), "%Y%m%d"),
+         Site = paste0(Estuary, "-", SectionName),
+         StationNumber = as.numeric(StationNumber),
+         Time = paste0(substr(CollectionTime, 1, nchar(CollectionTime) - 2), ":", substr(CollectionTime, nchar(CollectionTime) - 1, nchar(CollectionTime))),
+         Chla = -999) %>%
+  rename("Station" = StationNumber, "Temp" = Temperature, "DO" = DissolvedOxygen, "DOPct" = PercentDissolvedOxygen) %>%
+  dplyr::select(Project:Site, Station, Time, Depth, Temp, Salinity, pH, DO, DOPct, Secchi, Chla) %>% arrange(AnalysisDate, Site, Station)
+#
+Rcrt_df <- hsdbRcrt %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
+  mutate(Project = 'CERP',
+         AnalysisDate = as.Date(paste0(substr(SampleEventID, 12, 13), "/01/", substr(SampleEventID, 8, 11)), "%m/%d/%Y"),
+         Month = as.numeric(substr(SampleEventID, 12, 13)),
+         Year = as.numeric(substr(SampleEventID, 8, 11)),
+         RetDate = as.Date(substr(SampleEventID, 8, 15), "%Y%m%d"),
+         JulRet = as.numeric(as.Date(substr(SampleEventID, 8, 15), "%Y%m%d")-as.Date("2005-01-01")+1),
+         JulDep = as.numeric(as.Date(DeployedDate, "%Y-%m-%d")-as.Date("2005-01-01")+1),
+         Site = paste0(Estuary, "-", SectionName)) %>%
+  mutate(NumDays = JulRet-JulDep) %>%
+  rename("Station" = StationNumber, "Rep" = ShellReplicate, "Shell" = ShellPosition, "Bottom" = NumBottom, "Top" = NumTop) %>%
+  dplyr::select(Project:JulDep, NumDays, Site, Station, Rep, Shell, Bottom, Top) %>% arrange(AnalysisDate, Site, Station, Rep, Shell)
+  
+#
+Dermo_df <- hsdbDermo %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
+  mutate(Project = 'CERP',
+         AnalysisDate = as.Date(paste0(substr(SampleEventID, 12, 13), "/01/", substr(SampleEventID, 8, 11)), "%m/%d/%Y"),
+         Month = as.numeric(substr(SampleEventID, 12, 13)),
+         Year = as.numeric(substr(SampleEventID, 8, 11)),
+         Date = as.Date(substr(SampleEventID, 8, 15), "%Y%m%d"),
+         Site = paste0(Estuary, "-", SectionName),
+         Section = -999, 
+         SampleNum = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID)))) %>%
+  rename("SH" = ShellHeight, "SL" = ShellLength, "SW" = ShellWidth, "TotalWt" = TotalWeight, "ShellWetWt" = ShellWetWeight, "Station" = StationNumber) %>%
+  dplyr::select(Project:SampleNum, Station, SH:DermoGill) %>% arrange(AnalysisDate, Site, Station, SampleNum)
+  
+#
 Srvy_df <- hsdbSrvy %>% dplyr::select(FixedLocationID, QuadratID:TotalWeight) %>% 
   left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
   mutate(Project = 'CERP',
-         SurveyDate = paste0(substr(SampleEventID, 12, 13), "/01/", substr(SampleEventID, 8, 11)),
-         Month = substr(SampleEventID, 12, 13),
-         Year = substr(SampleEventID, 8, 11),
+         SurveyDate = as.Date(paste0(substr(SampleEventID, 12, 13), "/01/", substr(SampleEventID, 8, 11)), "%m/%d/%Y"),
+         Month = as.numeric(substr(SampleEventID, 12, 13)),
+         Year = as.numeric(substr(SampleEventID, 8, 11)),
          StationName = "Z",
          Site = paste0(Estuary, "-", SectionName),
          Date = as.Date(substr(SampleEventID, 8, 15), "%Y%m%d"),
          Section = "Z", 
          Live = -999, Dead = -999, TotalVolume = -999, TotalWeight = -999) %>%
-  mutate(Season = case_when(grepl("^03", SurveyDate) ~ 'Spr', 
-                            grepl("^06", SurveyDate) ~ 'Sum', 
-                            grepl("^09", SurveyDate) ~ 'Fal', 
-                            grepl("^12", SurveyDate) ~ 'Win', TRUE ~ 'UNK'),
-         Survey = paste0(case_when(grepl("^03", SurveyDate) ~ 'Spring', 
-                                   grepl("^06", SurveyDate) ~ 'Summer', 
-                                   grepl("^09", SurveyDate) ~ 'Fall', 
-                                   grepl("^12", SurveyDate) ~ 'Winter', TRUE ~ 'UNK'), substr(SurveyDate, 9, 10))) %>%
+  mutate(Season = case_when(month(SurveyDate) == 3 ~ 'Spr', 
+                            month(SurveyDate) == 6 ~ 'Sum', 
+                            month(SurveyDate) == 9 ~ 'Fal', 
+                            month(SurveyDate) == 12 ~ 'Win', TRUE ~ 'UNK'),
+         Survey = paste0(case_when(month(SurveyDate) == 3 ~ 'Spring', 
+                                   month(SurveyDate) == 6 ~ 'Summer', 
+                                   month(SurveyDate) == 9 ~ 'Fall', 
+                                   month(SurveyDate) == 12 ~ 'Winter', TRUE ~ 'UNK'), year(Srvy_df$SurveyDate) %% 100)) %>%
   rename("Station" = StationNumber, "Quadrat" = QuadratNumber, "LiveQ" = NumLive, "DeadQ" = NumDead, "Volume" = TotalVolume, "Weight" = TotalWeight) %>%
   dplyr::select(Project:StationName, Season, Survey, Site:Section, Station, Quadrat:DeadQ, Live, Dead, Volume, Weight) %>% arrange(SurveyDate, Site, Station, Quadrat)
 #
 SrvySH_df <- hsdbSrvySH %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
   mutate(Project = 'CERP',
-         SurveyDate = paste0(substr(QuadratID, 12, 13), "/01/", substr(QuadratID, 8, 11)),
-         Month = substr(QuadratID, 12, 13),
-         Year = substr(QuadratID, 8, 11),
+         SurveyDate = as.Date(paste0(substr(QuadratID, 12, 13), "/01/", substr(QuadratID, 8, 11)), "%m/%d/%Y"),
+         Month = as.numeric(substr(QuadratID, 12, 13)),
+         Year = as.numeric(substr(QuadratID, 8, 11)),
          StationName = -999,
          Site = paste0(Estuary, "-", SectionName),
          Date = as.Date(substr(QuadratID, 8, 15), "%Y%m%d"),
-         Quadrat = substr(QuadratID, nchar(QuadratID)-1, nchar(QuadratID))) %>%
-  mutate(Season = case_when(grepl("^03", SurveyDate) ~ 'Spr', 
-                            grepl("^06", SurveyDate) ~ 'Sum', 
-                            grepl("^09", SurveyDate) ~ 'Fal', 
-                            grepl("^12", SurveyDate) ~ 'Win', TRUE ~ 'UNK'),
-         Survey = paste0(case_when(grepl("^03", SurveyDate) ~ 'Spring', 
-                                   grepl("^06", SurveyDate) ~ 'Summer', 
-                                   grepl("^09", SurveyDate) ~ 'Fall', 
-                                   grepl("^12", SurveyDate) ~ 'Winter', TRUE ~ 'UNK'), substr(SurveyDate, 9, 10))) %>%
+         Quadrat = as.integer(substr(QuadratID, nchar(QuadratID)-1, nchar(QuadratID)))) %>%
+  mutate(Season = case_when(month(SurveyDate) == 3 ~ 'Spr', 
+                            month(SurveyDate) == 6 ~ 'Sum', 
+                            month(SurveyDate) == 9 ~ 'Fal', 
+                            month(SurveyDate) == 12 ~ 'Win', TRUE ~ 'UNK'),
+         Survey = paste0(case_when(month(SurveyDate) == 3 ~ 'Spring', 
+                                   month(SurveyDate) == 6 ~ 'Summer', 
+                                   month(SurveyDate) == 9 ~ 'Fall', 
+                                   month(SurveyDate) == 12 ~ 'Winter', TRUE ~ 'UNK'), year(Srvy_df$SurveyDate) %% 100)) %>%
   rename("Station" = StationNumber, "SH" = ShellHeight) %>% 
   dplyr::select(Project:StationName, Season, Survey, Site, Date, Station, Quadrat, SH) %>% arrange(SurveyDate, Site, Station, Quadrat)
 #
 Flow_df <- dsFlow %>% 
-  mutate(Year = format(Date, "%Y"),
-         Month = format(Date, "%m")) %>%
+  mutate(Year = as.numeric(format(Date, "%Y")),
+         Month = as.numeric(format(Date, "%m"))) %>%
   dplyr::select(Analysis_Date, Year, Month, Site, Date, FlowSum)
 #
 #
 ##
+#
+####Save all modified data to output####
+#
+#Load each sheet and append new data
+WQ_excel <- readWorkbook("CERP/CERP_data_raw.xlsx", sheet = 'WaterQuality', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% 
+ # mutate(Time = format((as.POSIXct(Time*86400, origin = "1970-01-01", tz = "UTC")), "%H:%M")) %>% 
+  bind_rows(WQ_df)
+Flow_excel <- readWorkbook("CERP/CERP_data_raw.xlsx", sheet = 'Flow', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(Flow_df)
+Rcrt_excel <- readWorkbook("CERP/CERP_data_raw.xlsx", sheet = 'Rcrt', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(Rcrt_df)
+Dermo_excel <- readWorkbook("CERP/CERP_data_raw.xlsx", sheet = 'Dermo', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(Dermo_df)
+Survey_excel <- readWorkbook("CERP/CERP_data_raw.xlsx", sheet = 'SurveyCounts', detectDates = TRUE) %>% mutate(across(contains("Date"))) %>% bind_rows(Srvy_df)
+SH_excel <- readWorkbook("CERP/CERP_data_raw.xlsx", sheet = 'SurveySHs', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(SrvySH_df)
+
+#Load workbook of existing data
+Data_wb <- loadWorkbook("CERP/CERP_data_raw.xlsx")
+#Overwrite each sheet with new data appended to old
+writeData(Data_wb, "WaterQuality", WQ_excel)
+writeData(Data_wb, "Flow", Flow_excel)
+writeData(Data_wb, "Rcrt", Rcrt_excel)
+writeData(Data_wb, "Dermo", Dermo_excel)
+writeData(Data_wb, "SurveyCounts", Survey_excel)
+writeData(Data_wb, "SurveySHs", SH_excel)
+
+#Save workbook
+saveWorkbook(Data_wb, "CERP/CERP_data_raw.xlsx", overwrite=TRUE)
