@@ -105,8 +105,10 @@ Rcrt_df <- hsdbRcrt %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocat
          RetDate = as.Date(substr(SampleEventID, 8, 15), "%Y%m%d"),
          JulRet = as.numeric(as.Date(substr(SampleEventID, 8, 15), "%Y%m%d")-as.Date("2005-01-01")+1),
          JulDep = as.numeric(as.Date(DeployedDate, "%Y-%m-%d")-as.Date("2005-01-01")+1),
-         Site = paste0(Estuary, "-", SectionName)) %>%
-  mutate(NumDays = JulRet-JulDep) %>%
+         Site = paste0(Estuary, "-", SectionName),
+         NumBottom = as.numeric(ifelse(is.na(NumBottom), -999, NumBottom)),
+         NumTop = as.numeric(ifelse(is.na(NumTop), -999, NumTop))) %>%
+  mutate(NumDays = as.numeric(RetDate - as.Date(DeployedDate, "%Y-%m-%d"))) %>%
   rename("Station" = StationNumber, "Rep" = ShellReplicate, "Shell" = ShellPosition, "Bottom" = NumBottom, "Top" = NumTop) %>%
   dplyr::select(Project:JulDep, NumDays, Site, Station, Rep, Shell, Bottom, Top) %>% arrange(AnalysisDate, Site, Station, Rep, Shell)
   
@@ -119,7 +121,10 @@ Dermo_df <- hsdbDermo %>% left_join(dboFixedLocations %>% dplyr::select(FixedLoc
          Date = as.Date(substr(SampleEventID, 8, 15), "%Y%m%d"),
          Site = paste0(Estuary, "-", SectionName),
          Section = -999, 
-         SampleNum = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID)))) %>%
+         SampleNum = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))),
+         ShellLength = as.numeric(ifelse(is.na(ShellLength), -999, ShellLength)),
+         ShellWidth = as.numeric(ifelse(is.na(ShellWidth), -999, ShellWidth))) %>%
+  filter(SampleNum < 16) %>%
   rename("SH" = ShellHeight, "SL" = ShellLength, "SW" = ShellWidth, "TotalWt" = TotalWeight, "ShellWetWt" = ShellWetWeight, "Station" = StationNumber) %>%
   dplyr::select(Project:SampleNum, Station, SH:DermoGill) %>% arrange(AnalysisDate, Site, Station, SampleNum)
   
