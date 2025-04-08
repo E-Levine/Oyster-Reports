@@ -32,7 +32,7 @@ FILE STRUCTURE: <br>
 
 <br>
 FILE USE:<br>
-/CERP - Compiling monthly reports from Excel data files into Word doucument outputs. Compile quarterly summary data into html outputs and figures into Word document output.<br>
+/CERP - Compiling monthly reports from Excel data files into Word doucument outputs. Compile quarterly summary data into html outputs and figures into Word document output. Compile summary data into annual figures in Word document output.<br>
 /DBHYDRO - Cleaning and compilation of downloaded data from DBHYDRO. Can summarize data for specified stations and dates within an estuary and save data output.<br>
 /DMFM - Previous export of some NFWF data to Excel for a quick graph. Used Bags per acre.<br>
 /FLTIG - .<br>
