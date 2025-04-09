@@ -65,7 +65,7 @@ hsdbSrvy <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
 hsdbSrvySH <- tbl(con,in_schema("hsdb", "SurveySH")) %>%
   collect() %>% mutate(FixedLocationID = substring(QuadratID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
   filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
-  filter(as.Date(substr(QuadratID, 8, 15), format = "%Y%m%d") > as.Date(paste0("01/01/", Annual_year), "%m/%d/%Y") & as.Date(substr(QuadratID, 8, 15), format = "%Y%m%d") < as.Date(paste0("12/31/", Annual_year), "%m/%d/%Y"))
+  filter(as.Date(substr(QuadratID, 8, 15), format = "%Y%m%d") > as.Date(paste0("01/01/", Annual_year), "%m/%d/%Y") & as.Date(substr(QuadratID, 8, 15), format = "%Y%m%d") < as.Date(paste0("12/31/", Annual_year), "%m/%d/%Y")) %>%
   mutate(SH_n = as.integer(substr(ShellHeightID, 29,31))) %>% filter(SH_n < 11)
 #
 DBI::dbDisconnect(con)
@@ -129,7 +129,7 @@ Dermo_df <- hsdbDermo %>% left_join(dboFixedLocations %>% dplyr::select(FixedLoc
   dplyr::select(Project:SampleNum, Station, SH:DermoGill) %>% arrange(AnalysisDate, Site, Station, SampleNum)
   
 #
-Srvy_df <- hsdbSrvy %>% dplyr::select(FixedLocationID, QuadratID:TotalWeight) %>% 
+Srvy_df_t <- hsdbSrvy %>% dplyr::select(FixedLocationID, QuadratID:TotalWeight) %>% 
   left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
   mutate(Project = 'CERP',
          SurveyDate = as.Date(paste0(substr(SampleEventID, 12, 13), "/01/", substr(SampleEventID, 8, 11)), "%m/%d/%Y"),
@@ -147,11 +147,13 @@ Srvy_df <- hsdbSrvy %>% dplyr::select(FixedLocationID, QuadratID:TotalWeight) %>
          Survey = paste0(case_when(month(SurveyDate) == 3 ~ 'Spring', 
                                    month(SurveyDate) == 6 ~ 'Summer', 
                                    month(SurveyDate) == 9 ~ 'Fall', 
-                                   month(SurveyDate) == 12 ~ 'Winter', TRUE ~ 'UNK'), year(Srvy_df$SurveyDate) %% 100)) %>%
-  rename("Station" = StationNumber, "Quadrat" = QuadratNumber, "LiveQ" = NumLive, "DeadQ" = NumDead, "Volume" = TotalVolume, "Weight" = TotalWeight) %>%
-  dplyr::select(Project:StationName, Season, Survey, Site:Section, Station, Quadrat:DeadQ, Live, Dead, Volume, Weight) %>% arrange(SurveyDate, Site, Station, Quadrat)
+                                   month(SurveyDate) == 12 ~ 'Winter', TRUE ~ 'UNK'), year(SurveyDate) %% 100)) %>%
+  rename("Station" = StationNumber, "Quadrat" = QuadratNumber, "LiveQtr" = NumLive, "DeadQtr" = NumDead, "Volume" = TotalVolume, "Weight" = TotalWeight) %>%
+  dplyr::select(Project:StationName, Season, Survey, Site:Section, Station, Quadrat:DeadQtr, Live, Dead, Volume, Weight)
+Srvy_df <- Srvy_df_t %>% anti_join(Srvy_df_t %>% filter((Season == 'Sum' & Site == "CR-W" & Station == 4) | (Season == 'Sum' & Site == "CR-E" & Station == 1) | (Season == 'Win' & Site == "CR-E" & Station == 1) | (Season == 'Win' & Site == "CR-W" & Station == 4))) %>%
+  arrange(SurveyDate, Site, Station, Quadrat)
 #
-SrvySH_df <- hsdbSrvySH %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
+SrvySH_df_t <- hsdbSrvySH %>% left_join(dboFixedLocations %>% dplyr::select(FixedLocationID, Estuary, SectionName, StationNumber)) %>%
   mutate(Project = 'CERP',
          SurveyDate = as.Date(paste0(substr(QuadratID, 12, 13), "/01/", substr(QuadratID, 8, 11)), "%m/%d/%Y"),
          Month = as.numeric(substr(QuadratID, 12, 13)),
@@ -167,9 +169,13 @@ SrvySH_df <- hsdbSrvySH %>% left_join(dboFixedLocations %>% dplyr::select(FixedL
          Survey = paste0(case_when(month(SurveyDate) == 3 ~ 'Spring', 
                                    month(SurveyDate) == 6 ~ 'Summer', 
                                    month(SurveyDate) == 9 ~ 'Fall', 
-                                   month(SurveyDate) == 12 ~ 'Winter', TRUE ~ 'UNK'), year(Srvy_df$SurveyDate) %% 100)) %>%
+                                   month(SurveyDate) == 12 ~ 'Winter', TRUE ~ 'UNK'), year(SurveyDate) %% 100),
+         ShellHeight = as.numeric(ifelse(is.na(ShellHeight), -999, ShellHeight))) %>%
   rename("Station" = StationNumber, "SH" = ShellHeight) %>% 
   dplyr::select(Project:StationName, Season, Survey, Site, Date, Station, Quadrat, SH) %>% arrange(SurveyDate, Site, Station, Quadrat)
+#
+SrvySH_df <- SrvySH_df_t %>% anti_join(SrvySH_df_t %>% filter((Season == 'Sum' & Site == "CR-W" & Station == 4) | (Season == 'Sum' & Site == "CR-E" & Station == 1) | (Season == 'Win' & Site == "CR-E" & Station == 1) | (Season == 'Win' & Site == "CR-W" & Station == 4))) %>%
+  arrange(SurveyDate, Site, Station, Quadrat)
 #
 Flow_df <- dsFlow %>% 
   mutate(Year = as.numeric(format(Date, "%Y")),
