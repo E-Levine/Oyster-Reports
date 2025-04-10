@@ -180,7 +180,8 @@ SrvySH_df <- SrvySH_df_t %>% anti_join(SrvySH_df_t %>% filter((Season == 'Sum' &
 Flow_df <- dsFlow %>% 
   mutate(Year = as.numeric(format(Date, "%Y")),
          Month = as.numeric(format(Date, "%m"))) %>%
-  dplyr::select(Analysis_Date, Year, Month, Site, Date, FlowSum)
+  rename("AnalysisDate" = Analysis_Date) %>%
+  dplyr::select(AnalysisDate, Year, Month, Site, Date, FlowSum)
 #
 #
 ##
