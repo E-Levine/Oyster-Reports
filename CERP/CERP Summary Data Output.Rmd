@@ -13,11 +13,12 @@ params:
     Repro: FALSE
     Sedi: FALSE
     Srvy: FALSE
+    Raw_data: TRUE
 ---
 
-
 ~~~{=comment}
-This file compiles the monthly summary data for the data types marked "TRUE" above. Summary data is output in an Excel sheet, and maintained in the repo for future updates. Data is appended to the end of existing data within the Excel file, it does NOT overwrite existing data. 
+This file compiles the monthly summary data for the data types marked "TRUE" above. Summary data is output in an Excel sheet, and maintained in the repo for future updates. Data is appended to the end of existing data within the Summary_Data and WQ_Summary_Data Excel files, it does NOT overwrite existing data. 
+If Raw_data = TRUE, raw data for updating grant manger data files will also be appended to existing data in the CERP_PBC_Raw_data_file. 
 ~~~
 
 ```{r setup, include=FALSE}
@@ -27,8 +28,8 @@ Author <- c("E Levine") #Change to your name
 Database <- "Oysters_25-04-15"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2025-01-01")
-End_date <- as.Date("2025-03-30")
+Start_date <- as.Date("2023-10-01")
+End_date <- as.Date("2024-12-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -165,8 +166,10 @@ dboSrvySH <- tbl(con,in_schema("dbo", "SurveySH")) %>%
 DBI::dbDisconnect(con)
 ```
 
-```{r WQ data tables, eval = params$WQ}
-
+```{r Data setup}
+#Data cleaning used for raw output, summary output, or both
+#
+##WQ
 #List of WQ params
 WQ_params <- c("DO","Pct", "pH", "Sal", "SP", "Temp")
 
@@ -177,7 +180,7 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
          SP = round((Secchi/Depth) * 100, 2)) %>%
   #Filter data to desired columns needed for summary
-  dplyr::select(AnalysisDate, RetDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, PercentDissolvedOxygen, pH, Salinity, SP, Temperature) %>% rename(DO = DissolvedOxygen, Pct = PercentDissolvedOxygen, Sal = Salinity, Temp = Temperature) %>%
+  dplyr::select(AnalysisDate, RetDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, PercentDissolvedOxygen, pH, Salinity, SP, Temperature, CollectionTime, SampleDepth, TurbidityYSI, TurbidityHach) %>% rename(DO = DissolvedOxygen, Pct = PercentDissolvedOxygen, Sal = Salinity, Temp = Temperature) %>%
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
   #Add simplified StationName 
@@ -186,11 +189,143 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName)) %>%
   filter(!if_all(c("DO", "Pct", "pH", "Sal", "SP", "Temp"), ~is.na(.)))
+#
+##Raw data output
+WQ_raw_data <- WQ_combined %>% dplyr::select(RetDate, Site, StationName, CollectionTime, SampleDepth, Temp, Sal, pH, DO, Pct, SP, TurbidityYSI, TurbidityHach) %>% rename("Station" = StationName, "DOPct" = Pct, "Secchi" = SP) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), CollectionTime = str_c(str_sub(CollectionTime, 1, nchar(CollectionTime) - 2), ":", str_sub(CollectionTime, -2))) %>% mutate(ChlA = "Z", .before = TurbidityYSI) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+#
+#
+#
+##Dermo
+#Combined table of all parameters
+Dermo_combined <- left_join(rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboDermo %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         MeanDermo = rowMeans(.[, c("DermoMantle", "DermoGill")], na.rm = TRUE),
+         DermoSum = as.numeric(ifelse(rowSums(select(., contains("Dermo"))) >0, 1, 0))) %>%
+  #Filter data to desired columns needed for summary
+  dplyr::select(AnalysisDate, RetDate, OysterID, SampleEventID, FixedLocationID, DermoMantle, DermoGill, MeanDermo, DermoSum, ShellHeight, TotalWeight, ShellWetWeight, Comments) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
 
+##Dermo raw data
+Dermo_raw_data <- Dermo_combined %>% dplyr::select(RetDate, Site, StationName, ShellHeight, TotalWeight, ShellWetWeight, DermoMantle, DermoGill, Comments) %>% rename("Station" = StationName) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station)))) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+#
+#
+#
+#
+##Cage
+Cage_reps <- c("CR-E-B", "CR-E-R", "CR-E-Y", "CR-W-B", "CR-W-R", "CR-W-Y", "LX-N-B", "LX-N-R", "LX-N-Y", "SL-C-B", "SL-C-R", "SL-C-Y")
+Cage_Sites <- c("CR-E", "CR-W", "LX-N", "SL-C")
+
+#Combined table of cage counts
+Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboCage %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         CageID = substring(CageCountID, 28, 28)) %>%
+  #Filter data to desired columns needed for summary
+  dplyr::select(AnalysisDate, RetDate, CageID, SampleEventID, FixedLocationID, DataType, TotalCount, DeployedDate, DaysDeployed, Comments) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName)) %>% 
+  pivot_wider(names_from = DataType, values_from = TotalCount) %>% mutate(CageName = paste0(Site, "-", CageID),
+                                                                          DeadPct = 100-((Retrieved/Deployed)*100))
+CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Completed")), (dboCageSH %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(CageCountID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         CageID = substring(CageCountID, 28, 28),
+         DataType = substring(CageCountID, 26, 26),
+         ShellHeight = as.integer(ShellHeight)) %>%
+  #Filter data to desired date range and select columns needed for summary
+  filter(RetDate > Start_date & RetDate < End_date) %>%
+  dplyr::select(AnalysisDate, RetDate, CageCountID, FixedLocationID, CageID, DataType, ShellHeight, ShellHeightID) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName)) %>%
+  mutate(DataType = factor(DataType, levels =c("D", "R"), labels = c("Dep", "Ret")), 
+         CageName = paste0(Site, "-", CageID))
+
+##Cage raw data
+Cage_counts_raw_data <- Cage_combined %>% dplyr::select(DeployedDate, RetDate, DaysDeployed, Site, StationName, CageName, Deployed, Retrieved, Comments) %>% rename("Station" = StationName, "Cage" = CageName) %>% mutate(DepJulian = as.numeric(as.Date(DeployedDate) - as.Date("2005-01-01")) + 1, .before = DaysDeployed) %>% mutate(RetJulian = as.numeric(RetDate - as.Date("2005-01-01")) + 1, .before = DaysDeployed) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), DeployedDate = format(as.Date(DeployedDate), "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), Cage = case_when(substr(Cage, nchar(Cage), nchar(Cage)) == "R" ~ "Red", substr(Cage, nchar(Cage), nchar(Cage)) == "Y" ~ "Yellow", substr(Cage, nchar(Cage), nchar(Cage)) == "B" ~ "Brown", TRUE ~ "Other")) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+
+Cage_SH_raw_data <-full_join(CageSH_combined %>% dplyr::select(ShellHeightID, RetDate, CageID, DataType, ShellHeight, FixedLocationID) %>% filter(DataType == "Dep") %>% arrange(ShellHeightID) %>% rename("Dep" = ShellHeight) %>% mutate(CageID = case_when(CageID == "R" ~ "Red", CageID == "Y" ~ "Yellow", CageID == "B" ~ "Brown", TRUE ~ "Other"), ShellHeightID = gsub("_(B|R|Y|D)", "", ShellHeightID)) %>% dplyr::select(-DataType), CageSH_combined %>% dplyr::select(ShellHeightID, RetDate, CageID, DataType, ShellHeight) %>% filter(DataType == "Ret") %>% arrange(ShellHeightID) %>% rename("Ret" = ShellHeight) %>% mutate(CageID = case_when(CageID == "R" ~ "Red", CageID == "Y" ~ "Yellow", CageID == "B" ~ "Brown", TRUE ~ "Other"), ShellHeightID = gsub("_(B|R|Y|D)", "", ShellHeightID)) %>% dplyr::select(-DataType)) %>% rename("Cage" = CageID) %>% left_join(dboFixedLocations %>% mutate(Site = paste0(Estuary,"-",SectionName)) %>% dplyr::select(FixedLocationID, Site, "Station" = StationNumber)) %>% dplyr::select(-ShellHeightID, -FixedLocationID) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% left_join(Cage_counts_raw_data %>% dplyr::select(DeployedDate:Cage), by = c("RetDate", "Cage", "Site", "Station")) %>% dplyr::select(DeployedDate, RetDate, DepJulian, RetJulian, DaysDeployed, Site, Station, Cage, Dep, Ret) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "DeployedDate")
+#
+#
+#
+##Rcrt
+##Raw data 
+Rcrt_raw_data <- left_join(rbind((hsdbRcrt %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRcrt %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), DeployedDate = as.Date(DeployedDate, format = "%Y-%m-%d")) %>% dplyr::select(RetDate, DeployedDate, ShellID, SampleEventID, FixedLocationID, ShellReplicate, ShellPosition, NumBottom, NumTop, Comments) %>% arrange(match(FixedLocationID, c(LocationID_order)), RetDate), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% mutate(DaysDeployed = as.numeric(RetDate - DeployedDate), DepJulian = as.numeric(as.Date(DeployedDate) - as.Date("2005-01-01")) + 1, RetJulian = as.numeric(RetDate - as.Date("2005-01-01")) + 1) %>% rename("Rep"= ShellReplicate, "Shell" = ShellPosition, "Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% dplyr::select(RetDate, RetJulian, DepJulian, DaysDeployed, Site, Station, Rep, Shell, NumBottom, NumTop, Comments) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+#
+#
+#
+##Repro
+##Raw data
+Repro_raw_data <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRepro %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), ReproStage = as.factor(ReproStage)) %>% dplyr::select(RetDate, OysterID, SampleEventID, FixedLocationID, Sex, ReproStage, Parasite, BadSlide) %>% arrange(match(FixedLocationID, c(LocationID_order))), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% left_join(Dermo_combined %>% dplyr::select(OysterID, ShellHeight)) %>% mutate(SampleNumber = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))), OldStage = "Z", MSXPresent = "Z", MSXStage = "Z", M_F = case_when(Sex == "M/F" ~ "Yes", TRUE ~ "No"), BadSlide = case_when(BadSlide == "N" ~ "No", BadSlide == "Y" ~ "Yes", TRUE ~ "Other")) %>% dplyr::select(RetDate, Site, SampleNumber, StationNumber, ShellHeight, Sex, ReproStage, OldStage, MSXPresent, MSXStage, Parasite, M_F, BadSlide) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ReproStage = case_when(ReproStage == "M/F" ~ "Z", TRUE ~ ReproStage)) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+#
+#
+#
+##Srvy
+#Combined table of survey counts
+Srvy_combined <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboSrvy %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Live = NumLive * 4,
+         Dead = NumDead * 4,
+         DeadRatio = Dead/(Live + Dead)) %>%
+  #Filter data to desired columns needed for summary
+  dplyr::select(AnalysisDate, RetDate, QuadratID, SampleEventID, FixedLocationID, Live, Dead, DeadRatio) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
+SH_combined <- left_join(rbind((hsdbSrvySH %>% filter(DataStatus == "Proofed"| DataStatus == "Completed")), (dboSrvySH %>% filter(DataStatus == "Proofed"))) %>%
+  #Create date columns 
+  mutate(RetDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month"))) %>%
+  #Filter data to desired columns needed for summary
+  dplyr::select(AnalysisDate, RetDate, ShellHeightID, QuadratID, FixedLocationID, ShellHeight) %>% 
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
+  #Add simplified StationName 
+  dboFixedLocations %>% 
+    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
+           Site = paste0(Estuary, "-", SectionName)) %>%
+    dplyr::select(FixedLocationID, Site, StationName))
+
+#Raw data
+Srvy_counts_raw_data <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboSrvy %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d")) %>% dplyr::select(RetDate, QuadratID, SampleEventID, FixedLocationID, NumLive, NumDead) %>% arrange(match(FixedLocationID, c(LocationID_order)), RetDate), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% mutate(QuadratID = as.integer(substr(QuadratID, nchar(QuadratID)-1, nchar(QuadratID))), Survey = paste(case_when(format(RetDate, "%m") == "03" ~ "Spring", format(RetDate, "%m") == "06" ~ "Summer", format(RetDate, "%m") == "09" ~ "Fall", format(RetDate, "%m") == "12" ~ "Winter", TRUE ~ "Other"), format(RetDate, "%Y"))) %>% dplyr::select(Survey, Site, RetDate, StationNumber, QuadratID, NumLive, NumDead) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+
+Srvy_SH_raw_data <- SH_combined %>% arrange(RetDate, Site, StationName, ShellHeightID) %>% mutate(Survey = paste(case_when(format(RetDate, "%m") == "03" ~ "Spring", format(RetDate, "%m") == "06" ~ "Summer", format(RetDate, "%m") == "09" ~ "Fall", format(RetDate, "%m") == "12" ~ "Winter", TRUE ~ "Other"), format(RetDate, "%Y"))) %>% dplyr::select(Survey, Site, RetDate, StationName, ShellHeightID, ShellHeight) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ShellHeightID = as.integer(substr(ShellHeightID, nchar(ShellHeightID)-5, nchar(ShellHeightID)-4)), StationName = as.numeric(substr(StationName, nchar(StationName), nchar(StationName)))) %>% rename("Station" = StationName, "Quadrat" = ShellHeightID) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+#
+#
+#
+```
+
+```{r WQ data tables, eval = params$WQ}
+#
 ##WQ output summary
 WQ_out_list <- list()
 for(w in WQ_params){
-  WQ_Out <- WQ_combined %>% group_by(StationName, AnalysisDate) %>% summarise(across(where(is.numeric), list(sum=sum))) %>% rename_with(~sub("_sum", "", .x)) #across(everything(), ~sum(!is.na(.))))
+  WQ_Out <- WQ_combined %>% dplyr::select(-CollectionTime, -SampleDepth, -TurbidityYSI, -TurbidityHach) %>% group_by(StationName, AnalysisDate) %>% summarise(across(where(is.numeric), list(sum=sum))) %>% rename_with(~sub("_sum", "", .x)) #across(everything(), ~sum(!is.na(.))))
   WQ_out_w <- WQ_Out %>% dplyr::select(StationName, AnalysisDate, all_of(w)) %>% pivot_wider(names_from = StationName, values_from = w) %>% mutate(AnalysisDate = str_replace(AnalysisDate, "-01", "")) %>% ungroup()
   WQ_out_list[[w]] <- WQ_out_w
 }
@@ -200,7 +335,7 @@ for(w in WQ_params){
 Station_summary <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))#WQ_combined %>% distinct(Site, RetDate))
 for(i in WQ_params){
   for(j in Station_order){
-    Summary_jS <- WQ_combined %>% 
+    Summary_jS <- WQ_combined %>% dplyr::select(-CollectionTime, -SampleDepth, -TurbidityYSI, -TurbidityHach)  %>% 
       #Select columns for each WQ param, filter to Station by FixedLocationID, and group for summary
       dplyr::select(StationName, AnalysisDate, RetDate, all_of(i)) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>% dplyr::select(-StationName) %>%
       #Rename columns: Add StationName to beginning, reformat RetDate for cleaning
@@ -220,7 +355,7 @@ for(i in WQ_params){
 Site_summary <- data.frame(AnalysisDate = unique(WQ_combined$AnalysisDate))#WQ_combined %>% distinct(Site, RetDate))
 for(i in WQ_params){
   for(j in Sites){
-    Summary_j <- WQ_combined %>% 
+    Summary_j <- WQ_combined %>% dplyr::select(-CollectionTime, -SampleDepth, -TurbidityYSI, -TurbidityHach) %>% 
       #Select columns for each WQ param, filter to Site, and group for summary
       dplyr::select(Site, AnalysisDate, RetDate, i) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
       #Calculate mean, SD, min, and max of parameter
@@ -239,21 +374,21 @@ for(i in WQ_params){
 #
 #
   #Load each sheet and append new data
-  DO_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
-  DO_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
-  DOPct_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>%  bind_rows(Station_summ %>% dplyr::select(contains("Pct")))
-  DOPct_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO% Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Pct"))) 
-  pH_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("pH")))
-  pH_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("pH")))
-  Sal_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("Sal")))
-  Sal_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Sal")))
-  SP_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("SP")))
-  SP_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("SP")))
-  Temp_Station <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("Temp")))
-  Temp_Site <- readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Temp")))
+  DO_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("DO")))
+  DO_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("DO")))
+  DOPct_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO% Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>%  bind_rows(Station_summ %>% dplyr::select(contains("Pct")))
+  DOPct_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO% Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Pct"))) 
+  pH_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("pH")))
+  pH_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("pH")))
+  Sal_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("Sal")))
+  Sal_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Sal")))
+  SP_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("SP")))
+  SP_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Secchi Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Site_summ %>% dplyr::select(contains("SP")))
+  Temp_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% bind_rows(Station_summ %>% dplyr::select(contains("Temp")))
+  Temp_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x))) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d"))) %>% bind_rows(Site_summ %>% dplyr::select(contains("Temp")))
   
   #Load workbook of existing data
-  WQ_wb <- loadWorkbook("WQ_Summary_Data.xlsx")
+  WQ_wb <- loadWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(WQ_wb, "DO Station", DO_Station)
   writeData(WQ_wb, "DO Site", DO_Site)
@@ -268,36 +403,19 @@ for(i in WQ_params){
   writeData(WQ_wb, "Temp Station", Temp_Station)
   writeData(WQ_wb, "Temp Site", Temp_Site)
   #Save workbook
-  saveWorkbook(WQ_wb, "WQ_Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(WQ_wb, "../Data/CERP_PBC_WQ_Summary_Data.xlsx", overwrite=TRUE)
 ```
 
 ```{r Dermo data tables, eval = params$Dermo}
-
-#Combined table of all parameters
-Dermo_combined <- left_join(rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboDermo %>% filter(DataStatus == "Proofed"))) %>%
-  #Create date columns 
-  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         MeanDermo = rowMeans(.[, c("DermoMantle", "DermoGill")], na.rm = TRUE),
-         DermoSum = as.numeric(ifelse(rowSums(select(., contains("Dermo"))) >0, 1, 0))) %>%
-  #Filter data to desired columns needed for summary
-  dplyr::select(AnalysisDate, RetDate, OysterID, SampleEventID, FixedLocationID, DermoMantle, DermoGill, MeanDermo, DermoSum) %>% 
-  #Arrange by station then date
-  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
-  #Add simplified StationName 
-  dboFixedLocations %>% 
-    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
-           Site = paste0(Estuary, "-", SectionName)) %>%
-    dplyr::select(FixedLocationID, Site, StationName))
-
+#
 ##Dermo output summary
-Dermo_out <- Dermo_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = mean(MeanDermo, na.rm = T)) %>% pivot_wider(names_from = StationName, values_from = Mean)
+Dermo_out <- Dermo_combined %>% dplyr::select(-ShellHeight, -TotalWeight, -ShellWetWeight, -Comments) %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = mean(MeanDermo, na.rm = T)) %>% pivot_wider(names_from = StationName, values_from = Mean)
 
 ##Summary by Station
 #Create empty data frame with analysis dates
 Station_summary_D <- data.frame(AnalysisDate = unique(Dermo_combined$AnalysisDate))
 for(j in Station_order){
-  Summary_jD <- Dermo_combined %>% 
+  Summary_jD <- Dermo_combined %>% dplyr::select(-ShellHeight, -TotalWeight, -ShellWetWeight, -Comments) %>% 
     #Select columns, filter to Station by FixedLocationID, and group for summary
     dplyr::select(StationName, AnalysisDate, RetDate, DermoMantle:DermoSum) %>% filter(StationName == j) %>% group_by(AnalysisDate, RetDate) %>%
     #Calculate Mean, SD, and Pct dermo
@@ -317,7 +435,7 @@ for(j in Station_order){
 #Create empty data frame with analysis dates
 Site_summary_D <- data.frame(AnalysisDate = unique(Dermo_combined$AnalysisDate))
 for(j in Sites){
-  Summary_jD <- Dermo_combined  %>% 
+  Summary_jD <- Dermo_combined %>% dplyr::select(-ShellHeight, -TotalWeight, -ShellWetWeight, -Comments) %>% 
     #Select columns for each param, filter to Site, and group for summary
     dplyr::select(Site, AnalysisDate, RetDate, DermoMantle:DermoSum) %>% filter(Site == j) %>% group_by(AnalysisDate, RetDate) %>% 
     #Calculate mean, SD, min, and max of parameter
@@ -348,54 +466,15 @@ for(j in Sites){
 ```
 
 ```{r Cage data tables, eval = params$Cage}
-Cage_reps <- c("CR-E-B", "CR-E-R", "CR-E-Y", "CR-W-B", "CR-W-R", "CR-W-Y", "LX-N-B", "LX-N-R", "LX-N-Y", "SL-C-B", "SL-C-R", "SL-C-Y")
-Cage_Sites <- c("CR-E", "CR-W", "LX-N", "SL-C")
-
-#Combined table of cage counts
-Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboCage %>% filter(DataStatus == "Proofed"))) %>%
-  #Create date columns 
-  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         CageID = substring(CageCountID, 28, 28)) %>%
-  #Filter data to desired columns needed for summary
-  dplyr::select(AnalysisDate, RetDate, CageID, SampleEventID, FixedLocationID, DataType, TotalCount) %>% 
-  #Arrange by station then date
-  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
-  #Add simplified StationName 
-  dboFixedLocations %>% 
-    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
-           Site = paste0(Estuary, "-", SectionName)) %>%
-    dplyr::select(FixedLocationID, Site, StationName)) %>% 
-  pivot_wider(names_from = DataType, values_from = TotalCount) %>% mutate(CageName = paste0(Site, "-", CageID),
-                                                                          DeadPct = 100-((Retrieved/Deployed)*100))
-CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Completed")), (dboCageSH %>% filter(DataStatus == "Proofed"))) %>%
-  #Create date columns 
-  mutate(RetDate = as.Date(substring(CageCountID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         CageID = substring(CageCountID, 28, 28),
-         DataType = substring(CageCountID, 26, 26),
-         ShellHeight = as.integer(ShellHeight)) %>%
-  #Filter data to desired date range and select columns needed for summary
-  filter(RetDate > Start_date & RetDate < End_date) %>%
-  dplyr::select(AnalysisDate, RetDate, CageCountID, FixedLocationID, CageID, DataType, ShellHeight) %>% 
-  #Arrange by station then date
-  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
-  #Add simplified StationName 
-  dboFixedLocations %>% 
-    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
-           Site = paste0(Estuary, "-", SectionName)) %>%
-    dplyr::select(FixedLocationID, Site, StationName)) %>%
-  mutate(DataType = factor(DataType, levels =c("D", "R"), labels = c("Dep", "Ret")), 
-         CageName = paste0(Site, "-", CageID))
-
+#
 #Cage output summary
-Cage_out <- Cage_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(DeadPct, na.rm = T), 2)) %>% pivot_wider(names_from = StationName, values_from = Mean) %>% arrange(AnalysisDate)
+Cage_out <- Cage_combined %>% dplyr::select(-DeployedDate,-DaysDeployed, -Comments) %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(DeadPct, na.rm = T), 2)) %>% pivot_wider(names_from = StationName, values_from = Mean) %>% arrange(AnalysisDate)
 
 ##Summary by Cage
 #Create empty data frame with analysis dates
 Station_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate)) %>% arrange(AnalysisDate)
 for(c in Cage_reps){
-  Summary_cC <- Cage_combined %>% 
+  Summary_cC <- Cage_combined %>% dplyr::select(-DeployedDate,-DaysDeployed, -Comments) %>% 
     #Select columns, filter to Station by FixedLocationID, and group for summary
     dplyr::select(CageName, AnalysisDate, DeadPct) %>% filter(CageName == c) %>% group_by(AnalysisDate) %>%
     #Calculate Mean, SD, and Pct dermo
@@ -423,7 +502,7 @@ for(c in Cage_reps){
 #Create empty data frame with analysis dates
 Site_summary_C <- data.frame(AnalysisDate = unique(Cage_combined$AnalysisDate)) %>% arrange(AnalysisDate)
 for(j in Cage_Sites){
-  Summary_jC <- Cage_combined  %>% 
+  Summary_jC <- Cage_combined  %>% dplyr::select(-DeployedDate,-DaysDeployed, -Comments) %>% 
     #Select columns for each param, filter to Site, and group for summary
     dplyr::select(Site, AnalysisDate, DeadPct) %>% filter(Site == j) %>% group_by(AnalysisDate) %>% 
     #Calculate mean, SD, min, and max of parameter
@@ -545,7 +624,7 @@ for(j in Sites){
 ```
 
 ```{r Repro data tables, eval = params$Repro}
-
+#
 #List of Repro stages
 Stages <- c("Ind", "Dev","Rip", "Spe")
 
@@ -711,38 +790,7 @@ for(p in Positions){
 ```
 
 ```{r Survey data tables, eval = params$Srvy}
-
-#Combined table of survey counts
-Srvy_combined <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboSrvy %>% filter(DataStatus == "Proofed"))) %>%
-  #Create date columns 
-  mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         Live = NumLive * 4,
-         Dead = NumDead * 4,
-         DeadRatio = Dead/(Live + Dead)) %>%
-  #Filter data to desired columns needed for summary
-  dplyr::select(AnalysisDate, RetDate, QuadratID, SampleEventID, FixedLocationID, Live, Dead, DeadRatio) %>% 
-  #Arrange by station then date
-  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
-  #Add simplified StationName 
-  dboFixedLocations %>% 
-    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
-           Site = paste0(Estuary, "-", SectionName)) %>%
-    dplyr::select(FixedLocationID, Site, StationName))
-SH_combined <- left_join(rbind((hsdbSrvySH %>% filter(DataStatus == "Proofed"| DataStatus == "Completed")), (dboSrvySH %>% filter(DataStatus == "Proofed"))) %>%
-  #Create date columns 
-  mutate(RetDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month"))) %>%
-  #Filter data to desired columns needed for summary
-  dplyr::select(AnalysisDate, RetDate, ShellHeightID, QuadratID, FixedLocationID, ShellHeight) %>% 
-  #Arrange by station then date
-  arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
-  #Add simplified StationName 
-  dboFixedLocations %>% 
-    mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
-           Site = paste0(Estuary, "-", SectionName)) %>%
-    dplyr::select(FixedLocationID, Site, StationName))
-
+#
 #Survey output summary
 Srvy_out <- Srvy_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(Live, na.rm = T), 2)) %>% pivot_wider(names_from = StationName, values_from = Mean) %>% mutate(Survey = paste0(case_when(month(AnalysisDate) <= 3 ~ "Spring ", month(AnalysisDate) > 3 & month(AnalysisDate) <= 6 ~ "Summer ", month(AnalysisDate) > 6 & month(AnalysisDate) <= 9 ~ "Fall ", month(AnalysisDate) > 9 ~ "Winter ", TRUE ~ "UNK"), year(AnalysisDate)), .before = AnalysisDate)
 
@@ -841,6 +889,35 @@ for(j in Sites){
 
 ```
 
+```{r Raw data output, eval = params$Raw_data}
+#
+#Load each sheet and append new data
+  WQ_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("RetDate","Site", "CollectionTime", "ChlA")), ~as.numeric(.x))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(WQ_raw_data) %>% arrange(Year, Month)
+  Dermo_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("RetDate","Site", "Comments")), ~as.numeric(.x))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Dermo_raw_data) %>% arrange(Year, Month)
+  Cage_counts_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'CageCounts', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("Date","Site","Cage", "Comments")), ~as.numeric(.x))) %>% mutate(DeployedDate = format(DeployedDate, "%m/%d/%Y"), RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Cage_counts_raw_data) %>% arrange(Year, Month)
+  Cage_SH_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'CageSHs', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("Date","Site","Cage", "ShellHeightID")), ~as.numeric(.x))) %>% mutate(DeployedDate = format(DeployedDate, "%m/%d/%Y"), RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Cage_SH_raw_data) %>% arrange(Year, Month, Site, Cage)
+  Rcrt_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("Date","Site","Cage", "Comments")), ~as.numeric(.x))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Rcrt_raw_data)  %>% arrange(Year, Month, Site, Station, Rep, Shell)
+  Repro_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y"))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Repro_raw_data)  %>% arrange(RetDate)  %>% arrange(Year, Month)
+  Srvy_counts_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y"))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Srvy_counts_raw_data)  %>% arrange(Year, Month)
+  Srvy_SH_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y"))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% bind_rows(Srvy_SH_raw_data)  %>% arrange(Year, Month)
+  
+  #Load workbook of existing data
+  Raw_data_wb <- loadWorkbook("../Data/CERP_PBC_Raw_Data.xlsx")
+  #Overwrite each sheet with new data appended to old
+  writeData(Raw_data_wb, "WaterQuality", WQ_raw)
+  writeData(Raw_data_wb, "Dermo", Dermo_raw)
+  writeData(Raw_data_wb, "CageCounts", Cage_counts_raw)
+  writeData(Raw_data_wb, "CageSHs", Cage_SH_raw)
+  writeData(Raw_data_wb, "Rcrt", Rcrt_raw)
+  writeData(Raw_data_wb, "Repro", Repro_raw)
+  writeData(Raw_data_wb, "SrvyCounts", Srvy_counts_raw)
+  writeData(Raw_data_wb, "SrvySHs", Srvy_SH_raw)
+
+  #Save workbook
+  saveWorkbook(Raw_data_wb, "../Data/CERP_PBC_Raw_Data.xlsx", overwrite=TRUE)
+
+```
+
 ```{r ReportText}
 #Report Text in area below
 ```
@@ -862,22 +939,22 @@ Dermo data covers sites and stations from `r if(exists("Dermo_combined") == TRUE
 `r if(exists("Dermo_combined") == TRUE){kable(Dermo_out, caption = "Dermo data")}`
 
 ## Cage summary
-Cage data covers sites and stations from `r if(exists("Cage_combined") == TRUE){min(Cage_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("WQ_combined") == TRUE){max(Cage_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`. Cage percentages are average mortality per site.\
-`r if(exists("Cage_combined") == TRUE){kable(Cage_out, caption = "Cage percent mortatily data")}`
+Cage data covers sites and stations from `r if(exists("Cage_combined") == TRUE){min(Cage_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("WQ_combined") == TRUE){max(Cage_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
+`r if(exists("Cage_combined") == TRUE){kable(Cage_out, caption = "Cage percent mortatily data. Cage percentages are average mortality per site.")}`
 
 ## Recruitment summary
 Recruitment data covers sites and stations from `r if(exists("Rcrt_combined") == TRUE){min(Rcrt_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Rcrt_combined") == TRUE){max(Rcrt_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
 `r if(exists("Rcrt_combined") == TRUE){kable(Rcrt_out, caption = "Recruitment data")}`
 
 ## Repro summary
-Repro data covers sites and stations from `r if(exists("Repro_combined") == TRUE){min(Repro_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Repro_combined") == TRUE){max(Repro_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`. Percentages are given as total percentage of Developing and Ripe oysters.\
-`r if(exists("Repro_combined") == TRUE){kable(Repro_out, caption = "Repro percent developing & ripe data")}`
+Repro data covers sites and stations from `r if(exists("Repro_combined") == TRUE){min(Repro_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Repro_combined") == TRUE){max(Repro_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
+`r if(exists("Repro_combined") == TRUE){kable(Repro_out, caption = "Repro percent developing & ripe data.  Percentages are given as total percentage of Developing and Ripe oysters.")}`
 
 ## Sediment trap summary
-Sediment trap data covers sites and stations (`r if(exists("Sedi_combined") == TRUE){Sedi_Sites}`) from `r if(exists("Sedi_combined") == TRUE){min(Sedi_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Sedi_combined") == TRUE){max(Sedi_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`. Values provided are mean total dry weight (g).\
-`r if(exists("Sedi_combined") == TRUE){kable(Sedi_out, caption = "Sediment trap total dry weight data")}`
+Sediment trap data covers sites and stations (`r if(exists("Sedi_combined") == TRUE){Sedi_Sites}`) from `r if(exists("Sedi_combined") == TRUE){min(Sedi_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Sedi_combined") == TRUE){max(Sedi_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
+`r if(exists("Sedi_combined") == TRUE){kable(Sedi_out, caption = "Sediment trap total dry weight data. Values provided are mean total dry weight (g).")}`
 
 
 ## Survey summary
-Survey data covers sites and stations from `r if(exists("Srvy_combined") == TRUE){min(Srvy_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Srvy_combined") == TRUE){max(Srvy_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`. Values provided are mean number of live oysters (per m2).\
-`r if(exists("Srvy_combined") == TRUE){kable(Srvy_out, caption = "Survey data")}`
+Survey data covers sites and stations from `r if(exists("Srvy_combined") == TRUE){min(Srvy_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Srvy_combined") == TRUE){max(Srvy_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
+`r if(exists("Srvy_combined") == TRUE){kable(Srvy_out, caption = "Survey data. Values provided are mean number of live oysters (per m2).")}`
