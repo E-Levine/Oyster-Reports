@@ -171,11 +171,23 @@ PBC_rcrt <- Rcrt_PBC %>% gt() %>% data_color(columns = contains("Mean"), fn = sc
 #
 #
 ##Repro
-CERP_repro <- Repro_CERP %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+if(nrow(Repro_CERP) > 0){
+  CERP_repro <- Repro_CERP %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+} else {
+  CERP_repro <- "Data unavailable."
+}
 #
-CRE_repro <- Repro_CRE %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+if(nrow(Repro_CERP) > 0){
+  CRE_repro <- Repro_CRE %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+} else {
+  CRE_repro <- "Data unavailable."
+}
 #
-PBC_repro <- Repro_PBC %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+if(nrow(Repro_CERP) > 0){
+  PBC_repro <- Repro_PBC %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+} else {
+  PBC_repro <- "Data unavailable."
+}
 #
 #
 ##Counts
@@ -298,7 +310,7 @@ Live Counts range: `r Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_dat
 
 
 <h3> `r paste("Repro summary")` </h3>
-`r CERP_repro %>% tab_caption(caption = "Monthly CERP reproductive stages")`
+`r if(!is.null(nrow(CERP_repro))){CERP_repro %>% tab_caption(caption = "Monthly CERP reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 
 
 <h3> `r paste("Dermo summary")` </h3>
@@ -352,7 +364,7 @@ Minimum and maximum values observed during the quarter and data ordered by incre
 
 
 <h3> `r paste("Repro summary")` </h3>
-`r CRE_repro %>% tab_caption(caption = "Monthly CRE reproductive stages")`
+`r if(!is.null(nrow(CRE_repro))){CRE_repro %>% tab_caption(caption = "Monthly CRE reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 
 
 <h3> `r paste("Dermo summary")` </h3>
@@ -414,7 +426,7 @@ Restored reef station 4 (LWR4) -- Tarpon Cove\
 
 
 <h3> `r paste("Repro summary")` </h3>
-`r PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")`
+`r if(!is.null(nrow(PBC_repro))){PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 
 
 <h3> `r paste("Dermo summary")` </h3>
