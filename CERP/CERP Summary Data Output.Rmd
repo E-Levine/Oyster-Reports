@@ -7,7 +7,7 @@ output:
   word_document: NULL
 params:  
     WQ: FALSE
-    Dermo: FALSE
+    Dermo: TRUE
     Cage: FALSE
     Rcrt: FALSE
     Repro: FALSE
@@ -28,8 +28,8 @@ Author <- c("E Levine") #Change to your name
 Database <- "Oysters_25-04-15"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2023-10-01")
-End_date <- as.Date("2024-12-30")
+Start_date <- as.Date("2025-03-01")
+End_date <- as.Date("2025-03-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -193,6 +193,15 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
 ##Raw data output
 WQ_raw_data <- WQ_combined %>% dplyr::select(RetDate, Site, StationName, CollectionTime, SampleDepth, Temp, Sal, pH, DO, Pct, SP, TurbidityYSI, TurbidityHach) %>% rename("Station" = StationName, "DOPct" = Pct, "Secchi" = SP) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), CollectionTime = str_c(str_sub(CollectionTime, 1, nchar(CollectionTime) - 2), ":", str_sub(CollectionTime, -2))) %>% mutate(ChlA = "Z", .before = TurbidityYSI) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 #
+if(params$WQ && !params$Raw_data){
+  WQ_combined <- WQ_combined
+  rm(WQ_raw_data)
+} else if(!params$WQ && params$Raw_data){
+    WQ_raw_data <- WQ_raw_data
+    rm(WQ_combined)
+} else {
+    rm(WQ_combined, WQ_raw_data)
+  }
 #
 #
 ##Dermo
@@ -218,6 +227,15 @@ Dermo_combined <- left_join(rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber)
 ##Dermo raw data
 Dermo_raw_data <- Dermo_combined %>% dplyr::select(RetDate, Site, StationName, ShellHeight, TotalWeight, ShellWetWeight, DermoMantle, DermoGill, Comments) %>% rename("Station" = StationName) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station)))) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 #
+if(params$Dermo && !params$Raw_data){
+  Dermo_combined <- Dermo_combined
+  rm(Dermo_raw_data)
+} else if(!params$Dermo && params$Raw_data){
+    Dermo_raw_data <- Dermo_raw_data
+    rm(Dermo_combined)
+} else {
+    rm(Dermo_combined, Dermo_raw_data)
+  }
 #
 #
 #
@@ -242,6 +260,7 @@ Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed" | 
     dplyr::select(FixedLocationID, Site, StationName)) %>% 
   pivot_wider(names_from = DataType, values_from = TotalCount) %>% mutate(CageName = paste0(Site, "-", CageID),
                                                                           DeadPct = 100-((Retrieved/Deployed)*100))
+#
 CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Completed")), (dboCageSH %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
   mutate(RetDate = as.Date(substring(CageCountID, 8, 15), format = "%Y%m%d"),
@@ -267,17 +286,40 @@ Cage_counts_raw_data <- Cage_combined %>% dplyr::select(DeployedDate, RetDate, D
 
 Cage_SH_raw_data <-full_join(CageSH_combined %>% dplyr::select(ShellHeightID, RetDate, CageID, DataType, ShellHeight, FixedLocationID) %>% filter(DataType == "Dep") %>% arrange(ShellHeightID) %>% rename("Dep" = ShellHeight) %>% mutate(CageID = case_when(CageID == "R" ~ "Red", CageID == "Y" ~ "Yellow", CageID == "B" ~ "Brown", TRUE ~ "Other"), ShellHeightID = gsub("_(B|R|Y|D)", "", ShellHeightID)) %>% dplyr::select(-DataType), CageSH_combined %>% dplyr::select(ShellHeightID, RetDate, CageID, DataType, ShellHeight) %>% filter(DataType == "Ret") %>% arrange(ShellHeightID) %>% rename("Ret" = ShellHeight) %>% mutate(CageID = case_when(CageID == "R" ~ "Red", CageID == "Y" ~ "Yellow", CageID == "B" ~ "Brown", TRUE ~ "Other"), ShellHeightID = gsub("_(B|R|Y|D)", "", ShellHeightID)) %>% dplyr::select(-DataType)) %>% rename("Cage" = CageID) %>% left_join(dboFixedLocations %>% mutate(Site = paste0(Estuary,"-",SectionName)) %>% dplyr::select(FixedLocationID, Site, "Station" = StationNumber)) %>% dplyr::select(-ShellHeightID, -FixedLocationID) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% left_join(Cage_counts_raw_data %>% dplyr::select(DeployedDate:Cage), by = c("RetDate", "Cage", "Site", "Station")) %>% dplyr::select(DeployedDate, RetDate, DepJulian, RetJulian, DaysDeployed, Site, Station, Cage, Dep, Ret) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "DeployedDate")
 #
+if(params$Cage && !params$Raw_data){
+  Cage_combined <- Cage_combined
+  CageSH_combined <- CageSH_combined
+  rm(Cage_counts_raw_data, Cage_SH_raw_data)
+} else if(!params$Cage && params$Raw_data){
+    Cage_counts_raw_data <- Cage_counts_raw_data
+    Cage_SH_raw_data <- Cage_SH_raw_data
+    rm(Cage_combined, CageSH_combined)
+} else {
+    rm(Cage_combined, CageSH_combined, Cage_counts_raw_data, Cage_SH_raw_data)
+  }
+#
 #
 #
 ##Rcrt
 ##Raw data 
 Rcrt_raw_data <- left_join(rbind((hsdbRcrt %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRcrt %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), DeployedDate = as.Date(DeployedDate, format = "%Y-%m-%d")) %>% dplyr::select(RetDate, DeployedDate, ShellID, SampleEventID, FixedLocationID, ShellReplicate, ShellPosition, NumBottom, NumTop, Comments) %>% arrange(match(FixedLocationID, c(LocationID_order)), RetDate), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% mutate(DaysDeployed = as.numeric(RetDate - DeployedDate), DepJulian = as.numeric(as.Date(DeployedDate) - as.Date("2005-01-01")) + 1, RetJulian = as.numeric(RetDate - as.Date("2005-01-01")) + 1) %>% rename("Rep"= ShellReplicate, "Shell" = ShellPosition, "Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% dplyr::select(RetDate, RetJulian, DepJulian, DaysDeployed, Site, Station, Rep, Shell, NumBottom, NumTop, Comments) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 #
+if(!params$Raw_data){
+   rm(Rcrt_raw_data)
+} else {Rcrt_raw_data <- Rcrt_raw_data
+   } 
+#
 #
 #
 ##Repro
 ##Raw data
 Repro_raw_data <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRepro %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), ReproStage = as.factor(ReproStage)) %>% dplyr::select(RetDate, OysterID, SampleEventID, FixedLocationID, Sex, ReproStage, Parasite, BadSlide) %>% arrange(match(FixedLocationID, c(LocationID_order))), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% left_join(Dermo_combined %>% dplyr::select(OysterID, ShellHeight)) %>% mutate(SampleNumber = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))), OldStage = "Z", MSXPresent = "Z", MSXStage = "Z", M_F = case_when(Sex == "M/F" ~ "Yes", TRUE ~ "No"), BadSlide = case_when(BadSlide == "N" ~ "No", BadSlide == "Y" ~ "Yes", TRUE ~ "Other")) %>% dplyr::select(RetDate, Site, SampleNumber, StationNumber, ShellHeight, Sex, ReproStage, OldStage, MSXPresent, MSXStage, Parasite, M_F, BadSlide) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ReproStage = case_when(ReproStage == "M/F" ~ "Z", TRUE ~ ReproStage)) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>% filter(SampleNumber < 16)
+#
+if(!params$Raw_data){
+   rm(Repro_raw_data)
+} else {Repro_raw_data <- Repro_raw_data
+   } 
+#
 #
 #
 #
@@ -299,6 +341,7 @@ Srvy_combined <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | 
     mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName))
+#
 SH_combined <- left_join(rbind((hsdbSrvySH %>% filter(DataStatus == "Proofed"| DataStatus == "Completed")), (dboSrvySH %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
   mutate(RetDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
@@ -318,6 +361,17 @@ Srvy_counts_raw_data <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proo
 
 Srvy_SH_raw_data <- SH_combined %>% arrange(RetDate, Site, StationName, ShellHeightID) %>% mutate(Survey = paste(case_when(format(RetDate, "%m") == "03" ~ "Spring", format(RetDate, "%m") == "06" ~ "Summer", format(RetDate, "%m") == "09" ~ "Fall", format(RetDate, "%m") == "12" ~ "Winter", TRUE ~ "Other"), format(RetDate, "%Y"))) %>% dplyr::select(Survey, Site, RetDate, StationName, ShellHeightID, ShellHeight) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ShellHeightID = as.integer(substr(ShellHeightID, nchar(ShellHeightID)-5, nchar(ShellHeightID)-4)), StationName = as.numeric(substr(StationName, nchar(StationName), nchar(StationName)))) %>% rename("Station" = StationName, "Quadrat" = ShellHeightID) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 #
+if(params$Srvy && !params$Raw_data){
+  Srvy_combined <- Srvy_combined
+  SH_combined <- SH_combined
+  rm(Srvy_counts_raw_data, Srvy_SH_raw_data)
+} else if(!params$Srvy && params$Raw_data){
+    Srvy_counts_raw_data <- Srvy_counts_raw_data
+    Srvy_SH_raw_data <- Srvy_SH_raw_data
+    rm(Srvy_combined, SH_combined)
+} else {
+    rm(Srvy_combined, SH_combined, Srvy_counts_raw_data, Srvy_SH_raw_data)
+  }
 #
 #
 ```
@@ -454,16 +508,16 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  Dermo_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_D)
-  Dermo_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_D)
+  Dermo_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_D)
+  Dermo_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Dermo Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_D)
   
   #Load workbook of existing data
-  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(Data_wb, "Dermo Station", Dermo_Station)
   writeData(Data_wb, "Dermo Site", Dermo_Site)
    #Save workbook
-  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Data_wb, "../Data/CERP_PBC_Summary_Data.xlsx", overwrite=TRUE)
 
 ```
 
@@ -531,16 +585,16 @@ for(j in Cage_Sites){
 #
 #
   #Load each sheet and append new data
-  SH_Mort_Cage <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_C)
-  SH_Mort_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_C)
+  SH_Mort_Cage <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_C)
+  SH_Mort_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_C)
   
   #Load workbook of existing data
-  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(Data_wb, "SH Mort Cage", SH_Mort_Cage)
   writeData(Data_wb, "SH Mort Site", SH_Mort_Site)
    #Save workbook
-  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Data_wb, "../Data/CERP_PBC_Summary_Data.xlsx", overwrite=TRUE)
 
 ```
 
@@ -612,16 +666,16 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  Rcrt_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_R)
-  Rcrt_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_R)
+  Rcrt_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Station_summ_R)
+  Rcrt_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Rcrt Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_R)
   
   #Load workbook of existing data
-  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(Data_wb, "Rcrt Station", Rcrt_Station)
   writeData(Data_wb, "Rcrt Site", Rcrt_Site)
    #Save workbook
-  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Data_wb, "../Data/CERP_PBC_Summary_Data.xlsx", overwrite=TRUE)
 
 ```
 
@@ -683,14 +737,14 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  Repro_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_Re)
+  Repro_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("Date"), ~as.numeric(.x))) %>% bind_rows(Site_summ_Re)
   
   #Load workbook of existing data
-  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(Data_wb, "Repro", Repro_Site)
    #Save workbook
-  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Data_wb, "../Data/CERP_PBC_Summary_Data.xlsx", overwrite=TRUE)
 
 ```
 
@@ -779,16 +833,16 @@ for(p in Positions){
 #
 #
   #Load each sheet and append new data
-  Sedi_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Stations', detectDates = TRUE) %>% bind_rows(Station_summ_D)
-  Sedi_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE) %>% bind_rows(Site_summ_D)
+  Sedi_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Sedi Stations', detectDates = TRUE) %>% bind_rows(Station_summ_D)
+  Sedi_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Sedi Position', detectDates = TRUE) %>% bind_rows(Site_summ_D)
   
   #Load workbook of existing data
-  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(Data_wb, "Sedi Stations", Sedi_Station)
   writeData(Data_wb, "Sedi Position", Sedi_Site)
    #Save workbook
-  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Data_wb, "../Data/CERP_PBC_Summary_Data.xlsx", overwrite=TRUE)
 
 ```
 
@@ -875,20 +929,20 @@ for(j in Sites){
 #
 #
   #Load each sheet and append new data
-  DeadRatio_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Station_summ_S)
-  DeadRatio_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Site_summ_S)
-  SH_Station <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Station_summ_SH)
-  SH_Site <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Site_summ_SH)
+  DeadRatio_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Station_summ_S)
+  DeadRatio_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'DeadRatio Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Site_summ_S)
+  SH_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Station_summ_SH)
+  SH_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) %>% bind_rows(Site_summ_SH)
   
   #Load workbook of existing data
-  Data_wb <- loadWorkbook("Summary_Data.xlsx")
+  Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
   #Overwrite each sheet with new data appended to old
   writeData(Data_wb, "DeadRatio Station", DeadRatio_Station)
   writeData(Data_wb, "DeadRatio Site", DeadRatio_Site)
   writeData(Data_wb, "SH Station", SH_Station)
   writeData(Data_wb, "SH Site", SH_Site)
    #Save workbook
-  saveWorkbook(Data_wb, "Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Data_wb, "../Data/CERP_PBC_Summary_Data.xlsx", overwrite=TRUE)
 
 ```
 
