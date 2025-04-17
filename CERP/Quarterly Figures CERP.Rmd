@@ -583,7 +583,7 @@ Cage_Mort %>%
 
 ```
 
-```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). No cages were retrieved at St. Lucie-Central station 1 in December 2023 nor in January 2024.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Cage_SH %>% 
   ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
   geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
