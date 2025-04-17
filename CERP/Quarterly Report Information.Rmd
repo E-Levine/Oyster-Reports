@@ -505,7 +505,7 @@ LWL- `r Rate_sta %>% dplyr::select(contains("LW.L")) %>% unlist() %>% setdiff(.,
 -- -- --*by Site-* 
 LWL- `r Pct_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Lw.L")) %>% unlist() %>% setdiff(., NA) %>% max(na.rm = T)`
 -- -- LWR-  `r Pct_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Lw.R")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`\
-*Percent organic mean: Overall-*`r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% mean(na.rm = T) %>% round(2)`\
+*Percent organic mean: Overall-*`r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% mean(na.rm = T) %>% round(2)`\
 *by Site- *`r Pct_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value)  %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
 
 `r Sta_Wts %>% tab_caption(caption = "Monthly sedimentation organic weights by station")`
@@ -517,16 +517,16 @@ LWL- `r Wt_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(., 
 *by Site- *`r Wt_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value)  %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
 
 `r Pos_Rates %>% tab_caption(caption = "Monthly sedimentation rate by North v South stations")`
-*Sedimentation rate mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("RateMean")) %>% colMeans() %>% round(2)`
+*Sedimentation rate mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("RateMean")) %>% drop_na() %>% colMeans() %>% round(2)`
 `r Pos_Pcts %>% tab_caption(caption = "Monthly sedimentation percent organic by North v South stations")`
-*Percent organic mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("PctOrganicMean")) %>% colMeans() %>% round(2)`
+*Percent organic mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("PctOrganicMean")) %>% drop_na() %>% colMeans() %>% round(2)`
 `r Pos_Wts %>% tab_caption(caption = "Monthly sedimentation organic weights by North v South stations")`
-*Organic weight mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("OrgWtMean")) %>% colMeans() %>% round(2)`
+*Organic weight mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("OrgWtMean")) %>% drop_na() %>% colMeans() %>% round(2)`
 Sediment trap summary tables:
 `r LWL_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate of natural reef stations. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
 `r LWR_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate of restoration reef stations. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
 `r North_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations North of C-51. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
-`r South_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations South of C-51. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
+`r South_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations South of C-51. Annual data includes samples from ", End_date %m-% months(11) %>% format("%B %Y"), " through ", End_date %>% format("%B %Y"), ".", sep = ""))`
 
 <h3> `r paste("Water Quality summary")` </h3>
 Salintiy and Secchi measurements observed during the quarter.
