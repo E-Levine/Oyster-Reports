@@ -163,7 +163,7 @@ Live_list <- list()
 for(i in seq_along(PBC_sites)){
   #
   Working_site <- paste(PBC_sites[i])
-  df_temp <- Counts %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Counts %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -192,7 +192,7 @@ Dead_list <- list()
 for(i in seq_along(PBC_sites)){
   #
   Working_site <- paste(PBC_sites[i])
-  df_temp <- Counts %>% filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Counts %>% filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -221,7 +221,7 @@ SH_list <- list()
 for(i in seq_along(PBC_sites)){
   #
   Working_site <- paste(PBC_sites[i])
-  df_temp <- SHs %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- SHs %>% filter(grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
