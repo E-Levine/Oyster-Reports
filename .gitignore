@@ -58,6 +58,7 @@ FLTIG/*.xlsx
 NFWF/*.xlsx
 PBC/*.xlsx
 *.docx
+Presentations/*.xlsx
 
 #DBHydro files
 DBHYDRO/Local_data/*

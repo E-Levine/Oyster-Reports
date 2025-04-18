@@ -264,20 +264,16 @@ SedimentStats1 <- Sediment %>%
            StationNumber, 
            SectionName) %>% 
   summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
-            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
+            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE))) %>%
+  arrange(Estuary, StationNumber, Plot_Date)
 
-SedimentStats2 <- Sediment %>% 
+SedimentStats2 <- SedimentStats1 %>% 
   group_by(AnalysisDate, 
            Plot_Date, 
            Estuary) %>% 
-  summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
-            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
-
-SedimentStats3 <- Sediment %>% 
-  group_by(Estuary,
-           StationNumber) %>% 
-  summarise(SedRateMean = ifelse(all(is.na(SedRate)), NA, mean(SedRate, na.rm = TRUE)),
-            SedRateSD = ifelse(all(is.na(SedRate)), NA, sd(SedRate, na.rm = TRUE)))
+  summarise(SedRateMedian = ifelse(all(is.na(SedRateMean)), NA, median(SedRateMean, na.rm = TRUE)),
+            SedRateMax = ifelse(all(is.na(SedRateMean)), NA, max(SedRateMean, na.rm = TRUE))) %>%
+  arrange(Estuary, Plot_Date)
 
 ```
 
@@ -289,8 +285,7 @@ mydatasets <- list('WaterQualityStats1' = WaterQualityStats1,
                    'RecruitmentStats1' = RecruitmentStats1,
                    'RecruitmentStats2' = RecruitmentStats2,
                    'SedimentStats1' = SedimentStats1,
-                   'SedimentStats2' = SedimentStats2,
-                   'SedimentStats3' = SedimentStats3)
+                   'SedimentStats2' = SedimentStats2)
 write.xlsx(mydatasets, "Davis_StAndrew_FL-TIG_.2025.04_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
 
 ```
@@ -332,16 +327,10 @@ Estuary_shape <- scale_shape_manual("",labels = Estuary_Names, values = setNames
 ```
 
 ```{r TempFigs}
-#Creating Temperature figures per section for better customization
-#wqtemp_plot_list <- list()
-
-#for (i in seq_along(Estuaries)) {
-#  df_source <- get(paste0(Estuaries[i], "_WQStats")) 
-#  wqtemp_plot_list[[i]] <- df_source %>% 
-#  filter(SectionName == lv3[i]) %>%
+#Creating Temperature figures per Estuary
 TempPlot <- WaterQualityStats2 %>%
   ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, color = as.factor(Estuary), group = as.factor(Estuary)))+ #Set base data to present
-  geom_line(color = "black") + #Add connecting lines
+  geom_line(size = 1.5) + #Add connecting lines
   geom_point(aes(shape = as.factor(Estuary), fill = as.factor(Estuary)), color = "black", size = 2.5) +  #Then add points on top. Fill = inside color of shape; Color = outside line of shape    
   scale_x_datetime("", expand = c(0.035, 0), #Set axis title and remove spacing
                    date_breaks = "1 month", date_labels = "%b %Y", #Set axis breaks, label format
@@ -352,4 +341,29 @@ TempPlot <- WaterQualityStats2 %>%
 
 # You can access individual plots using recruit_plot_list[[i]]. For example: print(recruit_plot_list[1])
 #print(wqtemp_plot_list)
+print(TempPlot)
+
+Estuary_color <- c(
+  "AB" = "#1f78b4",
+  "SA" = "#33a02c",
+  "PE" = "#e31a1c"
+) 
+
+TempPlotGPT <- WaterQualityStats2 %>%
+  ggplot(aes(x = as.POSIXct(Plot_Date), y = TempMean, 
+             color = as.factor(Estuary), group = as.factor(Estuary))) + 
+  geom_line(size = 1.5) + 
+  geom_point(aes(shape = as.factor(Estuary), fill = as.factor(Estuary)), 
+             color = "black", size = 2.5) +    
+  scale_x_datetime("", expand = c(0.035, 0),
+                   date_breaks = "1 month", date_labels = "%b %Y") +
+  scale_y_continuous("Temperature (°C)", expand = c(0, 0),
+                     limits = c(0, 40), breaks = scales::pretty_breaks()) +
+    scale_color_manual(values = Estuary_color) +
+  scale_fill_manual(values = Estuary_color) +
+  ggtitle("Mean Temperatures") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  BaseForm + Estuary_color # Ensure these are defined
+
+print(TempPlotGPT)
 ```
