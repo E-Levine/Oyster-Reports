@@ -58,9 +58,11 @@ FLTIG/*.xlsx
 NFWF/*.xlsx
 PBC/*.xlsx
 *.docx
+
 Presentations/*.xlsx
 !CERP/Summary_Data.xlsx
 !CERP/WQ_Summary_Data.xlsx
+
 
 #DBHydro files
 DBHYDRO/Local_data/*
