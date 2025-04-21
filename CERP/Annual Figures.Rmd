@@ -863,7 +863,7 @@ for(i in seq_along(CRE_Sites)){
 
 CRE_live_fig <- ggarrange(
   CRE_Live_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
-  CRE_Live_list[[2]] + guides(color = guide_legend(override.aes = list(size=2))),
+  CRE_Live_list[[2]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
   nrow = 2, heights = c(1, 1.0), align = "v"  
   )
 #
@@ -957,7 +957,7 @@ for(i in seq_along(CRE_Sites)){
 
 CRE_dead_fig <- ggarrange(
   CRE_Dead_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
-  CRE_Dead_list[[2]] + guides(color = guide_legend(override.aes = list(size=2))),
+  CRE_Dead_list[[2]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
   nrow = 2, heights = c(1, 1.0), align = "v"  
   )
 #
@@ -1052,7 +1052,7 @@ for(i in seq_along(CRE_Sites)){
 CRE_SH_fig <- ggarrange(
   CRE_SH_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
   CRE_SH_list[[2]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
-  nrow = 2, heights = c(1, 1), align = "v" 
+  nrow = 2, heights = c(1, 1.0), align = "v" 
   )
 
 CRE_SH_fig
