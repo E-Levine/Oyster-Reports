@@ -8,7 +8,7 @@ output:
     fig_caption: yes
 params:
   Start_date: "2023-10-01" #Start date of reporting quarter
-  End_date: "2024-12-30"   #End date of reporting quarter
+  End_date: "2024-09-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -91,9 +91,9 @@ Cages_color <- c("SLC" = rgb(0, 0, 228, maxColorValue = 255), "LXN" = rgb(245, 0
 ###Water Quality
 #salinity
 WQ_Sal_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
-SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
-LRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/LX_Flow.xlsx", sheet = 'LOXSum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
-CRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/CR_Flow.xlsx", sheet = 'S79', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
+SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(15) & Date <= End_date)
+LRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/LX_Flow.xlsx", sheet = 'LOXSum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(15)& Date <= End_date)
+CRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/CR_Flow.xlsx", sheet = 'S79', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date %m-% days(15) <= End_date)
 #Temperature
 WQ_Tem_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #DO
@@ -383,11 +383,12 @@ ggarrange(
 ```
 
 ```{r LRE Salinity Figure, fig.cap = "**Figure 3.**  Monthly salinity recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites and the sum of the mean daily flow rate at the Lainhart Dam and S46 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
-#max((LRE_Flow_2 %>% filter(Site == "LXN))$Flow) - round to nearest divisible by 4 -1200
+#max((LRE_Flow_2 %>% filter(Site == "LXN"))$Flow) - round to nearest divisible by 4 -1200, 300; 500
+#Change Rescale*n to correct flow pattern as needed
 ggarrange(
   #LNX
   ggplot() +
-    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXN"), aes(Date, Rescale*3.45), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXN"), aes(Date, Rescale*1.64), fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_line(data = Sal_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Loxahatchee-North") +
@@ -401,12 +402,12 @@ ggarrange(
   NULL,
   #LXS
   ggplot() +
-    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXS"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXS"), aes(Date, Rescale*1.25), fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_line(data = Sal_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Loxahatchee-South") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(1200/40), name = "Flow (cfs)", breaks = seq(0,1200, 300))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(480/40), name = "Flow (cfs)", breaks = seq(0,480, 120))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: S46"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: S46"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -791,8 +792,7 @@ for(i in seq_along(SLE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -823,8 +823,7 @@ for(i in seq_along(LRE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -854,8 +853,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee River-East", grepl("CRW", Working_site) ~ "Caloosahatchee River-West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -885,8 +883,7 @@ for(i in seq_along(SLE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -917,8 +914,7 @@ for(i in seq_along(LRE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -948,8 +944,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee-East", grepl("CRW", Working_site) ~ "Caloosahatchee-West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -979,8 +974,7 @@ for(i in seq_along(SLE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -1011,8 +1005,7 @@ for(i in seq_along(LRE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -1042,8 +1035,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(14) %m-% days(5), End_date %m-% days(5)))+
-    #scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee- East", grepl("CRW", Working_site) ~ "Caloosahatchee- West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
