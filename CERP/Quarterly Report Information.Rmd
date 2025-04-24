@@ -177,13 +177,13 @@ if(nrow(Repro_CERP) > 0){
   CERP_repro <- "Data unavailable."
 }
 #
-if(nrow(Repro_CERP) > 0){
+if(nrow(Repro_CRE) > 0){
   CRE_repro <- Repro_CRE %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
 } else {
   CRE_repro <- "Data unavailable."
 }
 #
-if(nrow(Repro_CERP) > 0){
+if(nrow(Repro_PBC) > 0){
   PBC_repro <- Repro_PBC %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
 } else {
   PBC_repro <- "Data unavailable."
@@ -343,7 +343,7 @@ Recruitment mid-range: `r CERP_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r 
 
 
 <h3> `r paste("Repro summary")` </h3>
-`r if(!is.null(nrow(CERP_repro))){CERP_repro %>% tab_caption(caption = "Monthly CERP reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
+`r if(!is.null(CERP_repro)){CERP_repro %>% tab_caption(caption = "Monthly CERP reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 
 
 <h3> `r paste("Dermo summary")` </h3>
@@ -402,7 +402,7 @@ Recruitment mid-range: `r CRE_Rcrt_temp  %>% slice(n()-1) %>% pull(Value)` - `r 
 
 
 <h3> `r paste("Repro summary")` </h3>
-`r if(!is.null(nrow(CRE_repro))){CRE_repro %>% tab_caption(caption = "Monthly CRE reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
+`r if(!is.null(CRE_repro)){CRE_repro %>% tab_caption(caption = "Monthly CRE reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 
 
 <h3> `r paste("Dermo summary")` </h3>
@@ -468,7 +468,7 @@ Shell height Mid-range: `r PBC_SH_temp %>% slice(n()-1) %>% pull(Value)` - `r PB
 
 
 <h3> `r paste("Repro summary")` </h3>
-`r if(!is.null(nrow(PBC_repro))){PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
+`r if(!is.null(PBC_repro)){PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 
 
 <h3> `r paste("Dermo summary")` </h3>
