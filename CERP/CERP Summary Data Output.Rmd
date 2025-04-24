@@ -7,10 +7,10 @@ output:
   word_document: NULL
 params:  
     WQ: FALSE
-    Dermo: TRUE
+    Dermo: FALSE
     Cage: FALSE
     Rcrt: FALSE
-    Repro: FALSE
+    Repro: TRUE
     Sedi: FALSE
     Srvy: FALSE
     Raw_data: FALSE
@@ -25,10 +25,10 @@ If Raw_data = TRUE, raw data for updating grant manger data files will also be a
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine") #Change to your name
-Database <- "Oysters_25-04-15"  #Set the local database to use
+Database <- "Oysters_25-04-24"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2025-03-01")
+Start_date <- as.Date("2025-01-01")
 End_date <- as.Date("2025-03-30")
 
 #Packages
@@ -233,7 +233,9 @@ if(params$Dermo && !params$Raw_data){
 } else if(!params$Dermo && params$Raw_data){
     Dermo_raw_data <- Dermo_raw_data
     rm(Dermo_combined)
-} else {
+} else if(params$Repro == T){
+  Dermo_combined <- Dermo_combined
+  } else {
     rm(Dermo_combined, Dermo_raw_data)
   }
 #
@@ -313,7 +315,7 @@ if(!params$Raw_data){
 #
 ##Repro
 ##Raw data
-Repro_raw_data <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRepro %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), ReproStage = as.factor(ReproStage)) %>% dplyr::select(RetDate, OysterID, SampleEventID, FixedLocationID, Sex, ReproStage, Parasite, BadSlide) %>% arrange(match(FixedLocationID, c(LocationID_order))), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% left_join(Dermo_combined %>% dplyr::select(OysterID, ShellHeight)) %>% mutate(SampleNumber = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))), OldStage = "Z", MSXPresent = "Z", MSXStage = "Z", M_F = case_when(Sex == "M/F" ~ "Yes", TRUE ~ "No"), BadSlide = case_when(BadSlide == "N" ~ "No", BadSlide == "Y" ~ "Yes", TRUE ~ "Other")) %>% dplyr::select(RetDate, Site, SampleNumber, StationNumber, ShellHeight, Sex, ReproStage, OldStage, MSXPresent, MSXStage, Parasite, M_F, BadSlide) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ReproStage = case_when(ReproStage == "M/F" ~ "Z", TRUE ~ ReproStage)) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>% filter(SampleNumber < 16)
+Repro_raw_data <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRepro  %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), ReproStage = as.factor(ReproStage)) %>% dplyr::select(RetDate, OysterID, SampleEventID, FixedLocationID, Sex, ReproStage, Parasite, BadSlide) %>% arrange(match(FixedLocationID, c(LocationID_order))), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% left_join(Dermo_combined %>% dplyr::select(OysterID, ShellHeight)) %>% mutate(SampleNumber = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))), OldStage = "Z", MSXPresent = "Z", MSXStage = "Z", M_F = case_when(Sex == "M/F" ~ "Yes", TRUE ~ "No"), BadSlide = case_when(BadSlide == "N" ~ "No", BadSlide == "Y" ~ "Yes", TRUE ~ "Other")) %>% dplyr::select(RetDate, Site, SampleNumber, StationNumber, ShellHeight, Sex, ReproStage, OldStage, MSXPresent, MSXStage, Parasite, M_F, BadSlide) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ReproStage = case_when(ReproStage == "M/F" ~ "Z", TRUE ~ ReproStage)) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>% filter(SampleNumber < 16)
 #
 if(!params$Raw_data){
    rm(Repro_raw_data)
