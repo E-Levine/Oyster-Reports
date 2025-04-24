@@ -60,6 +60,8 @@ PBC/*.xlsx
 *.docx
 Data/*Raw*.xlsx
 !Data/.gitkeep
+Presentations/*.xlsx
+
 
 
 #DBHydro files
