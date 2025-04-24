@@ -23,6 +23,7 @@ SUGGESTED WORKFLOW:
 <br> 
 FILE STRUCTURE: <br>
 /CERP - RMarkdown scripts for Comprehensive Everglades Restoration Plan project - Current versions: Monthly, Quarterly.<br>
+/Data - Summary data Excel files. Files can be read by anyone but can only be modified by specified users. If write access is needed, please request access from E-Levine. <br>
 /DBHYDRO - R code for selecting, pulling, and cleaning DBHYDRO data. Cleaned data is maintained in the repo as designated within code. Folders are maintained to help distinguish between data saved locally vs in the repo. Currently tested and released for FLOW data. May required edits for other data types.<br>
 /DMFM - RMarkdown scripts for sharing with the Division of Marine Fisheries Management  - Current versions: AS NEEDED.<br>
 /FLTIG - RMarkdown scripts for the Florida Trustees Implementation Group Data Gaps project  - Current versions: Annually.<br>
@@ -33,6 +34,7 @@ FILE STRUCTURE: <br>
 <br>
 FILE USE:<br>
 /CERP - Compiling monthly reports from Excel data files into Word doucument outputs. Compile quarterly summary data into html outputs and figures into Word document output.<br>
+/Data - Output of monthly summary data for CERP and PBC projects.<br>
 /DBHYDRO - Cleaning and compilation of downloaded data from DBHYDRO. Can summarize data for specified stations and dates within an estuary and save data output.<br>
 /DMFM - Previous export of some NFWF data to Excel for a quick graph. Used Bags per acre.<br>
 /FLTIG - .<br>

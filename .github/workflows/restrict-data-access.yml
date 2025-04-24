@@ -1,0 +1,18 @@
+name: Restrict Data Access
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-data-access:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Committer
+        run: |
+          ALLOWED_USERS=("E-Levine" "matthewdavis2985")  # Replace with allowed usernames
+          if [[ ! " ${ALLOWED_USERS[@]} " =~ " ${GITHUB_ACTOR} " ]]; then
+            echo "You are not authorized to modify files in the Data folder."
+            exit 1
+          fi

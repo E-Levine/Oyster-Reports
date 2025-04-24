@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2024-01-01" #Start date of reporting quarter
-  End_date: "2024-12-30"   #End date of reporting quarter
+  Start_date: "2023-10-01" #Start date of reporting quarter
+  End_date: "2024-09-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -90,29 +90,29 @@ Cages_color <- c("SLC" = rgb(0, 0, 228, maxColorValue = 255), "LXN" = rgb(245, 0
 ```{r Data gather from summary file, include=FALSE}
 ###Water Quality
 #salinity
-WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
-SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
-LRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/LX_Flow.xlsx", sheet = 'LOXSum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
-CRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/CR_Flow.xlsx", sheet = 'S79', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date & Date <= End_date)
+WQ_Sal_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+SLC_Flow <- readWorkbook("../DBHYDRO/Shared_data/SL_Flow.xlsx", sheet = 'SLESum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(15) & Date <= End_date)
+LRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/LX_Flow.xlsx", sheet = 'LOXSum', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(15) & Date <= End_date)
+CRE_Flow <- readWorkbook("../DBHYDRO/Shared_data/CR_Flow.xlsx", sheet = 'S79', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(15) & Date %m-% days(15) <= End_date)
 #Temperature
-WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+WQ_Tem_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #DO
-WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+WQ_DO_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #pH
-WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+WQ_pH_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #Secchi
-WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+WQ_Secchi_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #
-Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
-SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
+Counts_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
+SH_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code))
 #
-Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+Dermo_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #
-Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(starts_with(Estuary_code))
+Repro_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(starts_with(Estuary_code))
 #
-Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
+Rcrt_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))
 #
-Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
+Cage_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(AnalysisDate, starts_with(Estuary_code))
 #
 ```
 
@@ -199,13 +199,13 @@ SP_CRE_2 <- SP_CRE_1 %>% gather(SiteStation, SP, -CR_RetDate) %>% rename("RetDat
 ```{r Data selection and cleaning}
 #
 ####SURVEY DATA
-Surveys <- Counts_df %>% arrange(AnalysisDate) %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(AnalysisDate, Survey)
+Surveys <- Counts_df %>% arrange(AnalysisDate) %>% filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% dplyr::select(AnalysisDate, Survey)
 names(Counts_df) <- gsub("\\.", "", names(Counts_df))
-Counts_SL <- Counts_df %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(Survey, AnalysisDate, contains("SL")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+Counts_SL <- Counts_df %>% filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% dplyr::select(Survey, AnalysisDate, contains("SL")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
 #
-Counts_LX <- Counts_df %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(Survey, AnalysisDate, contains("LX")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+Counts_LX <- Counts_df %>% filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% dplyr::select(Survey, AnalysisDate, contains("LX")) %>% gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% spread(Measure, DataType) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
 #
-Counts_CR <- Counts_df %>% filter(AnalysisDate >= End_date %m-% months(12)) %>% dplyr::select(Survey, AnalysisDate, contains("CR")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Measure, -Survey, -AnalysisDate) %>% mutate(DataType = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) %>% mutate(Measure = case_when((Station == 1|Station == 4) & grepl("Winter", Survey) ~ NA, (Station == 1|Station == 4) & grepl("Summer", Survey) ~ NA, TRUE ~ Measure)) %>% spread(DataType, Measure) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+Counts_CR <- Counts_df %>% filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% dplyr::select(Survey, AnalysisDate, contains("CR")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Measure, -Survey, -AnalysisDate) %>% mutate(DataType = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = case_when(grepl("Dead", SiteStation) ~ substr(SiteStation, 1, 14), grepl("Live", SiteStation) ~ substr(SiteStation, 1, 9), TRUE ~ "MISSING INFO")) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) %>% mutate(Measure = case_when((Station == 1|Station == 4) & grepl("Winter", Survey) ~ NA, (Station == 1|Station == 4) & grepl("Summer", Survey) ~ NA, TRUE ~ Measure)) %>% spread(DataType, Measure) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
 #
 names(SH_df) <- gsub("\\.", "", names(SH_df))
 SH_SLE <- SH_df %>% dplyr::select(Survey, AnalysisDate, contains("SL")) %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% gather(SiteStation, Value, -Survey, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% mutate(SiteStation = substr(SiteStation, 1, 4)) %>% spread(Measure, Value) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Mean) ~ "*", grepl("Winter", Survey) & is.na(Mean) ~ "*", grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
@@ -218,44 +218,44 @@ SH_CRE <- SH_df %>% dplyr::select(Survey, AnalysisDate, contains("CR")) %>% filt
 #
 ####DERMO DATA
 names(Dermo_df) <- gsub("\\.", "", names(Dermo_df))
-DermoP_SLE <- Dermo_df %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('RetDate')|contains('Pct'))  %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoP_SLE <- Dermo_df %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('RetDate')|contains('Pct'))  %>% filter(SLC_RetDate >= Start_date & SLC_RetDate <= End_date) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -SL_RetDate) %>% rename("RetDate" = SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
-DermoP_LRE <- Dermo_df %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('RetDate')|contains('Pct'))  %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LXS_RetDate)  %>% rename("LX_RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoP_LRE <- Dermo_df %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('RetDate')|contains('Pct'))  %>% filter(LXN_RetDate >= Start_date & LXN_RetDate <= End_date) %>% dplyr::select(-LXS_RetDate)  %>% rename("LX_RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -LX_RetDate) %>% rename("RetDate" = LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
-DermoP_CRE <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoP_CRE <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|contains('Pct')) %>% filter(CRE_RetDate >= Start_date & CRE_RetDate <= End_date) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
-DermoI_SLE <- Dermo_df %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate)  %>% gather(SiteStation, Value, -SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+DermoI_SLE <- Dermo_df %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(SLC_RetDate >= Start_date & SLC_RetDate <= End_date) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("SL_RetDate" = SLC_RetDate)  %>% gather(SiteStation, Value, -SL_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
-DermoI_LRE <- Dermo_df %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LXS_RetDate)  %>% rename("LX_RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+DermoI_LRE <- Dermo_df %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(LXN_RetDate >= Start_date & LXN_RetDate <= End_date) %>% dplyr::select(-LXS_RetDate)  %>% rename("LX_RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -LX_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
-DermoI_CRE <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate)  %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+DermoI_CRE <- Dermo_df %>% dplyr::select(contains("CR")) %>% dplyr::select(contains('RetDate')|-contains('Pct')) %>% filter(CRE_RetDate >= Start_date & CRE_RetDate <= End_date) %>% dplyr::select(-CRW_RetDate)  %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
 #
 #
 ####REPRO DATA
 names(Repro_df) <- gsub("\\.", "", names(Repro_df))
-Repro_SLE <- Repro_df %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+Repro_SLE <- Repro_df %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate >= Start_date & SLC_RetDate <= End_date) %>% dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
-Repro_LRE <- Repro_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-LXS_RetDate)  %>% rename("RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+Repro_LRE <- Repro_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >= Start_date & LXN_RetDate <= End_date) %>% dplyr::select(-LXS_RetDate)  %>% rename("RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
-Repro_CRE <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+Repro_CRE <- Repro_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= Start_date & CRE_RetDate <= End_date) %>% dplyr::select(-CRW_RetDate) %>%  rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 #
 #
 #
 ####RECRUITMENT DATA
 names(Rcrt_df) <- gsub("\\.", "", names(Rcrt_df))
-Rcrt_SLE <- Rcrt_df %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate >= End_date %m-% months(13)) %>%  dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+Rcrt_SLE <- Rcrt_df %>% dplyr::select(contains("SL")) %>% filter(SLC_RetDate >= Start_date & SLC_RetDate <= End_date) %>%  dplyr::select(-SLN_RetDate, -SLS_RetDate)  %>% rename("RetDate" = SLC_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
-Rcrt_LRE <- Rcrt_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >= End_date %m-% months(13)) %>%  dplyr::select(-LXS_RetDate)  %>% rename("RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+Rcrt_LRE <- Rcrt_df %>% dplyr::select(contains("LX")) %>% filter(LXN_RetDate >= Start_date & LXN_RetDate <= End_date) %>%  dplyr::select(-LXS_RetDate)  %>% rename("RetDate" = LXN_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
-Rcrt_CRE <- Rcrt_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate) %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+Rcrt_CRE <- Rcrt_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= Start_date & CRE_RetDate <= End_date) %>% dplyr::select(-CRW_RetDate) %>% rename("RetDate" = CRE_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA), SiteStation = substr(SiteStation, 1, 4)) %>%  spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
 #
 #
 ####CAGE DATA
 names(Cage_df) <- gsub("\\.", "", names(Cage_df))
-Cage_Mort <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value)
-Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD))
+Cage_Mort <- Cage_df %>% filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value)
+Cage_SH <- Cage_df %>% filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD))
 #
 #
 ```
@@ -297,7 +297,7 @@ The following figures are presented for the annual report covering `r Start_date
 \
 **CERP missing data**
 
-Any samples listed below were missing in during the monitoring period:
+Any samples listed below were missing during the monitoring period:
 \
 \
 *Water quality*
@@ -307,7 +307,7 @@ Any samples listed below were missing in during the monitoring period:
 \
 *Survey*
 \
-`r if(nrow(Survey_check) > 0) {flextable(Survey_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey count data.")}`
+`r if(nrow(Survey_check) > 0) {flextable(Survey_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey count data.")}`\
 `r if(nrow(SH_check) > 0) {flextable(SH_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey shell height data.")}`
 \
 \
@@ -343,8 +343,8 @@ ggarrange(
     geom_line(data = Sal_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfc)", breaks = seq(0,4800, 1200))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfs)", breaks = seq(0,4800, 1200))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -357,8 +357,8 @@ ggarrange(
     geom_line(data = Sal_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-South") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfc)", breaks = seq(0,4800, 1200))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfs)", breaks = seq(0,4800, 1200))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -371,8 +371,8 @@ ggarrange(
     geom_line(data = Sal_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-Central") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfc)", breaks = seq(0,4800, 1200))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfs)", breaks = seq(0,4800, 1200))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -383,16 +383,17 @@ ggarrange(
 ```
 
 ```{r LRE Salinity Figure, fig.cap = "**Figure 3.**  Monthly salinity recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites and the sum of the mean daily flow rate at the Lainhart Dam and S46 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
-#max((LRE_Flow_2 %>% filter(Site == "LXN))$Flow) - round to nearest divisible by 4 -1200
+#max((LRE_Flow_2 %>% filter(Site == "LXN"))$Flow) - round to nearest divisible by 4 -1200, 300; 500
+#Change Rescale*n to correct flow pattern as needed
 ggarrange(
   #LNX
   ggplot() +
-    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXN"), aes(Date, Rescale*3.45), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXN"), aes(Date, Rescale*1.64), fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_line(data = Sal_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Loxahatchee-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(300/40), name = "Flow (cfc)", breaks = seq(0,300, 75))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(300/40), name = "Flow (cfs)", breaks = seq(0,300, 75))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: Lainhart Dam"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: Lainhart Dam"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -401,12 +402,12 @@ ggarrange(
   NULL,
   #LXS
   ggplot() +
-    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXS"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXS"), aes(Date, Rescale*1.25), fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_line(data = Sal_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Loxahatchee-South") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(1200/40), name = "Flow (cfc)", breaks = seq(0,1200, 300))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(480/40), name = "Flow (cfs)", breaks = seq(0,480, 120))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: S46"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: S46"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -426,8 +427,8 @@ ggarrange(
     geom_line(data = Sal_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Caloosahatchee-East") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfc)", breaks = seq(0,13000, 3250))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfs)", breaks = seq(0,13000, 3250))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -439,8 +440,8 @@ ggarrange(
     geom_line(data = Sal_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Caloosahatchee-West") + 
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfc)", breaks = seq(0,13000, 3250))) +
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfs)", breaks = seq(0,13000, 3250))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -458,7 +459,7 @@ ggarrange(
     geom_line(data = Tem_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Temperature, color = Station), linewidth = 0.7)+
     geom_point(data = Tem_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
@@ -467,7 +468,7 @@ ggarrange(
     geom_line(data = Tem_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Temperature, color = Station), linewidth = 0.7)+
     geom_point(data = Tem_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-South") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   NULL,
@@ -476,7 +477,7 @@ ggarrange(
     geom_line(data = Tem_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Temperature, color = Station), linewidth = 0.7)+
     geom_point(data = Tem_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-Central") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle  + theme(legend.position = "none"),
   nrow = 5, heights = c(1, -0.05, 1, -0.05, 1))
@@ -492,7 +493,7 @@ ggarrange(
    geom_line(data = Tem_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
@@ -501,7 +502,7 @@ ggarrange(
     geom_line(data = Tem_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-South") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   nrow = 3, heights = c(1, -0.05, 1))
@@ -517,7 +518,7 @@ ggarrange(
    geom_line(data = Tem_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-East") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   NULL,
@@ -526,7 +527,7 @@ ggarrange(
     geom_line(data = Tem_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = Tem_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Temperature, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-West") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), limits = c(0, 40)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   nrow = 3, heights = c(1, -0.05, 1))
@@ -542,7 +543,7 @@ ggarrange(
     geom_line(data = DO_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, DO, color = Station), linewidth = 0.7)+
     geom_point(data = DO_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
@@ -551,7 +552,7 @@ ggarrange(
     geom_line(data = DO_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, DO, color = Station), linewidth = 0.7)+
     geom_point(data = DO_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-South") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   NULL,
@@ -560,7 +561,7 @@ ggarrange(
     geom_line(data = DO_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, DO, color = Station), linewidth = 0.7)+
     geom_point(data = DO_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-Central") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle  + theme(legend.position = "none"),
   nrow = 5, heights = c(1, -0.05, 1, -0.05, 1))
@@ -576,7 +577,7 @@ ggarrange(
    geom_line(data = DO_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
     geom_point(data = DO_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
@@ -585,7 +586,7 @@ ggarrange(
     geom_line(data = DO_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
     geom_point(data = DO_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-South") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   nrow = 3, heights = c(1, -0.05, 1))
@@ -601,7 +602,7 @@ ggarrange(
    geom_line(data = DO_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
     geom_point(data = DO_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-East") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   NULL,
@@ -610,7 +611,7 @@ ggarrange(
     geom_line(data = DO_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
     geom_point(data = DO_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, DO, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-West") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("DO (mg/L)", expand = c(0,0), limits = c(0, 12)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   nrow = 3, heights = c(1, -0.05, 1))
@@ -626,7 +627,7 @@ ggarrange(
     geom_line(data = pH_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, pH, color = Station), linewidth = 0.7)+
     geom_point(data = pH_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
@@ -635,7 +636,7 @@ ggarrange(
     geom_line(data = pH_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, pH, color = Station), linewidth = 0.7)+
     geom_point(data = pH_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-South") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   NULL,
@@ -644,7 +645,7 @@ ggarrange(
     geom_line(data = pH_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, pH, color = Station), linewidth = 0.7)+
     geom_point(data = pH_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-Central") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle  + theme(legend.position = "none"),
   nrow = 5, heights = c(1, -0.05, 1, -0.05, 1))
@@ -660,7 +661,7 @@ ggarrange(
    geom_line(data = pH_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
     geom_point(data = pH_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-North") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
@@ -669,7 +670,7 @@ ggarrange(
     geom_line(data = pH_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
     geom_point(data = pH_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-South") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   nrow = 3, heights = c(1, -0.05, 1))
@@ -685,7 +686,7 @@ ggarrange(
    geom_line(data = pH_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
     geom_point(data = pH_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-East") +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   NULL,
@@ -694,7 +695,7 @@ ggarrange(
     geom_line(data = pH_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
     geom_point(data = pH_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-West") +     
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   nrow = 3, heights = c(1, -0.05, 1))
@@ -709,7 +710,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "St. Lucie-North") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Station_fill_E + BaseForm + FacetForm + West_legend + PlotTitle,
   NULL,
   SP_SLC_2 %>% filter(Site == "SLS") %>%
@@ -717,7 +718,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "St. Lucie-South") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Station_fill_E + BaseForm + FacetForm + PlotTitle + theme(legend.position = "none"),
   NULL,
   SP_SLC_2 %>% filter(Site == "SLC") %>%
@@ -725,7 +726,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "St. Lucie-Central") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Station_fill_E + BaseForm + FacetForm + PlotTitle + theme(legend.position = "none"),
   nrow = 5, heights = c(1, -0.05, 1, -0.05, 1))
 #
@@ -738,7 +739,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "Loxahatchee-North") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Station_fill_E + BaseForm + FacetForm + West_legend + PlotTitle,
   NULL,
   SP_LRE_2 %>% filter(Site == "LXS") %>%
@@ -746,7 +747,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "Loxahatchee-South") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Station_fill_E + BaseForm + FacetForm + PlotTitle + theme(legend.position = "none"),
   nrow = 3, heights = c(1, -0.05, 1))
 #
@@ -761,7 +762,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "Caloosahatchee-East") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     BaseForm + FacetForm + West_legend + Station_fill_W + PlotTitle,
   NULL,
   #CRW plot
@@ -770,7 +771,7 @@ ggarrange(
     geom_col(position = position_dodge(13), width = 10, color = "black") + 
     labs(title = "Caloosahatchee-West") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     BaseForm + FacetForm + West_legend + Station_fill_W + PlotTitle,
   nrow = 3, heights = c(1, -0.05, 1))
 #
@@ -791,7 +792,7 @@ for(i in seq_along(SLE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -822,7 +823,7 @@ for(i in seq_along(LRE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -852,7 +853,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous(expression("Live oysters / m"^2), expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee River-East", grepl("CRW", Working_site) ~ "Caloosahatchee River-West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -860,7 +861,7 @@ for(i in seq_along(CRE_Sites)){
 
 CRE_live_fig <- ggarrange(
   CRE_Live_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
-  CRE_Live_list[[2]] + guides(color = guide_legend(override.aes = list(size=2))),
+  CRE_Live_list[[2]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
   nrow = 2, heights = c(1, 1.0), align = "v"  
   )
 #
@@ -882,7 +883,7 @@ for(i in seq_along(SLE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -913,7 +914,7 @@ for(i in seq_along(LRE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -943,7 +944,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Ratio of Dead Oysters", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee-East", grepl("CRW", Working_site) ~ "Caloosahatchee-West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -951,7 +952,7 @@ for(i in seq_along(CRE_Sites)){
 
 CRE_dead_fig <- ggarrange(
   CRE_Dead_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
-  CRE_Dead_list[[2]] + guides(color = guide_legend(override.aes = list(size=2))),
+  CRE_Dead_list[[2]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
   nrow = 2, heights = c(1, 1.0), align = "v"  
   )
 #
@@ -970,10 +971,10 @@ for(i in seq_along(SLE_sites)){
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
   SLE_SH_list[[i]] <- df_temp %>% ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -1001,10 +1002,10 @@ for(i in seq_along(LRE_sites)){
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
   LRE_SH_list[[i]] <- df_temp %>% ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Station), position = position_dodge(40), width = 17) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -1034,7 +1035,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
     #geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
-    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("Survey", expand= c(0,15), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date %m+% days(5)))+
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10)) + 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee- East", grepl("CRW", Working_site) ~ "Caloosahatchee- West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
@@ -1043,7 +1044,7 @@ for(i in seq_along(CRE_Sites)){
 CRE_SH_fig <- ggarrange(
   CRE_SH_list[[1]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
   CRE_SH_list[[2]] + rremove("x.title") + guides(color = guide_legend(override.aes = list(size=2))),
-  nrow = 2, heights = c(1, 1), align = "v" 
+  nrow = 2, heights = c(1, 1.0), align = "v" 
   )
 
 CRE_SH_fig
@@ -1058,7 +1059,7 @@ ggarrange(
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-North") +
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_E + Station_color_E + BaseForm + West_legend + guides(text = "none", color = "none") + PlotTitle,
   NULL,
   DermoP_SLE %>% filter(Site == "SLS") %>%
@@ -1067,7 +1068,7 @@ ggarrange(
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-South") +
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   NULL,
   DermoP_SLE %>% filter(Site == "SLC") %>%
@@ -1076,7 +1077,7 @@ ggarrange(
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-Central") +
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_E + Station_color_E + BaseForm + FacetForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   nrow =  5, heights = c(1, -0.05, 1, -0.05, 1))
 #
@@ -1091,7 +1092,7 @@ ggarrange(
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Loxahatchee-North") +
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_E + Station_color_E + BaseForm + West_legend + guides(text = "none", color = "none") + PlotTitle,
   NULL,
   DermoP_LRE %>% filter(Site == "LXS") %>%
@@ -1100,7 +1101,7 @@ ggarrange(
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Loxahatchee-South") +
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   nrow =  3, heights = c(1, -0.05, 1))
 #
@@ -1113,7 +1114,7 @@ ggarrange(
     geom_col(position = position_dodge(12), width = 7, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_W + Station_color_W + BaseForm + West_legend + 
     labs(title = "Caloosahatchee-East") + PlotTitle + theme(plot.margin = unit(c(0,0.5,0.5,0), "cm"))+
     guides(text = "none", color = "none"), 
@@ -1123,7 +1124,7 @@ ggarrange(
     geom_col(position = position_dodge(12), width = 7, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9) +
     scale_y_continuous("% Dermo Prevalence", expand = c(0,0), limits = c(0,100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Station_fill_W + Station_color_W + BaseForm + West_legend + 
     labs(title = "Caloosahatchee-West") + PlotTitle + theme(plot.margin = unit(c(0,0.5,0,0), "cm"))+ 
     guides(text = "none", color = "none"),
@@ -1141,7 +1142,7 @@ ggarrange(
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-North") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + guides(text = "none", color = "none") + PlotTitle,
   NULL,
@@ -1152,7 +1153,7 @@ ggarrange(
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-South") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   NULL,
@@ -1163,7 +1164,7 @@ ggarrange(
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "St. Lucie-Central") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm"))+ 
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   nrow =  5, heights = c(1, -0.05, 1, -0.05, 1))
@@ -1180,7 +1181,7 @@ ggarrange(
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Loxahatchee-North") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + guides(text = "none", color = "none") + PlotTitle,
   NULL,
@@ -1191,7 +1192,7 @@ ggarrange(
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Loxahatchee-South") +
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_E + Station_color_E + BaseForm + West_legend + theme(legend.position =  "none") + PlotTitle,
   nrow =  3, heights = c(1, -0.05, 1))
@@ -1206,7 +1207,7 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) + Station_fill_W + Station_color_W + BaseForm + West_legend + labs(title = "Caloosahatchee-East") + PlotTitle +
     guides(text = "none", color = "none"), 
   NULL,
@@ -1216,7 +1217,7 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 0.5, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     scale_y_continuous("Dermo Intensity", expand = c(0,0), limits = c(0,5)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     theme(plot.margin = unit(c(0,0.5,0.5,0), "cm")) +
     Station_fill_W + Station_color_W + BaseForm + West_legend + labs(title = "Caloosahatchee-West") + PlotTitle + 
     guides(text = "none", color = "none"),
@@ -1232,7 +1233,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "St. Lucie-North") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + West_legend + PlotTitle,
   NULL,
   Repro_SLE %>% filter(Site == "SLS") %>%
@@ -1240,7 +1241,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "St. Lucie-South") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
   NULL,
   Repro_SLE %>% filter(Site == "SLC") %>%
@@ -1248,7 +1249,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "St. Lucie-Central") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
   nrow =  5, heights = c(1, -0.05, 1, -0.05, 1))
 #
@@ -1262,7 +1263,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Loxahatchee-North") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + West_legend + PlotTitle,
   NULL,
   Repro_LRE %>% filter(Site == "LXS") %>%
@@ -1270,7 +1271,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Loxahatchee-South") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
   nrow =  3, heights = c(1, -0.05, 1))
 #
@@ -1283,7 +1284,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Caloosahatchee-East") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + West_legend + PlotTitle,
   NULL,
   Repro_CRE %>% filter(Site == "CRW") %>%
@@ -1291,7 +1292,7 @@ ggarrange(
     geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 11, color = "black") + 
     labs(title = "Caloosahatchee-West") +
     scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
   nrow =  3, heights = c(1, -0.05, 1))
 #
@@ -1311,7 +1312,7 @@ for(i in seq_along(SLE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_col(position = position_dodge(12), width = 7, color = "black") +
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
   ggtitle(paste0("St. Lucie-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend
@@ -1342,7 +1343,7 @@ for(i in seq_along(LRE_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_col(position = position_dodge(12), width = 7, color = "black") +
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
   ggtitle(paste0("Loxahatchee-", case_when(substr(Working_site, 3, 3) == "N" ~ "North", substr(Working_site, 3, 3) == "S" ~ "South", TRUE ~ "Central"))) + 
     Station_fill_E + Station_color_E + BaseForm + PlotTitle + West_legend
@@ -1372,7 +1373,7 @@ for(i in seq_along(CRE_Sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_col(position = position_dodge(12), width = 7, color = "black") +
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 9) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+ 
     ggtitle(paste0(case_when(grepl("CRE", Working_site) ~ "Caloosahatchee-East", grepl("CRW", Working_site) ~ "Caloosahatchee-West", TRUE ~ "WRONG"))) + 
     Station_fill_W + Station_color_W + BaseForm + PlotTitle + West_legend
@@ -1394,19 +1395,19 @@ ggarrange(
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
-    labs(title = "St. Lucie-Central Staion 1") +
+    labs(title = "St. Lucie-Central Station 1") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
   NULL,
   Cage_Mort %>% filter(Site == "LXN") %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
-    labs(title = "Loxahatchee-North Staion 2") +
+    labs(title = "Loxahatchee-North Station 2") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
   NULL,
   Cage_Mort %>% filter(Site == "CRE") %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
@@ -1414,8 +1415,8 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     labs(title = "Caloosahatchee-East Iona Cove") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
   NULL,
   Cage_Mort %>% filter(Site == "CRW") %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
@@ -1423,9 +1424,9 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     labs(title = "Caloosahatchee-West Bird Island") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
-  nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
+  nrow =  7, heights = c(1, -0.01, 1, -0.01, 1, -0.01, 1))
 #
 ```
 
@@ -1436,20 +1437,20 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
-    labs(title = "St. Lucie-Central Staion 1") +
+    labs(title = "St. Lucie-Central Station 1") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
   NULL,
   Cage_SH %>% filter(Site == "LXN") %>%  
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
-    labs(title = "Loxahatchee-North Staion 2") +
+    labs(title = "Loxahatchee-North Station 2") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
   NULL,
    Cage_SH %>% filter(Site == "CRE") %>%  
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
@@ -1458,8 +1459,8 @@ ggarrange(
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
     labs(title = "Caloosahatchee-East Iona Cove") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
   NULL,
   Cage_SH %>% filter(Site == "CRW") %>%  
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
@@ -1468,8 +1469,8 @@ ggarrange(
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
     labs(title = "Caloosahatchee-West Bird Island") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
-    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
-  nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
+    scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(10), End_date %m-% days(10)))+
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none", axis.title.x = element_blank()) + PlotTitle,
+  nrow =  7, heights = c(1, -0.01, 1, -0.01, 1, -0.01, 1))
 #
 ```

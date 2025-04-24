@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2024-10-01" #Start date of reporting quarter
-  End_date: "2024-12-30"   #End date of reporting quarter
+  Start_date: "2025-01-01" #Start date of reporting quarter
+  End_date: "2025-03-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -99,18 +99,18 @@ Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal
 
 ```{r Data gather from summary file}
 #
-Counts_df <- readWorkbook("Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
-SH_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
-Dermo_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
-Rcrt_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
-Repro_df <- readWorkbook("Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
-Cage_df <- readWorkbook("Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
+Counts_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE, check.names = TRUE)
+SH_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)
+Dermo_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Dermo Station', detectDates = TRUE, check.names = TRUE)
+Rcrt_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE)
+Repro_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE)
+Cage_df <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Mort Site', detectDates = TRUE, check.names = TRUE)
 #Water Quality
-WQ_Sal_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
-WQ_Tem_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
-WQ_pH_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
-WQ_DO_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
-WQ_Secchi_s <-  readWorkbook("WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
+WQ_Sal_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
+WQ_Tem_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
+WQ_pH_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
+WQ_DO_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
+WQ_Secchi_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE)
 
 ```
 
@@ -228,7 +228,7 @@ East_Live_list <- list()
 for(i in seq_along(East_sites)){
   #
   Working_site <- paste(East_sites[i])
-  df_temp <- Counts_East_2 %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Counts_East_2 %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -260,7 +260,7 @@ East_Dead_list <- list()
 for(i in seq_along(East_sites)){
   #
   Working_site <- paste(East_sites[i])
-  df_temp <- Counts_East_2 %>% filter(grepl("DeadRatio", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Counts_East_2 %>% filter(grepl("DeadRatio", SiteStation) & grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -292,7 +292,7 @@ East_SH_list <- list()
 for(i in seq_along(East_sites)){
   #
   Working_site <- paste(East_sites[i])
-  df_temp <- SH_East %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- SH_East %>% filter(grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -324,7 +324,7 @@ West_Live_list <- list()
 for(i in seq_along(West_Sites)){
   #
   Working_site <- paste(West_Sites[i])
-  df_temp <- Counts_West %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Counts_West %>% filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -353,7 +353,7 @@ West_Dead_list <- list()
 for(i in seq_along(West_Sites)){
   #
   Working_site <- paste(West_Sites[i])
-  df_temp <- Counts_West %>% filter(grepl("DeadRatio", SiteStation) & grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Counts_West %>% filter(grepl("DeadRatio", SiteStation) & grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -382,7 +382,7 @@ West_SH_list <- list()
 for(i in seq_along(West_Sites)){
   #
   Working_site <- paste(West_Sites[i])
-  df_temp <- SH_West %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- SH_West %>% filter(grepl(Working_site, SiteStation) & (AnalysisDate > (End_date %m-% months(12)))) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -583,7 +583,7 @@ Cage_Mort %>%
 
 ```
 
-```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). No cages were retrieved at St. Lucie-Central station 1 in December 2023 nor in January 2024.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Cage_SH %>% 
   ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
   geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +

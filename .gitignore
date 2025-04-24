@@ -51,17 +51,17 @@ rsconnect/
 # RMarkdown output
 *.html
 
-# Excel output
+# Excel and Word outputs
 CERP/*.xlsx
 DMFM/*.xlsx
 FLTIG/*.xlsx
 NFWF/*.xlsx
 PBC/*.xlsx
 *.docx
-
+Data/*Raw*.xlsx
+!Data/.gitkeep
 Presentations/*.xlsx
-!CERP/Summary_Data.xlsx
-!CERP/WQ_Summary_Data.xlsx
+
 
 
 #DBHydro files
