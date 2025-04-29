@@ -4,7 +4,7 @@ output:
   officedown::rdocx_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "03"  #Enter 2-digit month
+  Month: "04"  #Enter 2-digit month
   Year: "2025" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 Author <- c("E Levine") #Change to your name
 
 
-Database <- "Oysters_25-03-31"  #Set the local database to use
+Database <- "Oysters_25-04-25"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #File locations for link in output required: approx. lines 532, 648
 
@@ -546,7 +546,7 @@ at the Bird Island station.
 \newpage
 <!---BLOCK_LANDSCAPE_START--->
 ## Data summary output (for Excel files)
-*The following data updates the "CERPMonthlyReportData" [Excel file](\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData.xlsx).*
+*The following data updates the "CERPMonthlyReportData" [Excel file](...).*
 \
 Here is the data summary output for SLC on the "Monthly CERP data" Excel sheet:
 ```{r echo=FALSE, results='asis'}
@@ -562,7 +562,7 @@ flextable(CR_Summary %>% dplyr::select(AnalysisDate_B, starts_with("3"))) %>% al
 \
 \
 \
-*The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](file:\\\fwc-spfs1\FishBio\Molluscs\Oysters\CERP\Documents\Grant Reports\CERP 4490\CERPMonthlyReportData_Rio_Station%20(05-Present).xlsx).*
+*The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](...).*
 \
 Here is the data summary output for St. Lucie-Central station 1 on the "SLC_1" Excel sheet:
 ```{r echo=FALSE, results='asis'}
