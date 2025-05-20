@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2024-01-01" #Start date of reporting quarter
-  End_date: "2024-12-30"   #End date of reporting quarter
+  Start_date: "2023-10-01" #Start date of reporting quarter
+  End_date: "2024-09-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -253,9 +253,11 @@ Rcrt_CRE <- Rcrt_df %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate >= 
 #
 #
 ####CAGE DATA
+#If RetSH is NA then no oysters returned. If all cages for month RetSH = NA then no mort bar.
 names(Cage_df) <- gsub("\\.", "", names(Cage_df))
-Cage_Mort <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value)
-Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD))
+Missing_cages <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Ret_SHMean")) %>%  gather(Site, Value, -AnalysisDate) %>% mutate(Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% dplyr::select(-Value)
+Cage_Mort <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("Pct")) %>% gather(Site, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", Site) ~ "Mean", grepl("SD", Site) ~ "SD", TRUE ~ NA), Site = factor(substr(Site, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW"))) %>% spread(Measure, Value) %>% left_join(Missing_cages)
+Cage_SH <- Cage_df %>% filter(AnalysisDate >= End_date %m-% months(13)) %>% dplyr::select(AnalysisDate, contains("SH")) %>% gather(SiteType, Value, -AnalysisDate) %>% mutate(Measure = case_when(grepl("Mean", SiteType) ~ "Mean", grepl("SD", SiteType) ~ "SD", TRUE ~ NA), Site = factor(substr(SiteType, 1, 3), levels = c("SLC", "LXN", "CRE", "CRW")), Type = substr(SiteType, 5, 7)) %>% dplyr::select(-SiteType) %>% spread(Measure, Value) %>% mutate(Type = factor(Type, levels = c("Dep", "Ret")), Mean = as.numeric(Mean), SD = as.numeric(SD)) %>% left_join(Missing_cages) %>% mutate(Helper = case_when(Type == "Dep" ~ NA, TRUE ~ Helper))
 #
 #
 ```
@@ -287,6 +289,7 @@ Repro_check <- Repro_df %>% filter(CRE_RetDate > Start_date & CRE_RetDate < End_
 Rcrt_check <- Rcrt_df %>% filter(CRE_RetDate > Start_date & CRE_RetDate < End_date) %>% mutate(MonYr = substr(CRE_RetDate, 1, 7)) %>% dplyr::select(MonYr, contains("Mean")) %>% rename_with(~str_remove(., "_Mean")) %>% gather("Station", "Spat", -MonYr) %>% filter(is.na(Spat)) %>% dplyr::select(MonYr, Station)
 #
 ##Cages
+#Missing ret cages: Missing_cages
 CageMort_check <- Cage_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% dplyr::select(MonYr, contains("PctMean")) %>% rename_with(~str_remove(., "_DeadPctMean")) %>% gather("Station", "Mortality", -MonYr)  %>% filter(is.na(Mortality)) %>% dplyr::select(MonYr, Station)
 CageSH_check <- Cage_df %>% filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% dplyr::select(MonYr, contains("SHMean")) %>% rename_with(~str_remove(., "_SHMean")) %>% gather("Station", "SH", -MonYr)  %>% separate(Station, into = c("Site", "Type"), sep = "_") %>% filter(is.na(SH)) %>% dplyr::select(MonYr, Site, Type)
 #
@@ -328,8 +331,9 @@ Any samples listed below were missing in during the monitoring period:
 \
 *Cages - site based data*
 \
-`r if(nrow(CageMort_check) > 0) {flextable(CageMort_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing cage mortality data.")}`
-`r if(nrow(CageSH_check) > 0) {flextable(CageSH_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing cage shell height data.")}`
+`r if(nrow(CageMort_check) > 0) {flextable(CageMort_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing cage mortality data (deployed and retrieved per month).")}`
+`r if(nrow(CageSH_check) > 0) {flextable(CageSH_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing cage shell height data (deployed and retrieved per month).")}`
+`r if(nrow(Missing_cages %>% filter(Helper == "*")) > 0) {flextable(Missing_cages %>% filter(Helper == "*")) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("At elast one cage was retrived for each month after deployment.")}`
 \
 \
 \newpage
@@ -1388,88 +1392,104 @@ CRE_rcrt_fig
 #
 ```
 
-```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 ggarrange(
   Cage_Mort %>% filter(Site == "SLC") %>%
+    mutate(Mean = case_when(Helper == "*" ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" ~ NA_real_, TRUE ~ SD)) %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "St. Lucie-Central Staion 1") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
   Cage_Mort %>% filter(Site == "LXN") %>%
+    mutate(Mean = case_when(Helper == "*" ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" ~ NA_real_, TRUE ~ SD)) %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "Loxahatchee-North Staion 2") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
   Cage_Mort %>% filter(Site == "CRE") %>%
+    mutate(Mean = case_when(Helper == "*" ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" ~ NA_real_, TRUE ~ SD)) %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "Caloosahatchee-East Iona Cove") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
   Cage_Mort %>% filter(Site == "CRW") %>%
+    mutate(Mean = case_when(Helper == "*" ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" ~ NA_real_, TRUE ~ SD)) %>%
     ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "Caloosahatchee-West Bird Island") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
 #
 ```
 
-```{r Cage SH Figure, fig.cap = "**Figure 39.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West in 2024.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r Cage SH Figure, fig.cap = "**Figure 39.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West in 2024. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 ggarrange(
   Cage_SH %>% filter(Site == "SLC") %>%  
+    mutate(Mean = case_when(Helper == "*" & Type == 'Ret' ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" & Type == 'Ret'  ~ NA_real_, TRUE ~ SD)) %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
     labs(title = "St. Lucie-Central Staion 1") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
   Cage_SH %>% filter(Site == "LXN") %>%  
+    mutate(Mean = case_when(Helper == "*" & Type == 'Ret' ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" & Type == 'Ret'  ~ NA_real_, TRUE ~ SD)) %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
     labs(title = "Loxahatchee-North Staion 2") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
    Cage_SH %>% filter(Site == "CRE") %>%  
+    mutate(Mean = case_when(Helper == "*" & Type == 'Ret' ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" & Type == 'Ret'  ~ NA_real_, TRUE ~ SD)) %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
     labs(title = "Caloosahatchee-East Iona Cove") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
   Cage_SH %>% filter(Site == "CRW") %>%  
+    mutate(Mean = case_when(Helper == "*" & Type == 'Ret' ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" & Type == 'Ret'  ~ NA_real_, TRUE ~ SD)) %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
+    geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
     labs(title = "Caloosahatchee-West Bird Island") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
-    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
+    scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
   nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
 #
 ```
