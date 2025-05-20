@@ -624,6 +624,17 @@ ggarrange(
 
 ```{r SLC pH Figure, fig.cap = "**Figure 11.**  Monthly pH recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 #
+#Check pH range:
+if (min(pH_SLC_2$pH) < 7 & max(pH_SLC_2$pH) < 9) {
+  SLE_pH_limits <- c(round(min(pH_SLC_2$pH),1), 9)  # Scale min to 9
+} else if (min(pH_SLC_2$pH) > 7 & max(pH_SLC_2$pH) > 9) {
+  SLE_pH_limits <- c(7, round(max(pH_SLC_2$pH),1))  # Scale 7 to max
+} else if (min(pH_SLC_2$pH) < 7 & max(pH_SLC_2$pH) > 9) {
+  SLE_pH_limits <- c(round(min(pH_SLC_2$pH),1), round(max(pH_SLC_2$pH),1))  # Scale 7 to max
+} else {
+  SLE_pH_limits <- c(7, 9)  # Use the default limits
+}
+#
 ggarrange(
   #SLN plot
   ggplot() +
@@ -631,7 +642,7 @@ ggarrange(
     geom_point(data = pH_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-North") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    scale_y_continuous("pH", expand = c(0,0), limits = SLE_pH_limits) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
   #SLS plot
@@ -640,7 +651,7 @@ ggarrange(
     geom_point(data = pH_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "St. Lucie-South") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    scale_y_continuous("pH", expand = c(0,0), limits = SLE_pH_limits) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   NULL,
   #SLC plot
@@ -658,6 +669,17 @@ ggarrange(
 
 ```{r LRE pH Figure, fig.cap = "**Figure 12.**  Monthly pH recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #
+#Check pH range:
+if (min(pH_LRE_2$pH) < 7 & max(pH_LRE_2$pH) < 9) {
+  LRE_pH_limits <- c(round(min(pH_LRE_2$pH),1), 9)  # Scale min to 9
+} else if (min(pH_LRE_2$pH) > 7 & max(pH_LRE_2$pH) > 9) {
+  LRE_pH_limits <- c(7, round(max(pH_LRE_2$pH),1))  # Scale 7 to max
+} else if (min(pH_LRE_2$pH) < 7 & max(pH_LRE_2$pH) > 9) {
+  LRE_pH_limits <- c(round(min(pH_LRE_2$pH),1), round(max(pH_LRE_2$pH),1))  # Scale 7 to max
+} else {
+  LRE_pH_limits <- c(7, 9)  # Use the default limits
+}
+#
 ggarrange(
   #LXN plot
   ggplot() +
@@ -665,7 +687,7 @@ ggarrange(
     geom_point(data = pH_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-North") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    scale_y_continuous("pH", expand = c(0,0), limits = LRE_pH_limits) +
     BaseForm + FacetForm + West_legend + Station_color_E + Station_fill_E + PlotTitle,
   NULL,
   #LXS plot
@@ -674,7 +696,7 @@ ggarrange(
     geom_point(data = pH_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Loxahatchee-South") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    scale_y_continuous("pH", expand = c(0,0), limits = LRE_pH_limits) +
     BaseForm + FacetForm + Station_color_E + Station_fill_E + PlotTitle + theme(legend.position = "none"),
   nrow = 3, heights = c(1, -0.05, 1))
 #
@@ -683,6 +705,16 @@ ggarrange(
 
 ```{r CRE pH Figure, fig.cap = "**Figure 13.**  Monthly pH recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #
+#Check pH range:
+if (min(pH_CRE_2$pH) < 7 & max(pH_CRE_2$pH) < 9) {
+  CRE_pH_limits <- c(round(min(pH_CRE_2$pH),1), 9)  # Scale min to 9
+} else if (min(pH_CRE_2$pH) > 7 & max(pH_CRE_2$pH) > 9) {
+  CRE_pH_limits <- c(7, round(max(pH_CRE_2$pH),1))  # Scale 7 to max
+} else if (min(pH_CRE_2$pH) < 7 & max(pH_CRE_2$pH) > 9) {
+  CRE_pH_limits <- c(round(min(pH_CRE_2$pH),1), round(max(pH_CRE_2$pH),1))  # Scale 7 to max
+} else {
+  CRE_pH_limits <- c(7, 9)  # Use the default limits
+}
 ggarrange(
   #CRE plot
   ggplot() +
@@ -690,7 +722,7 @@ ggarrange(
     geom_point(data = pH_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-East") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    scale_y_continuous("pH", expand = c(0,0), limits = CRE_pH_limits) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   NULL,
   #CRW plot
@@ -699,7 +731,7 @@ ggarrange(
     geom_point(data = pH_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, pH, fill = Station), size = 3.25, shape = 21) +
     labs(title = "Caloosahatchee-West") +     
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), limits = c(7, 9)) +
+    scale_y_continuous("pH", expand = c(0,0), limits = CRE_pH_limits) +
     BaseForm + FacetForm + West_legend + Station_color_W + Station_fill_W + PlotTitle ,
   nrow = 3, heights = c(1, -0.05, 1))
 #
