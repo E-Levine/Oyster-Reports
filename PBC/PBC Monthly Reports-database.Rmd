@@ -6,7 +6,7 @@ output:
 params: 
 
 
-  Month: "04"  #Enter 2-digit month
+  Month: "05"  #Enter 2-digit month
   Year: "2025" #Enter 4-digit year
   
 knit: (function(inputFile, encoding) {
@@ -19,10 +19,10 @@ knit: (function(inputFile, encoding) {
 ```{r VariableSet, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
-Author <- c("E Levine") #Change to your name
+Author <- c("EL Williams") #Change to your name
 
 
-Database <- "Oysters_25-04-25"  #Set the local database to use
+Database <- "Oysters_test"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 
 
