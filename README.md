@@ -22,7 +22,7 @@ SUGGESTED WORKFLOW:
 8. Once a branch is merged, delete that branch.
 <br> 
 FILE STRUCTURE: <br>
-/CERP - RMarkdown scripts for Comprehensive Everglades Restoration Plan project - Current versions: Monthly, Quarterly.<br>
+/CERP - RMarkdown scripts for Comprehensive Everglades Restoration Plan project - Current versions: Monthly report, Quarterly figures and summary, Annual figures and summary.<br>
 /Data - Summary data Excel files. Files can be read by anyone but can only be modified by specified users. If write access is needed, please request access from E-Levine. <br>
 /DBHYDRO - R code for selecting, pulling, and cleaning DBHYDRO data. Cleaned data is maintained in the repo as designated within code. Folders are maintained to help distinguish between data saved locally vs in the repo. Currently tested and released for FLOW data. May required edits for other data types.<br>
 /DMFM - RMarkdown scripts for sharing with the Division of Marine Fisheries Management  - Current versions: AS NEEDED.<br>
