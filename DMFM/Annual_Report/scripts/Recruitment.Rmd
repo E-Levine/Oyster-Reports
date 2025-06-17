@@ -1,0 +1,39 @@
+---
+
+---
+# Perform basic analyses, output figures and tables for Survey data
+
+``` {r BasicStats}
+
+### Stats for recruitment rates
+# Recruitment rates by station
+RecruitmentStats <- hsdbRecruitment %>%
+  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate-DeployedDate),
+         BottomMonth = NumBottom/(NumDays/28),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
+  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
+            SD= sd(BottomMonth, na.rm = TRUE),
+            Upper = RecMean + SD)
+
+#Recruitment rates by section
+RecruitmentStats_Section <- RecruitmentStats %>%
+  group_by(AnalysisDate,Plot_Date, Estuary, SectionName) %>% 
+  summarise(SectionRecMean = mean(RecMean, na.rm = TRUE), 
+            SectionSD = sd(RecMean, na.rm = TRUE),
+            SectionUpper = SectionRecMean + SectionSD)
+
+# Median values
+RecruitmentStatsMedian <- RecruitmentStats %>%
+  filter(AnalysisDate < ReportStart) %>%
+  group_by(SectionName) %>%
+  summarise(RecruitmentMedian = median(RecMean, na.rm = TRUE),
+            RecruitmentMax = max(RecMean, na.rm = TRUE))
+
+```

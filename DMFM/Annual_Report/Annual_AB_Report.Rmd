@@ -6,7 +6,7 @@ output: html_document
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportYear <- "2024" # Sets Year of Report
-Database = "OysterLocalMD20250305"  # Set the local database to use
+Database = "OysterLocalMD20250530"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
@@ -24,13 +24,16 @@ source("scripts/ReportBasicFilters.R")
 
 # Survey portion of report
 render("scripts/Survey.Rmd", quiet = TRUE)
+# Recruitment portion of report
+render("scripts/Recruitment.Rmd", quiet = TRUE)
+
 ```
 
 
 ### Text Format
 ```{css}
 /* Sets the fonts for the RMarkdown output */
-  p {
+p {
     font-size: 8pt;
   }
 

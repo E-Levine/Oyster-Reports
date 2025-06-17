@@ -106,3 +106,9 @@ ggplot(ShellHeights1, aes(x = ShellHeight, fill = ProjectGroup)) +
   theme_minimal()
 
 ```
+
+``` {Survey Text}
+### Placeholder for Survey text for report
+```
+This is text to output for Survey
+

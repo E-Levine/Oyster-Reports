@@ -52,6 +52,9 @@ hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
 # Load Repro Data
 
 # Load Recruitment Data
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 # Disconnect from database
 DBI::dbDisconnect(con)
