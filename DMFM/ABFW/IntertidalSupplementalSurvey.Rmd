@@ -36,44 +36,117 @@ Quadrat_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Quadrat",
 ```
 
 ```{r Simple stats}
-TotStationsVisited <- nrow(Sample_data)
-TotStationsSampled <- sum(Sample_data$NumQuads > 0)
+TotStationsVisited <- nrow(Sample_data) # All stations visited
+TotStationsSampled <- sum(Sample_data$NumQuads > 0) # Stations where quadrats were collected
 PercentSampled <- round((TotStationsSampled/TotStationsVisited) * 100, digits = 1)
 
-QuadsWithOys <- Quadrat_data %>%
+QuadsWithOys <- Quadrat_data %>% # How many quadrats had ANY oysters at all
   filter(SpatPA == 'Present' | SublegalPA == 'Present' | NumLegal > 0)
 PercentWithOys <- round(nrow(QuadsWithOys) / nrow(Quadrat_data) * 100, digits = 1)
 
-QuadsWithSpat <- Quadrat_data %>%
+QuadsWithSpat <- Quadrat_data %>% # How may quadrats had spat present
   filter(SpatPA == 'Present')
 PercentWithSpat <- round(nrow(QuadsWithSpat) / nrow(Quadrat_data) * 100, digits = 1)
 
-QuadsWithSublegal <- Quadrat_data %>%
+QuadsWithSublegal <- Quadrat_data %>% # How may quadrats had sublegals present
   filter(SublegalPA == 'Present')
 PercentWithSublegal <- round(nrow(QuadsWithSublegal) / nrow(Quadrat_data) * 100, digits = 1)
 
-QuadsWithLegal <- Quadrat_data %>%
+QuadsWithLegal <- Quadrat_data %>% # How may quadrats had legal oysters present
   filter(NumLegal > 0)
 PercentWithLegal <- round(nrow(QuadsWithLegal) / nrow(Quadrat_data) * 100, digits = 1)
-MaxLegals <- sort(table(QuadsWithLegal$NumLegal), decreasing = True) [1:2]
-  
-  max(QuadsWithLegal$NumLegal)
-ModeLegals <- mfv(QuadsWithLegal$NumLegal)
+# Max number and most frequent number of legals found in a quadrat
+LegalMaxMode <- QuadsWithLegal %>%
+  summarise(
+    MaxValue = max(NumLegal, na.rm = TRUE), # Max number found
+    CountMax = sum(NumLegal == max(NumLegal, na.rm = TRUE), na.rm = TRUE), # how many times the max was found
+    Mode = {
+      t <- table(NumLegal)
+      as.numeric(names(t[t == max(t)][1]))  # most frequent value
+    },
+    CountMode = {
+      t <- table(NumLegal)
+      max(t)  # how many times mode occurred
+    }
+  )
 
 QuadsWithDrills <- Quadrat_data %>%
   filter(NumDrills > 0)
 PercentWithDrills <- round(nrow(QuadsWithDrills) / nrow(Quadrat_data) * 100, digits = 1)
+# Max number and most frequent number of legals found in a quadrat
+DrillMaxMode <- QuadsWithDrills %>%
+  summarise(
+    MaxValue = max(NumDrills, na.rm = TRUE), # Max number found
+    CountMax = sum(NumDrills == max(NumDrills, na.rm = TRUE), na.rm = TRUE), # how many times the max was found
+    Mode = {
+      t <- table(NumDrills)
+      as.numeric(names(t[t == max(t)][1]))  # most frequent value
+    },
+    CountMode = {
+      t <- table(NumDrills)
+      max(t)  # how many times mode occurred
+    }
+  )
 
+# Legal Oyster Densities
+# RAW
+Quadrat_data1 <- Quadrat_data %>%
+  mutate(
+    LegalDensity = NumLegal * 4,
+    BagsPerAcre = (LegalDensity * 4047) / 225
+  )
 
-print(nrow(Sample_data[Sample_data$NumQuads < 0, ]))
+DensitiesALL <- Quadrat_data1 %>%
+  summarise(NQuadrats = n(), # number of samples (Quadrats)
+            LegalDensityMean = round(mean(LegalDensity, na.rm = TRUE), digits = 1),
+            LegalDensitySD = round(sd(LegalDensity, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensityMean = round(mean(BagsPerAcre, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensitySD = round(sd(BagsPerAcre, na.rm = TRUE), digits = 1)
+  )
 
-print(sum(Sample_data$NumQuads > 0))
+DensitiesCounty <- Quadrat_data1 %>%
+  group_by(County) %>%
+  summarise(NQuadrats = n(), # number of samples (Quadrats)
+            LegalDensityMean = round(mean(LegalDensity, na.rm = TRUE), digits = 1),
+            LegalDensitySD = round(sd(LegalDensity, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensityMean = round(mean(BagsPerAcre, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensitySD = round(sd(BagsPerAcre, na.rm = TRUE), digits = 1)
+  ) 
 
-print(nrow(Sample_data[Sample_data$NumQuads < 0, ]) / print(sum(Sample_data$NumQuads > 0)
-      
-      )
+custom_orderSHA <- c("1552", "1542", "1611")
+DensitiesSHA <- Quadrat_data1 %>%
+  group_by(SHA) %>%
+  summarise(NQuadrats = n(), # number of samples (Quadrats)
+            LegalDensityMean = round(mean(LegalDensity, na.rm = TRUE), digits = 1),
+            LegalDensitySD = round(sd(LegalDensity, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensityMean = round(mean(BagsPerAcre, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensitySD = round(sd(BagsPerAcre, na.rm = TRUE), digits = 1)
+  ) %>%
+  mutate(SHA = factor(SHA, levels = custom_orderSHA)) %>%
+  arrange(SHA)
 
-)
+custom_orderSubset <- c("ILW", "ILC", "ILE", "SVS")
+DensitiesSubset <- Quadrat_data1 %>%
+  group_by(Subset) %>%
+  summarise(NQuadrats = n(), # number of samples (Quadrats)
+            LegalDensityMean = round(mean(LegalDensity, na.rm = TRUE), digits = 1),
+            LegalDensitySD = round(sd(LegalDensity, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensityMean = round(mean(BagsPerAcre, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensitySD = round(sd(BagsPerAcre, na.rm = TRUE), digits = 1)
+  ) %>%
+  mutate(Subset = factor(Subset, levels = custom_orderSubset)) %>%
+  arrange(Subset)
+
+DensitiesStation <- Quadrat_data1 %>%
+  group_by(Station) %>%
+  summarise(NQuadrats = n(), # number of samples (Quadrats)
+            LegalDensityMean = round(mean(LegalDensity, na.rm = TRUE), digits = 1),
+            LegalDensitySD = round(sd(LegalDensity, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensityMean = round(mean(BagsPerAcre, na.rm = TRUE), digits = 1),
+            BagsPerAcreDensitySD = round(sd(BagsPerAcre, na.rm = TRUE), digits = 1)
+  ) %>%
+  arrange(desc(BagsPerAcreDensityMean))
+
 ```
 
 
@@ -92,6 +165,18 @@ Of the quadrats collected and processed:  <br>
 `r nrow(QuadsWithLegal)` (`r PercentWithLegal`%) contained legal (over 74 mm Shell Height) oysters  <br>
 `r nrow(QuadsWithDrills)` (`r PercentWithDrills`%) contained oyster drill predators  <br>
 
-The maximum number of legal sized oysters encountered in a quadrat was `r MaxLegals`, which was found in `r sum(max(QuadsWithLegal$NumLegal))` quadrat<br>
-The most common number of legal sized oyster
+The maximum number of legal sized oysters encountered in a quadrat was `r LegalMaxMode$MaxValue`, which was found in `r LegalMaxMode$CountMax` quadrat(s)<br>
+The most common number of legal sized oysters encountered in a quadrat was `r LegalMaxMode$Mode`, which was found in `r LegalMaxMode$CountMode` quadrat(s)<br>
 
+The maximum number of oyster drills encountered in a quadrat was `r DrillMaxMode$MaxValue`, which was found in `r DrillMaxMode$CountMax` quadrat(s)<br>
+The most common number of oyster drills encountered in a quadrat was `r DrillMaxMode$Mode`, which was found in `r DrillMaxMode$CountMode` quadrat(s)<br>
+
+`r kable(DensitiesALL, caption = "Densities of all sampled areas combined.")`
+
+`r kable(DensitiesCounty, caption = "Densities of all sampled areas divided by county line at longitude -85.221667.")`
+
+`r kable(DensitiesSHA, caption = "Densities of all sampled areas divided by FDACS Shellfish Harvest Areas (SHA). <br>Points west of longitude -85.23500 correspond to 1552, Conditionally Approved, Indian Lagoon Winter B. <br>Points between longitude -85.23500 and -85.221667 correspond to 1542, Conditionally Approved, Indian Lagoon Winter A. <br>Points east of longitude -85.221667 correspond to 1611, Approved, Apalachicola Bay Winter A.")`
+
+`r kable(DensitiesSubset, caption = "Densities of all sampled areas divided by SHA subsets. <br>Indian Lagoon West (ILW) corresponds to SHA 1552 as defined above. <br>Indian Lagoon Central (ILC) corresponds to SHA 1542 as defined above. <br>Indian Lagoon East (ILE) corresponds to points between longitude -85.221667 and -85.20000. <br>St. Vincent Sound (SVS)  correspond to points east of longitude -85.20000.")`
+
+`r kable(DensitiesStation, caption = "Densities of all sampled stations listed indivdually and sorted from highest density to lowest density.")`
