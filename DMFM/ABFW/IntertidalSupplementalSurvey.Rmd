@@ -39,6 +39,14 @@ Quadrat_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Quadrat",
 TotStationsVisited <- nrow(Sample_data) # All stations visited
 TotStationsSampled <- sum(Sample_data$NumQuads > 0) # Stations where quadrats were collected
 PercentSampled <- round((TotStationsSampled/TotStationsVisited) * 100, digits = 1)
+StationsWithOys <- Quadrat_data %>% #How many stations had ANY oysters at all
+  filter(SpatPA == 'Present' | SublegalPA == 'Present' | NumLegal > 0) %>%
+  distinct(Station)
+PercentStationsWithOys <- round(nrow(StationsWithOys) / TotStationsSampled * 100, digits = 1)
+StationsWithLegals <- Quadrat_data %>% #How many stations had legal oysters present
+  filter(NumLegal > 0) %>%
+  distinct(Station)
+PercentStationsWithLegals <- round(nrow(StationsWithLegals) / TotStationsSampled * 100, digits = 1)
 
 QuadsWithOys <- Quadrat_data %>% # How many quadrats had ANY oysters at all
   filter(SpatPA == 'Present' | SublegalPA == 'Present' | NumLegal > 0)
@@ -155,8 +163,13 @@ Trips were carried out on the following dates: <br>
 `r unique(Trip_data$Date)`
 
 A total of `r TotStationsVisited` stations were visited <br>
-Of the stations visited `r TotStationsSampled` (`r PercentSampled`%) stations were found to have suitable substrate for sampling. <br>
-<br>
+Of the stations visited: <br> 
+`r TotStationsSampled` (`r PercentSampled`%) stations were found to have suitable substrate for sampling. <br>
+
+Of the `r TotStationsSampled` Stations that were sampled: <br>
+`r nrow(StationsWithOys)` (`r PercentStationsWithOys`%) contained at least a single oyster of any size  <br>
+`r nrow(StationsWithLegals)` (`r PercentStationsWithLegals`%) contained legal (over 74 mm Shell Height) oysters  <br>
+
 A total of `r nrow(Quadrat_data)` quadrats were collected and processed. <br>
 Of the quadrats collected and processed:  <br>
 `r nrow(QuadsWithOys)` (`r PercentWithOys`%) contained at least a single oyster of any size  <br>
