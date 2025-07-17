@@ -1,0 +1,97 @@
+---
+title: "Intertidal Supplemental Survey"
+output: html_document
+date: "2025-07-16"
+---
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+### VARIABLE SET ###
+# Set your variables here
+
+
+### PACKAGE LOAD ###
+# Load necessary R packages
+library(tidyverse)
+library(lubridate)
+library(openxlsx)
+library(dplyr)
+library(knitr)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+### DATA DOWNLOAD ###
+setwd("C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/ABFW")
+
+Location_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Location")
+
+Trip_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Trip", detectDates = TRUE)
+
+Sample_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Sample") %>%
+  mutate(NumQuads = as.numeric(NumQuads)) %>%
+  left_join(Location_data, Sample_data, by = c("Station"))
+
+Quadrat_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Quadrat", cols = 1:8)%>%
+  left_join(Location_data, Quadrat_data, by = c("Station"))
+
+```
+
+```{r Simple stats}
+TotStationsVisited <- nrow(Sample_data)
+TotStationsSampled <- sum(Sample_data$NumQuads > 0)
+PercentSampled <- round((TotStationsSampled/TotStationsVisited) * 100, digits = 1)
+
+QuadsWithOys <- Quadrat_data %>%
+  filter(SpatPA == 'Present' | SublegalPA == 'Present' | NumLegal > 0)
+PercentWithOys <- round(nrow(QuadsWithOys) / nrow(Quadrat_data) * 100, digits = 1)
+
+QuadsWithSpat <- Quadrat_data %>%
+  filter(SpatPA == 'Present')
+PercentWithSpat <- round(nrow(QuadsWithSpat) / nrow(Quadrat_data) * 100, digits = 1)
+
+QuadsWithSublegal <- Quadrat_data %>%
+  filter(SublegalPA == 'Present')
+PercentWithSublegal <- round(nrow(QuadsWithSublegal) / nrow(Quadrat_data) * 100, digits = 1)
+
+QuadsWithLegal <- Quadrat_data %>%
+  filter(NumLegal > 0)
+PercentWithLegal <- round(nrow(QuadsWithLegal) / nrow(Quadrat_data) * 100, digits = 1)
+MaxLegals <- sort(table(QuadsWithLegal$NumLegal), decreasing = True) [1:2]
+  
+  max(QuadsWithLegal$NumLegal)
+ModeLegals <- mfv(QuadsWithLegal$NumLegal)
+
+QuadsWithDrills <- Quadrat_data %>%
+  filter(NumDrills > 0)
+PercentWithDrills <- round(nrow(QuadsWithDrills) / nrow(Quadrat_data) * 100, digits = 1)
+
+
+print(nrow(Sample_data[Sample_data$NumQuads < 0, ]))
+
+print(sum(Sample_data$NumQuads > 0))
+
+print(nrow(Sample_data[Sample_data$NumQuads < 0, ]) / print(sum(Sample_data$NumQuads > 0)
+      
+      )
+
+)
+```
+
+
+Intertidal Supplemental Survey Summary <br>
+Trips were carried out on the following dates: <br>
+`r unique(Trip_data$Date)`
+
+A total of `r TotStationsVisited` stations were visited <br>
+Of the stations visited `r TotStationsSampled` (`r PercentSampled`%) stations were found to have suitable substrate for sampling. <br>
+<br>
+A total of `r nrow(Quadrat_data)` quadrats were collected and processed. <br>
+Of the quadrats collected and processed:  <br>
+`r nrow(QuadsWithOys)` (`r PercentWithOys`%) contained at least a single oyster of any size  <br>
+`r nrow(QuadsWithSpat)` (`r PercentWithSpat`%) contained spat (1 - 30 mm Shell Height)  <br>
+`r nrow(QuadsWithSublegal)` (`r PercentWithSublegal`%) contained sublegal (31 - 74 mm Shell Height) oysters  <br>
+`r nrow(QuadsWithLegal)` (`r PercentWithLegal`%) contained legal (over 74 mm Shell Height) oysters  <br>
+`r nrow(QuadsWithDrills)` (`r PercentWithDrills`%) contained oyster drill predators  <br>
+
+The maximum number of legal sized oysters encountered in a quadrat was `r MaxLegals`, which was found in `r sum(max(QuadsWithLegal$NumLegal))` quadrat<br>
+The most common number of legal sized oyster
+
