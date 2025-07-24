@@ -1,7 +1,7 @@
 ---
-title: "Intertidal Supplemental Survey"
+title: "Supplemental Survey Statistics Summary"
 output: html_document
-date: "2025-07-16"
+date: "2025-07-29"
 ---
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
@@ -30,7 +30,7 @@ Sample_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Sample") %
   mutate(NumQuads = as.numeric(NumQuads)) %>%
   left_join(Location_data, Sample_data, by = c("Station"))
 
-Quadrat_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Quadrat", cols = 1:8)%>%
+Quadrat_data <- read.xlsx("Intertidal_Supplemental_Survey_2025.xlsx", "Quadrat", cols = 1:8) %>%
   left_join(Location_data, Quadrat_data, by = c("Station"))
 
 ```
@@ -153,7 +153,8 @@ DensitiesStation <- Quadrat_data1 %>%
             BagsPerAcreDensityMean = round(mean(BagsPerAcre, na.rm = TRUE), digits = 1),
             BagsPerAcreDensitySD = round(sd(BagsPerAcre, na.rm = TRUE), digits = 1)
   ) %>%
-  arrange(desc(BagsPerAcreDensityMean))
+  arrange(desc(BagsPerAcreDensityMean)) %>%
+  filter(LegalDensityMean > 0) # only include stations that had legal oysters present
 
 ```
 
@@ -184,12 +185,12 @@ The most common number of legal sized oysters encountered in a quadrat was `r Le
 The maximum number of oyster drills encountered in a quadrat was `r DrillMaxMode$MaxValue`, which was found in `r DrillMaxMode$CountMax` quadrat(s)<br>
 The most common number of oyster drills encountered in a quadrat was `r DrillMaxMode$Mode`, which was found in `r DrillMaxMode$CountMode` quadrat(s)<br>
 
-`r kable(DensitiesALL, caption = "Densities of all sampled areas combined.")`
+`r kable(DensitiesALL, caption = "Densities of all sampled areas combined.", col.names = c("Quadrats", "Mean Legal Oysters<br>per square meter", "Standard<br>deviation", "Bags per Acre", "Standard<br>deviation"), align = "c")`
 
-`r kable(DensitiesCounty, caption = "Densities of all sampled areas divided by county line at longitude -85.221667.")`
+`r kable(DensitiesCounty, caption = "Densities of all sampled areas divided by county line at longitude -85.221667.", col.names = c("County", "Quadrats", "Mean Legal Oysters<br>per square meter", "Standard<br>deviation", "Bags per Acre", "Standard<br>deviation"), align = "c")`
 
-`r kable(DensitiesSHA, caption = "Densities of all sampled areas divided by FDACS Shellfish Harvest Areas (SHA). <br>Points west of longitude -85.23500 correspond to 1552, Conditionally Approved, Indian Lagoon Winter B. <br>Points between longitude -85.23500 and -85.221667 correspond to 1542, Conditionally Approved, Indian Lagoon Winter A. <br>Points east of longitude -85.221667 correspond to 1611, Approved, Apalachicola Bay Winter A.")`
+`r kable(DensitiesSHA, caption = "Densities of all sampled areas divided by FDACS Shellfish Harvest Areas (SHA). <br>Points west of longitude -85.23500 correspond to 1552, Conditionally Approved, Indian Lagoon Winter B. <br>Points between longitude -85.23500 and -85.221667 correspond to 1542, Conditionally Approved, Indian Lagoon Winter A. <br>Points east of longitude -85.221667 correspond to 1611, Approved, Apalachicola Bay Winter A.", col.names = c("SHA", "Quadrats", "Mean Legal Oysters<br>per square meter", "Standard<br>deviation", "Bags per Acre", "Standard<br>deviation"), align = "c")`
 
-`r kable(DensitiesSubset, caption = "Densities of all sampled areas divided by SHA subsets. <br>Indian Lagoon West (ILW) corresponds to SHA 1552 as defined above. <br>Indian Lagoon Central (ILC) corresponds to SHA 1542 as defined above. <br>Indian Lagoon East (ILE) corresponds to points between longitude -85.221667 and -85.20000. <br>St. Vincent Sound (SVS)  correspond to points east of longitude -85.20000.")`
+`r kable(DensitiesSubset, caption = "Densities of all sampled areas divided by SHA subsets. <br>Indian Lagoon West (ILW) corresponds to SHA 1552 as defined above. <br>Indian Lagoon Central (ILC) corresponds to SHA 1542 as defined above. <br>Indian Lagoon East (ILE) corresponds to points between longitude -85.221667 and -85.20000. <br>St. Vincent Sound (SVS)  correspond to points east of longitude -85.20000.", col.names = c("Subset", "Quadrats", "Mean Legal Oysters<br>per square meter", "Standard<br>deviation", "Bags per Acre", "Standard<br>deviation"), align = "c")`
 
-`r kable(DensitiesStation, caption = "Densities of all sampled stations listed indivdually and sorted from highest density to lowest density.")`
+`r kable(DensitiesStation, caption = "Densities of all sampled stations listed indivdually and sorted from highest density to lowest density.", col.names = c("Station", "Quadrats", "Mean Legal Oysters<br>per square meter", "Standard<br>deviation", "Bags per Acre", "Standard<br>deviation"), align = "c")`
