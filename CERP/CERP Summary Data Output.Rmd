@@ -7,13 +7,13 @@ output:
   word_document: NULL
 params:  
     WQ: TRUE
-    Dermo: TRUE
-    Cage: TRUE
-    Rcrt: TRUE
-    Repro: TRUE
-    Sedi: TRUE
-    Srvy: TRUE
-    Raw_data: TRUE
+    Dermo: FALSE
+    Cage: FALSE
+    Rcrt: FALSE
+    Repro: FALSE
+    Sedi: FALSE
+    Srvy: FALSE
+    Raw_data: FALSE
 ---
 
 ~~~{=comment}
@@ -28,7 +28,7 @@ Author <- c("E Levine Williams") #Change to your name
 Database <- "Oysters_25-07-29"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2025-04-01")
+Start_date <- as.Date("2025-03-01")
 End_date <- as.Date("2025-06-30")
 
 #Packages
@@ -456,7 +456,7 @@ pH_sta_new <- Station_summ %>% dplyr::select(contains("pH")) %>% distinct()  %>%
 pH_sit_new <- Site_summ %>% dplyr::select(contains("pH")) %>% distinct() %>% filter(!`CR-E_pH_RetDate` %in% unique(pH_Site$`CR-E_pH_RetDate`))
 #
  Sal_Station <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x)))
-Sal_sta_new <- Station_summ %>% dplyr::select(contains("Sal")) %>% distinct() %>% filter(!`CR-E_RetDate_Sal` %in% unique(Sal_Station$`CR-E_RetDate_sal`))
+Sal_sta_new <- Station_summ %>% dplyr::select(contains("Sal")) %>% distinct() %>% filter(!`CR-E_RetDate_Sal` %in% unique(Sal_Station$`CR-E_RetDate_Sal`))
 #
  Sal_Site <- readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Site', detectDates = TRUE) %>% mutate(across(contains("RetDate"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains("RetDate"), ~as.numeric(.x)))
 Sal_sit_new <- Site_summ %>% dplyr::select(contains("Sal")) %>% distinct() %>% filter(!`CR-E_Sal_RetDate` %in% unique(Sal_Site$`CR-E_Sal_RetDate`))
@@ -971,16 +971,16 @@ for(j in Sites){
 #
   #Load each sheet and append new data
   DeadRatio_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'DeadRatio Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) 
-DeadRatio_sta_new <- Station_summ_S %>% distinct() %>% filter(!`CR-E1_LiveMean` %in% unique(DeadRatio_Station$`CR-E1_LiveMean`))
+DeadRatio_sta_new <- Station_summ_S %>% distinct() %>% filter(!Survey %in% unique(DeadRatio_Station$Survey))
 #
   DeadRatio_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'DeadRatio Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) 
-DeadRatio_sit_new <- Site_summ_S %>% distinct() %>% filter(!`CR-E_LiveMean` %in% unique(DeadRatio_Site$`CR-E_LiveMean`))
+DeadRatio_sit_new <- Site_summ_S %>% distinct() %>% filter(!Survey %in% unique(DeadRatio_Site$Survey))
 #
   SH_Station <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x)))
-SH_sta_new <- Station_summ_SH %>% distinct() %>% filter(!`CR-E1_SHMean` %in% unique(SH_Station$`CR-E1_SHMean`))
+SH_sta_new <- Station_summ_SH %>% distinct() %>% filter(!Survey %in% unique(SH_Station$Survey))
 #
   SH_Site <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Site', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%Y-%m-%d")), across(!contains(c("Date", "Survey")), ~as.numeric(.x))) 
-SH_sit_new <- Site_summ_SH %>% distinct() %>% filter(!`CR-E_SHMean` %in% unique(SH_Site$`CR-E_SHMean`))
+SH_sit_new <- Site_summ_SH %>% distinct() %>% filter(!Survey %in% unique(SH_Site$Survey))
   
   #Load workbook of existing data
   Data_wb <- loadWorkbook("../Data/CERP_PBC_Summary_Data.xlsx")
@@ -1060,7 +1060,7 @@ Dermo data covers sites and stations from `r if(exists("Dermo_combined") == TRUE
 
 ## Cage summary
 Cage data covers sites and stations from `r if(exists("Cage_combined") == TRUE){min(Cage_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("WQ_combined") == TRUE){max(Cage_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
-`r if(exists("Cage_combined") == TRUE){kable(Cage_out, caption = "Cage percent mortatily data. Cage percentages are average mortality per site.")}`
+`r if(exists("Cage_out") == TRUE){kable(Cage_out, caption = "Cage percent mortatily data. Cage percentages are average mortality per site.")}`
 
 ## Recruitment summary
 Recruitment data covers sites and stations from `r if(exists("Rcrt_combined") == TRUE){min(Rcrt_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Rcrt_combined") == TRUE){max(Rcrt_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
@@ -1077,4 +1077,4 @@ Sediment trap data covers sites and stations (`r if(exists("Sedi_combined") == T
 
 ## Survey summary
 Survey data covers sites and stations from `r if(exists("Srvy_combined") == TRUE){min(Srvy_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}` through `r if(exists("Srvy_combined") == TRUE){max(Srvy_combined$AnalysisDate) %>% format("%B %Y")} else {paste0("--")}`.\
-`r if(exists("Srvy_combined") == TRUE){kable(Srvy_out, caption = "Survey data. Values provided are mean number of live oysters (per m2).")}`
+`r if(exists("Srvy_out") == TRUE){kable(Srvy_out, caption = "Survey data. Values provided are mean number of live oysters (per m2).")}`
