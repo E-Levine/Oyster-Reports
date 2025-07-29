@@ -344,6 +344,8 @@ Srvy_combined <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | 
     mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName))
+#Remove CRE1/CRW4 TIG counts
+Srvy_combined <- Srvy_combined %>% filter(!(month(RetDate) != 3 & month(RetDate) != 9 & (StationName == "CR-E1" | StationName == "CR-W4")))
 #
 SH_combined <- left_join(rbind((hsdbSrvySH %>% filter(DataStatus == "Proofed"| DataStatus == "Completed")), (dboSrvySH %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
@@ -358,9 +360,11 @@ SH_combined <- left_join(rbind((hsdbSrvySH %>% filter(DataStatus == "Proofed"| D
     mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName))
+#Remove TIG SHs from CR data
+SH_combined <- SH_combined %>% filter(!(month(RetDate) != 3 & month(RetDate) != 9 & (StationName == "CR-E1" | StationName == "CR-W4"))) %>% filter(as.numeric(substr(ShellHeightID, 29,31)) <= 10)
 
 #Raw data
-Srvy_counts_raw_data <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboSrvy %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d")) %>% dplyr::select(RetDate, QuadratID, SampleEventID, FixedLocationID, NumLive, NumDead) %>% arrange(match(FixedLocationID, c(LocationID_order)), RetDate), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% mutate(QuadratID = as.integer(substr(QuadratID, nchar(QuadratID)-1, nchar(QuadratID))), Survey = paste(case_when(format(RetDate, "%m") == "03" ~ "Spring", format(RetDate, "%m") == "06" ~ "Summer", format(RetDate, "%m") == "09" ~ "Fall", format(RetDate, "%m") == "12" ~ "Winter", TRUE ~ "Other"), format(RetDate, "%Y"))) %>% dplyr::select(Survey, Site, RetDate, StationNumber, QuadratID, NumLive, NumDead) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+Srvy_counts_raw_data <- left_join(rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboSrvy %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d")) %>% dplyr::select(RetDate, QuadratID, SampleEventID, FixedLocationID, NumLive, NumDead) %>% arrange(match(FixedLocationID, c(LocationID_order)), RetDate), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% filter(!(month(RetDate) != 3 & month(RetDate) != 9 & (FixedLocationID == "0230" | FixedLocationID == "0233"))) %>% mutate(QuadratID = as.integer(substr(QuadratID, nchar(QuadratID)-1, nchar(QuadratID))), Survey = paste(case_when(format(RetDate, "%m") == "03" ~ "Spring", format(RetDate, "%m") == "06" ~ "Summer", format(RetDate, "%m") == "09" ~ "Fall", format(RetDate, "%m") == "12" ~ "Winter", TRUE ~ "Other"), format(RetDate, "%Y"))) %>% dplyr::select(Survey, Site, RetDate, StationNumber, QuadratID, NumLive, NumDead) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 
 Srvy_SH_raw_data <- SH_combined %>% arrange(RetDate, Site, StationName, ShellHeightID) %>% mutate(Survey = paste(case_when(format(RetDate, "%m") == "03" ~ "Spring", format(RetDate, "%m") == "06" ~ "Summer", format(RetDate, "%m") == "09" ~ "Fall", format(RetDate, "%m") == "12" ~ "Winter", TRUE ~ "Other"), format(RetDate, "%Y"))) %>% dplyr::select(Survey, Site, RetDate, StationName, ShellHeightID, ShellHeight) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ShellHeightID = as.integer(substr(ShellHeightID, nchar(ShellHeightID)-5, nchar(ShellHeightID)-4)), StationName = as.numeric(substr(StationName, nchar(StationName), nchar(StationName)))) %>% rename("Station" = StationName, "Quadrat" = ShellHeightID) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 #
@@ -1012,10 +1016,10 @@ Rcrt_new <- Rcrt_raw_data %>% distinct() %>% arrange(Year, Month, Site, Station,
 Repro_new <- Repro_raw_data %>% distinct() %>% arrange(RetDate)  %>% arrange(Year, Month) %>% filter(!RetDate %in% unique(Repro_raw$RetDate))
 #
   Srvy_counts_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y"))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) 
-Srvy_counts_new <- Srvy_counts_raw_data %>% distinct() %>% arrange(Year, Month, Site, Station) %>% filter(!RetDate %in% unique(Srvy_counts_raw$RetDate))
+Srvy_counts_new <- Srvy_counts_raw_data %>% distinct() %>% arrange(Year, Month, Site, Station, QuadratID) %>% filter(!RetDate %in% unique(Srvy_counts_raw$RetDate))
 #
   Srvy_SH_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y"))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) 
-Srvy_SH_new <- Srvy_SH_raw_data %>% distinct() %>% arrange(Year, Month, Site, Station) %>% filter(!RetDate %in% unique(Srvy_SH_raw$RetDate))
+Srvy_SH_new <- Srvy_SH_raw_data %>% distinct() %>% arrange(Year, Month, Site, Station, Quadrat) %>% filter(!RetDate %in% unique(Srvy_SH_raw$RetDate))
   
   #Load workbook of existing data
   Raw_data_wb <- loadWorkbook("../Data/CERP_PBC_Raw_Data.xlsx")
