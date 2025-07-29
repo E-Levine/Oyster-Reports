@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2025-01-01" #Start date of reporting quarter
-  End_date: "2025-03-30"   #End date of reporting quarter
+  Start_date: "2025-04-01" #Start date of reporting quarter
+  End_date: "2025-06-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -131,7 +131,7 @@ Sed_sta_rate <- Sedi_sta %>% dplyr::select(contains("Ret") | contains("Rate")) %
 Sed_sta_org <- Sedi_sta %>% dplyr::select(contains("Ret") | contains("Pct")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate) %>% dplyr::select(-LWR_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% dplyr::select(-SiteStation) %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 Sed_sta_wt <- Sedi_sta %>% dplyr::select(contains("Ret") | contains("Wt")) %>% filter(LWL_RetDate >= End_date %m-% months(13)) %>% rename("RetDate" = LWL_RetDate) %>% dplyr::select(-LWR_RetDate) %>% gather(SiteStation, Value, -RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)), Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", grepl("SD", SiteStation) ~ "SD", TRUE ~ NA)) %>% dplyr::select(-SiteStation) %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
-Sedi_positions <- Sedi_pos %>% dplyr::select(-AnalysisDate) %>% rename("RetDate" = North_RetDate) %>% gather(Info, Value, -RetDate) %>% mutate(Position = factor(substr(Info, 1, 5)), Measure = case_when(grepl("Mean", Info) ~ "Mean", grepl("SD", Info) ~ "SD", TRUE ~ NA), Parameter = case_when(grepl("Rate", Info) ~ "Rate", grepl("Pct", Info) ~ "OrgContent", grepl("Wt", Info) ~ "OrgWt", TRUE ~ NA)) %>% dplyr::select(-Info)  %>% spread(Measure, Value)
+Sedi_positions <- Sedi_pos %>% dplyr::select(-AnalysisDate) %>% rename("RetDate" = North_RetDate) %>% filter(RetDate >= End_date %m-% months(13)) %>% gather(Info, Value, -RetDate) %>% mutate(Position = factor(substr(Info, 1, 5)), Measure = case_when(grepl("Mean", Info) ~ "Mean", grepl("SD", Info) ~ "SD", TRUE ~ NA), Parameter = case_when(grepl("Rate", Info) ~ "Rate", grepl("Pct", Info) ~ "OrgContent", grepl("Wt", Info) ~ "OrgWt", TRUE ~ NA)) %>% dplyr::select(-Info)  %>% spread(Measure, Value) %>% mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 #
 #
 ###WQ DATA
@@ -343,8 +343,10 @@ for(i in seq_along(PBC_sites)){
   max_upper <- ceiling(max(df_temp$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
   #
   Sedi_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station, color = Station))+ 
-    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 9) +
-    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 9) +
+    geom_col(position = position_dodge(13), width = 10, color = "black") +
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 8) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
@@ -375,6 +377,8 @@ for(i in seq_along(PBC_sites)){
   Sedi_org_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station, color = Station))+ 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 12) +
     geom_col(position = position_dodge(13), width = 10, color = "black") +
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(13), size = 8) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
@@ -405,6 +409,8 @@ for(i in seq_along(PBC_sites)){
   Sedi_wt_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Station, color = Station))+ 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 12) +
     geom_col(position = position_dodge(13), width = 10, color = "black") +
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(13), size = 8) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
@@ -429,11 +435,15 @@ for(i in seq_along(Sediment_list)){
   #
   Working_param <- paste(Sediment_list[i])
   df_temp <- Sedi_positions %>% filter(grepl(Working_param, Parameter)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling(max(df_temp$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
   #
   Posi_list[[i]] <- df_temp %>% ggplot(aes(RetDate, Mean, fill = Position))+ 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(15), width = 13) +
     geom_col(position = position_dodge(15), width = 13, color = "black") +
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(15), width = 13, color = "black", show.legend = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, fill = Position), position = position_dodge(15), size = 9) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous(case_when(Working_param == "Rate" ~ "Sedimentation Rate (g/month)", Working_param == "OrgContent" ~ "Organic Content (%)", Working_param == "OrgWt" ~ "Organic Weight (g/month)", TRUE ~ "Something is missing."), expand = c(0,0), limits = c(0, max(pretty(0:max_upper, n = 4))), breaks = pretty(0:max_upper, n = 4))+
     Position_fill + Position_color + BaseForm + PlotTitle + Legend + theme(axis.title.y = element_text(size = 14))

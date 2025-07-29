@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2025-01-01" #Start date of reporting quarter
-  End_date: "2025-03-30"   #End date of reporting quarter
+  Start_date: "2025-04-01" #Start date of reporting quarter
+  End_date: "2025-06-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -193,9 +193,9 @@ pH_East_1 <- WQ_pH_s %>% dplyr::select(contains("SL")|contains("LX")) %>% filter
   dplyr::select(-SLN_RetDate_pH, -SLS_RetDate_pH, -LXS_RetDate_pH) %>% rename("SL_RetDate" = SLC_RetDate_pH, "LX_RetDate" = LXN_RetDate_pH)
 pH_East_2 <- rbind(pH_East_1 %>% dplyr::select(contains("SL")) %>% gather(SiteStation, pH, -SL_RetDate) %>% rename("RetDate" = SL_RetDate),
                   pH_East_1 %>% dplyr::select(contains("LX")) %>% gather(SiteStation, pH, -LX_RetDate) %>% rename("RetDate" = LX_RetDate)) %>%
-  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4))) 
+  mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("SLN", "SLS", "SLC", "LXN", "LXS")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(pH) ~ "*", TRUE ~ NA)) 
 
-pH_West <- WQ_pH_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_pH >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_pH) %>% rename("CR_RetDate" = CRE_RetDate_pH) %>% gather(SiteStation, pH, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4))) 
+pH_West <- WQ_pH_s %>% dplyr::select(contains("CR")) %>% filter(CRE_RetDate_pH >= End_date %m-% months(13)) %>% dplyr::select(-CRW_RetDate_pH) %>% rename("CR_RetDate" = CRE_RetDate_pH) %>% gather(SiteStation, pH, -CR_RetDate) %>% rename("RetDate" = CR_RetDate) %>% mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("CRE", "CRW")), Station = as.factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(pH) ~ "*", TRUE ~ NA)) 
 #
 #
 ##Dissolved Oxygen
@@ -669,6 +669,7 @@ annotate_figure(Tem_West_Fig,
 pH_East_2 %>%
   ggplot(aes(RetDate, pH, shape = Station)) + 
   geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+  geom_text(aes(y = 7.5, label = Helper), size = 8.5, legend = FALSE)+
   facet_wrap(.~Site, nrow = 5, labeller = as_labeller(c("SLN" = "St. Lucie-North", "SLS" = "St. Lucie-South", "SLC" = "St. Lucie-Central", "LXN" = "Loxahatchee-North", "LXS" = "Loxahatchee-South"))) +
   scale_y_continuous("pH", expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10, by = 0.5)) +
   scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
@@ -681,6 +682,7 @@ pH_West_Fig <- ggarrange(
   pH_West %>% filter(Station == 1 | Station == 2) %>%
     ggplot(aes(RetDate, pH, shape = Station)) + 
     geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    geom_text(aes(y = 7.5, label = Helper), size = 8.5, legend = FALSE)+
     scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10, by = 0.5)) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+ 
     Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
@@ -689,6 +691,7 @@ pH_West_Fig <- ggarrange(
   pH_West %>% filter(Station == 3 | Station == 4) %>%
     ggplot(aes(RetDate, pH, shape = Station)) + 
     geom_point(aes(fill = Station), size = 2.75) + geom_line(aes(color = Station), linewidth = 0.7) +
+    geom_text(aes(y = 7.5, label = Helper), size = 8.5, legend = FALSE)+
     scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10, by = 0.5)) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(5)))+
     Station_fill_W + Station_color_W + Station_shape_W + BaseForm + West_legend + 
