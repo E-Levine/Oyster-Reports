@@ -1,39 +1,23 @@
 ---
-title: "PBC Monthly Report - `r params$Year`-`r params$Month`"
+title: "PBC Monthly Report"
 output: 
-  officedown::rdocx_document:
+  word_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-
-
   Month: "06"  #Enter 2-digit month
   Year: "2025" #Enter 4-digit year
-  
 knit: (function(inputFile, encoding) {
   rmarkdown::render(
-    input = inputFile, encoding = encoding,
-    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-14), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Year, params$Month)),'.docx')) 
+    input = inputFile, 
+    encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Year, params$Month)), '.docx'),
+    output_dir = "../Output/"
+    ) 
       })
 ---
 
 ```{r VariableSet, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-
 Author <- c("EL Williams") #Change to your name
-
-
-Database <- "Oysters_25-06-27"  #Set the local database to use
-Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
-
-
-#Don't modify code in rest of section
-Estuaries <- c("LW")
-LocationIDs <- c("0235", "0236", "0237", "0240", "0241", "0312")
-Month <- params$Month 
-Year <- params$Year   
-Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
-                 ifelse(as.numeric(Month) > 2 & as.numeric(Month) < 6, paste0("Spring", Year),
-                        ifelse(as.numeric(Month) > 5 & as.numeric(Month) < 9, paste0("Summer", Year), paste0("Fall", Year))))
 ```
 
 ```{r PackageLoad & VarSet, echo = FALSE, warning = FALSE, message = FALSE}
@@ -41,71 +25,52 @@ Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter"
 if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  #DF manipulation
-  officedown,          #Page orientation
-  lubridate,         #Dates
-  knitr, here,
-  flextable,
+  openxlsx, lubridate, knitr, here,
+  flextable, officer, officedown,
   install = TRUE)
+#
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+data_file_location <- "../Summary data/CERP_PBC_Monthly_Data.xlsx"
 
-MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
-ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
-ReportEnd <- as.Date(format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d"))
+Estuaries <- c("LW")
+LocationIDs <- c("0235", "0236", "0237", "0240", "0241", "0312")
+Stations <- c("LWL-1", "LWL-2", "LWL-3", "LWR-4", "LWR-2", "LWR-3")
 NorthStations <- c("0312", "0235", "0236")
 SouthStations <- c("0240", "0241", "0237")
 NS_Order <- c('LWR4', 'LWL1', 'LWL2', 'LWR2', 'LWR3', 'LWL3')
+Month <- params$Month 
+Year <- params$Year   
+Survey <- ifelse(as.numeric(Month) > 11 | as.numeric(Month) < 3, paste0("Winter", Year),
+                 ifelse(as.numeric(Month) > 2 & as.numeric(Month) < 6, paste0("Spring", Year),
+                        ifelse(as.numeric(Month) > 5 & as.numeric(Month) < 9, paste0("Summer", Year), paste0("Fall", Year))))
+#
+MonYr <- paste(month.abb[as.numeric(Month)], Year, sep = " ")
+ReportStart <- as.Date(paste(Year, Month, "01", sep = "-")) - months(1)
+ReportEnd <- as.Date(format(ceiling_date(ReportStart %m+% months(2)) - days(1), "%Y-%m-%d"))
 ```
 
-```{r DatabaseDownload}
-# Connect to Local database server and pull all necessary data, then close connection 
-con <- dbConnect(odbc(),
-                    Driver = "SQL Server", 
-                    Server = Server,
-                    Database = Database,
-                    Authentication = "ActiveDirectoryIntegrated")
-
-dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
-  collect() %>% 
-  filter(Estuary %in% Estuaries)
-hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
-  collect() %>%
+```{r Data Download}
+#Laod data from the sumamry file
+FixedLocations <-  readWorkbook(data_file_location, sheet = 'FixedLocations', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(Estuary %in% Estuaries)
+#
+SampleEventWQ <-  readWorkbook(data_file_location, sheet = 'SampleEventWQ', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+#
+Recruitment <-  readWorkbook(data_file_location, sheet = 'Recruitment', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(substring(SampleEventID, 1, 2) %in% Estuaries) 
+#
+Dermo <-  readWorkbook(data_file_location, sheet = 'Dermo', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+#
+Sediment <- readWorkbook(data_file_location, sheet = 'Sediment', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-dboRecruitment <- tbl(con,in_schema("dbo", "Recruitment")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-hsdbDermo <- tbl(con,in_schema("hsdb", "Dermo")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-dboDermo <- tbl(con,in_schema("dbo", "Dermo")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries) %>%
-  mutate(DermoMantle = as.numeric(DermoMantle),
-         DermoGill = as.numeric(DermoGill))
-hsdbSediment <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-dboSediment <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-
+#
 if(Month == "03" | Month == "06" | Month == "09" | Month == "12"){
-  hsdbSurvey <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
-    collect() %>%
-    filter(substring(SampleEventID, 1, 2) %in% Estuaries)
-  dboSurvey <- tbl(con,in_schema("dbo", "SurveyQuadrat")) %>%
-    collect() %>%
-    filter(substring(SampleEventID, 1, 2) %in% Estuaries)} else {hsdbSurvey <- "Survey was not conducted."}
-DBI::dbDisconnect(con)
+  Survey <-  readWorkbook(data_file_location, sheet = 'Survey', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+  } else {Survey <- "Survey was not conducted"}
+#
 ```
 
 ```{r DataFilters and Summaries}
 # Filter data frames so that only data collected for inclusion in the CERP Monthly Report are present.
-FixedLocations1 <- dboFixedLocations %>% 
+FixedLocations1 <- FixedLocations %>% 
   mutate(StationNumber = as.numeric(StationNumber)) %>% 
   filter(FixedLocationID %in% LocationIDs) %>% #Only need SLC stations (0255-0257), CR2 (0231), and CR3 (0232)
   select(FixedLocationID,
@@ -115,7 +80,7 @@ FixedLocations1 <- dboFixedLocations %>%
   distinct()  
 
 ### WATER QUALITY ###
-WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>% 
+WQ1 <- SampleEventWQ %>%
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
          FixedLocationID = substring(SampleEventID, 19, 22), 
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
@@ -133,7 +98,7 @@ WQ1 <- union(hsdbSampleEventWQ, dboSampleEventWQ) %>%
          pH,
          SecchiPercent) %>% 
   drop_na(Temperature) %>%
-  filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
+  filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID")) 
 
 LWL_WQStats <- WQ1 %>% 
@@ -157,9 +122,8 @@ LWR_WQStats <- WQ1 %>%
             SalSD = sd(Salinity, na.rm = T))
 
 
-### RECRITMENT ###
-R1 <- union(hsdbRecruitment, dboRecruitment) %>% 
-  filter(ShellPosition %in% c(2,3,4,5,8,9,10,11)) %>%
+### RECRUITMENT ###
+Recruit <- Recruitment %>% 
   mutate(DeployedDate = as.Date(DeployedDate), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
          FixedLocationID = substring(ShellID, 19, 22), 
@@ -181,20 +145,22 @@ R1 <- union(hsdbRecruitment, dboRecruitment) %>%
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
-LWL_RecruitStats <-  R1 %>% 
+LWL_RecruitStats <-  Recruit %>% 
   filter(SectionName == "L") %>%
   group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>%
    summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
-LWR_RecruitStats <-  R1 %>% 
+LWR_RecruitStats <-  Recruit %>% 
   filter(SectionName == "R") %>%
   group_by(AnalysisDate, Plot_Date, RetDate, Estuary, SectionName) %>%
    summarise(RcrtMean = mean(BottomMonth, na.rm = TRUE), 
             RcrtSD= sd(BottomMonth, na.rm = TRUE))
 
+
+
 ### DERMO ###
-Dermo1 <- union((hsdbDermo %>% dplyr::select(-OldSampleNumber)), dboDermo) %>% 
+Dermo1 <- Dermo %>% 
   mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
@@ -209,7 +175,7 @@ Dermo1 <- union((hsdbDermo %>% dplyr::select(-OldSampleNumber)), dboDermo) %>%
          DermoMantle,
          DermoGill,
          DermoSum) %>% 
-  filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
+  filter(RetDate >= ReportStart & RetDate < ReportEnd & as.numeric(substring(OysterID, 10, 12)) < 16) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
 LWL_DermoStats <- Dermo1 %>%
@@ -233,24 +199,24 @@ LWR_DermoStats <- Dermo1 %>%
 
 ### SURVEY ###
 if(Month == "03" | Month == "09"){
-Survey1 <- union(hsdbSurvey, dboSurvey) %>% 
-  mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
-         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14),
-         Live = NumLive * 4,
-         Dead = NumDead * 4) %>%
-  select(QuadratID,
-         FixedLocationID,
-         SampleEventID,
-         RetDate,
-         AnalysisDate,
-         Plot_Date,
-         QuadratNumber,
-         Live,
-         Dead) %>% 
-  filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID"))
+  Survey1 <- Survey %>% 
+    mutate(FixedLocationID = substring(SampleEventID, 19, 22), 
+           RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+           AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+           Plot_Date = as.Date(AnalysisDate + 14),
+           Live = NumLive * 4,
+           Dead = NumDead * 4) %>%
+    select(QuadratID,
+           FixedLocationID,
+           SampleEventID,
+           RetDate,
+           AnalysisDate,
+           Plot_Date,
+           QuadratNumber,
+           Live,
+           Dead) %>% 
+    filter(RetDate >= ReportStart & RetDate < ReportEnd & FixedLocationID %in% LocationIDs) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID"))
 }else{Survey1 <- "Survey was not conducted."}
 
 if(Month == "03" | Month == "09"){
@@ -280,9 +246,9 @@ if(Month == "03" | Month == "09"){
               DeadMean = mean(Dead, na.rm = T),
               DeadSD = sd(Dead, na.rm = T))
 }else{LWR_SurveyStats <- "Survey was not conducted."}
-
+#
 ### SEDIMENT TRAPS ###
-Sedi1 <- union(hsdbSediment, dboSediment) %>% 
+Sedi1 <- Sediment %>% 
   mutate(Proportion = (CrucibleDW-TareCrucible)/((PanDryWeight - PanTareWeight) + (FilterDryWeight - FilterTareWeight)))%>%
   mutate(DeployedDate = as.Date(DeployedDate), 
          RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
@@ -327,18 +293,39 @@ LW_SediStats <- Sedi1 %>%
   summarise(MonthRate = mean(TotalDW/(NumDays/28), na.rm = T),
             MeanOrganic = mean(PctOrganic, na.rm = T),
             MonthOrgWt = mean(OrganicWt/(NumDays/28), na.rm = T))
-
+#
 ```
 
 ```{r Missing data summary}
 #
-WQ_check <- WQ1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber)) %>% dplyr::select(ID, Temperature:SecchiPercent) %>% filter(is.na(Temperature) | is.na(Salinity) | is.na(DissolvedOxygen) | is.na(pH) | is.na(SecchiPercent))
+WQ2 <- WQ1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber)) %>% dplyr::select(ID, Temperature:SecchiPercent) 
+if(length(setdiff(Stations, WQ2$ID)) > 0){
+  WQ_check <- WQ2  %>% bind_rows(data.frame(ID = setdiff(Stations, WQ2$ID), Temperature = NA, Salinity = NA, DissolvedOxygen = NA, pH = NA, SecchiPercent = NA)) %>% filter(is.na(Temperature) | is.na(Salinity) | is.na(DissolvedOxygen) | is.na(pH) | is.na(SecchiPercent))
+} else {
+    WQ_check <- WQ2 %>% filter(is.na(Temperature) | is.na(Salinity) | is.na(DissolvedOxygen) | is.na(pH) | is.na(SecchiPercent))
+  }
 #
-Rcrt_check <- R1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Stringer = case_when(as.numeric(str_sub(ShellID, -2)) < 7 ~ "1A", as.numeric(str_sub(ShellID, -2)) > 6 & as.numeric(str_sub(ShellID, -2)) < 13 ~ "1B", as.numeric(str_sub(ShellID, -2)) > 12 & as.numeric(str_sub(ShellID, -2)) < 19 ~ "2A", as.numeric(str_sub(ShellID, -2)) > 18 & as.numeric(str_sub(ShellID, -2)) < 25 ~ "2B", as.numeric(str_sub(ShellID, -2)) > 24 & as.numeric(str_sub(ShellID, -2)) < 31 ~ "3A", as.numeric(str_sub(ShellID, -2)) > 30 ~ "3B", TRUE ~ "TEMP")) %>% group_by(ID, Stringer) %>% summarise(MeanBott = mean(NumBottom)) %>% filter(is.na(MeanBott))
+Rcrt2 <- Recruit %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Stringer = case_when(as.numeric(str_sub(ShellID, -2)) < 7 ~ "1A", as.numeric(str_sub(ShellID, -2)) > 6 & as.numeric(str_sub(ShellID, -2)) < 13 ~ "1B", as.numeric(str_sub(ShellID, -2)) > 12 & as.numeric(str_sub(ShellID, -2)) < 19 ~ "2A", as.numeric(str_sub(ShellID, -2)) > 18 & as.numeric(str_sub(ShellID, -2)) < 25 ~ "2B", as.numeric(str_sub(ShellID, -2)) > 24 & as.numeric(str_sub(ShellID, -2)) < 31 ~ "3A", as.numeric(str_sub(ShellID, -2)) > 30 ~ "3B", TRUE ~ "TEMP")) %>% group_by(ID, Stringer) %>% summarise(MeanBott = mean(NumBottom)) 
+if(length(setdiff(Stations, Rcrt2$ID)) > 0){
+  Rcrt_check <- Rcrt2  %>% bind_rows(data.frame(ID = setdiff(Stations, Rcrt2$ID), Stringer = NA, MeanBott = NA)) %>% filter(is.na(Stringer) | is.na(MeanBott))
+} else {
+    Rcrt_check <- Rcrt2 %>% filter(is.na(Stringer) | is.na(MeanBott))
+  }
 #
-Dermo_check <- Dermo1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber)) %>% dplyr::select(ID, DermoMantle, DermoGill) %>% filter(is.na(DermoMantle) | is.na(DermoGill))
+Dermo2 <- Dermo1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber)) %>% dplyr::select(ID, DermoMantle, DermoGill)
+if(length(setdiff(Stations, Dermo2$ID)) > 0){
+  Dermo_check <- Dermo2  %>% bind_rows(data.frame(ID = setdiff(Stations, Dermo2$ID), DermoMantle = NA, DermoGill = NA)) %>% filter(is.na(DermoMantle) | is.na(DermoGill))
+} else {
+    Dermo_check <- Dermo2 %>% filter(is.na(DermoMantle) | is.na(DermoGill))
+  }
 #
-Sdtp_check <- Sedi1 %>% filter(AnalysisDate > ReportStart) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, TotalDW, TotalAsh) %>% filter(is.na(TotalDW) | is.na(TotalAsh))
+Sdtp2 <- Sedi1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, TotalDW, TotalAsh) 
+if(length(setdiff(Stations, Sdtp2$ID)) > 0){
+  Sdtp_check <- Sdtp2  %>% bind_rows(data.frame(ID = setdiff(Stations, Sdtp2$ID), Cup = NA, TotalDW = NA, TotalAsh = NA)) %>% filter(is.na(TotalDW) | is.na(TotalAsh))
+} else {
+    Sdtp_check <- Sdtp2 %>% filter(is.na(TotalDW) | is.na(TotalAsh))
+}
+#
 ```
 
 ```{r Data summary tables}
@@ -378,7 +365,7 @@ Sedi_summary <- LW_SediStats %>% group_by(AnalysisDate, RetDate, Position) %>%
             OrganicPct = mean(MeanOrganic, na.rm = T),
             RateOrganicWt = mean(MonthOrgWt, na.rm = T)) %>%
   mutate(across(where(is.numeric), round, 2))
-
+#
 ```
 
 ```{r Survey Text}
@@ -537,7 +524,6 @@ g/month in
 `r max(Sedi_summary$RetDate) %>% format("%B")`.
 \
 
-<!---BLOCK_LANDSCAPE_START--->
 ```{r echo=FALSE, restults = 'asis'}
 
 set_flextable_defaults(na_str = "--", nan_str = "--")
@@ -550,7 +536,7 @@ flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "
   hline(i = 3, border = officer::fp_border(style = "dashed")) %>% vline(j = c(1,3, 5), border = officer::fp_border(style = "solid")) %>% autofit() %>% font(fontname = "Arial", part = "all") %>% fontsize(size = 11, part = "all") %>% width(j = c(1,4,5), width = 0.85, unit = "in") %>% width(j = c(2:3), width = 1.1, unit = "in") %>% width(j = c(6:7), width = 1.5, unit = "in")
 
 ```
-<!---BLOCK_LANDSCAPE_STOP--->
+
 ## Lake Worth Lagoon missing data
 
 **Any samples listed below were missing in `r paste(MonYr)`:**
