@@ -1,6 +1,7 @@
 # Create all Functions necessary for Report
 
 ### Filter Functions ###
+# Survey
 FilterFunction1 <- function(data) {
   data %>% 
     mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
@@ -16,6 +17,16 @@ FilterFunction1 <- function(data) {
 }
 ###
 
+### Filter Functions ###
+# Oyster Health (CI, Dermo, Repro)
+FilterFunction2 <- function(data) {
+  data %>% 
+    mutate(TripDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
+           FixedLocationID = substring(SampleEventID, 19, 22),
+           Year = year(TripDate)) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID")) 
+}
+###
 
 ### Survey Functions ###
 summarise_ALL <- function(data) {

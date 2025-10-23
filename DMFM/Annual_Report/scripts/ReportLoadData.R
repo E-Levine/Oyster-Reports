@@ -46,6 +46,9 @@ hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
   filter(substring(QuadratID, 1, 2) %in% Estuaries)
 
 # Load Condition Index Data
+hsdbConditionIndex <- tbl(con,in_schema("hsdb", "ConditionIndex")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 # Load Dermo Data
 

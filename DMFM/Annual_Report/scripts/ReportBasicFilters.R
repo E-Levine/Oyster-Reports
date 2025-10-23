@@ -120,6 +120,30 @@ rm(SBM_Quad1, SBM_SH1, Survey_Quad1, Survey_SH1)
 
 
 ### Condition Index Data ###
+    # Condition Index
+ConditionIndex <- hsdbConditionIndex %>%
+  FilterFunction2() %>%
+  select(OysterID,
+         SampleEventID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         SectionName,
+         StationName,
+         StationNumber,
+         StationNameNumber,
+         Year,
+         TissueDryWeight,
+         ShellDryWeight,
+         TarePanWeight,
+         Comments)
+###
+
+### Remove intermediate data frames
+rm(hsdbConditionIndex)
+###
+
+
 ###########
 ###########
 ###########

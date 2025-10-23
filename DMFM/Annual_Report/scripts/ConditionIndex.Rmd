@@ -1,0 +1,53 @@
+---
+title: "ConditionIndex"
+output: html_document
+---
+
+# Perform basic analyses, output figures and tables for ConditionIndex data
+
+``` {r BasicStats}
+
+### Stats for ConditionIndex rates
+# ConditionIndex by section
+ConditionIndexStats <- ConditionIndex %>%
+  mutate(CI = ((TissueDryWeight - TarePanWeight) / ShellDryWeight) * 100,
+         AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
+  summarise(ConditionIndexMean = mean(CI, na.rm = TRUE), 
+            SD= sd(CI, na.rm = TRUE),
+            Upper = ConditionIndexMean + SD)
+
+# Median values
+ConditionIndexStatsMedian <- ConditionIndexStats %>%
+  filter(AnalysisDate < ReportStart) %>%
+  group_by(SectionName) %>%
+  summarise(ConditionIndexMedian = median(ConditionIndexMean, na.rm = TRUE),
+            ConditionIndexMax = max(ConditionIndexMean, na.rm = TRUE))
+
+```
+
+
+``` {r ConditionIndex Figures}
+
+### Function explanation
+# generate_plot(df, 
+#               x_variable, x_label, 
+#               y_variable, y_label, y_SD, 
+#               UseColor, UseFill, 
+#               title)
+
+# Stats for Condition Index by Year and Section
+ConditionIndexStats_Section_fig <- generate_grouped_plot(ConditionIndexStats, 
+                                                "Plot_Date", "Date", 
+                                                "ConditionIndexMean", "Condition Index)", "SD", 
+                                                "SectionName", "SectionName", 
+                                                "AB Oyster ConditionIndex by Year and Section")
+print(ConditionIndexStats_Section_fig)
+
+```
+
+``` {ConditionIndex Text}
+### Placeholder for ConditionIndex text for report
+```
+This is text to output for ConditionIndex
