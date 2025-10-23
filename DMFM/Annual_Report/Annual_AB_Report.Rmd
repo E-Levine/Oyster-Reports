@@ -26,6 +26,10 @@ source("scripts/ReportBasicFilters.R")
 render("scripts/Survey.Rmd", quiet = TRUE)
 # Recruitment portion of report
 render("scripts/Recruitment.Rmd", quiet = TRUE)
+# Condition Index portion of report
+render("scripts/ConditionIndex.Rmd", quiet = TRUE)
+# Dermo portion of report
+render("scripts/Dermo.Rmd", quiet = TRUE)
 
 ```
 

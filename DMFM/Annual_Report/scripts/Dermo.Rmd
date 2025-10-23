@@ -1,0 +1,59 @@
+---
+title: "Dermo"
+output: html_document
+---
+
+# Perform basic analyses, output figures and tables for Dermo data
+
+``` {r BasicStats}
+
+### Stats for Dermo Prevalence
+# Dermo prevalence by section
+DermoStats <- Dermo %>%
+  mutate(DermoInfected = ifelse(DermoMantle > 0 | DermoGill > 0, 1, 0),
+         AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  filter(!is.na(DermoInfected)) %>% # Remove null records
+  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
+  summarise(n_DermoTotal = n(),
+    n_DermoInfected = sum(DermoInfected, na.rm = TRUE),
+    DermoInfected_mean = (n_DermoInfected / n_DermoTotal) * 100,
+    se = sqrt((DermoInfected_mean / 100) * (1 - (DermoInfected_mean / 100)) / n_DermoTotal),
+    ci_lower = (DermoInfected_mean / 100 - 1.96 * se) * 100,
+    ci_upper = (DermoInfected_mean / 100 + 1.96 * se) * 100,
+    .groups = "drop")
+  
+
+# Median values
+DermoStatsMedian <- DermoStats %>%
+  filter(AnalysisDate < ReportStart) %>%
+  group_by(SectionName) %>%
+  summarise(DermoPMedian = median(DermoInfected_mean, na.rm = TRUE),
+            DermoPMax = max(DermoInfected_mean, na.rm = TRUE))
+
+```
+
+``` {r Dermo Prevalence Figures}
+
+### Function explanation
+# generate_plot(df, 
+#               x_variable, x_label, 
+#               y_variable, y_label, y_SD, 
+#               UseColor, UseFill, 
+#               title)
+
+# Stats for Condition Index by Year and Section
+DermoPrevalenceStats_Section_fig <- generate_grouped_plot(DermoStats, 
+                                                "Plot_Date", "Date", 
+                                                "DermoInfected_mean", "Dermo Prevalence (%)", "se", 
+                                                "SectionName", "SectionName", 
+                                                "AB Oyster Dermo Prevalence by Year and Section")
+print(DermoPrevalenceStats_Section_fig)
+
+```
+
+
+``` {Dermo Text}
+### Placeholder for Dermo text for report
+```
+This is text to output for Dermo

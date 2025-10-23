@@ -51,6 +51,9 @@ hsdbConditionIndex <- tbl(con,in_schema("hsdb", "ConditionIndex")) %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 # Load Dermo Data
+hsdbDermo <- tbl(con,in_schema("hsdb", "Dermo")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 # Load Repro Data
 

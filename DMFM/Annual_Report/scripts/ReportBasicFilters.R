@@ -144,6 +144,29 @@ rm(hsdbConditionIndex)
 ###
 
 
+### Dermo Data ###
+# Dermo
+Dermo <- hsdbDermo %>%
+  FilterFunction2() %>%
+  select(OysterID,
+         SampleEventID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         SectionName,
+         StationName,
+         StationNumber,
+         StationNameNumber,
+         Year,
+         DermoMantle,
+         DermoGill,
+         Comments)
+###
+
+### Remove intermediate data frames
+rm(hsdbDermo)
+###
+
 ###########
 ###########
 ###########
