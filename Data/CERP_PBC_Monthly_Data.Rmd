@@ -6,23 +6,23 @@ output: html_document
 ---
 
 ~~~{=comment}
-This file compiles the monthly summary data for the specified date. Summary data is appeneded to the existing summary Excel sheet. 
+This file compiles the monthly summary data for the specified date. Summary data is appended to the existing summary Excel sheet. 
 ~~~
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine Williams") #Change to your name
-Database <- "Oysters_25-10-01"  #Set the local database to use
+Database <- "Oysters_25-10-23"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2025-07-01")
+Start_date <- as.Date("2025-09-01")
 End_date <- as.Date("2025-09-30")
 data_file_location <- #... UPDATE ....
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
-pacman::p_load(odbc, DBI, dbplyr,
+pacman::p_load(odbc, DBI, dbplyr, data.table,
   tidyverse, dplyr,  stringr, #DF manipulation
   DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
@@ -127,14 +127,16 @@ new_WQ <- rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proofed" | DataStat
   dplyr::select(FixedLocationID, SampleEventWQID:TurbidityYSI, Comments, CollectionTime, PercentDissolvedOxygen) %>%
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
-  dplyr::select(-FixedLocationID)
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
 #
 #
 #Load exisiting data, and append new data
-WQ_data <- readWorkbook(data_file_location, sheet = 'SampleEventWQ', detectDates = TRUE)
+WQ_data <- as.data.table(readWorkbook(data_file_location, sheet = 'SampleEventWQ', detectDates = TRUE))
 #
-combined_WQ <- rbind(WQ_data, new_WQ)
-combined_WQ_f <- combined_WQ[!duplicated(combined_WQ),]
+combined_WQ <- rbindlist(list(WQ_data, new_WQ), use.names = TRUE, fill = TRUE)
+combined_WQ_f <- unique(combined_WQ)
+setorder(combined_WQ, SampleEventWQID)
 #
 #
 ```
@@ -148,14 +150,17 @@ new_Rcrt <- rbind((hsdbRcrt %>% filter(DataStatus == "Proofed" | DataStatus == "
   dplyr::select(FixedLocationID, ShellID:NumBottom, Comments) %>% # 
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
-  dplyr::select(-FixedLocationID)
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
 #
 #
-#Load exisiting data, and append new data
-Rcrt_data <- readWorkbook(data_file_location, sheet = 'Recruitment', detectDates = TRUE)
+#Load existing data, and append new data
+Rcrt_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Recruitment', detectDates = TRUE)) %>% 
+  dplyr::select(ShellID:Comments)
 #
-combined_Rcrt <- rbind(Rcrt_data, new_Rcrt)
-combined_Rcrt_f <- combined_Rcrt[!duplicated(combined_Rcrt),]
+combined_Rcrt <- rbindlist(list(Rcrt_data, new_Rcrt), use.names = TRUE, fill = TRUE)
+combined_Rcrt_f <- unique(combined_Rcrt)
+setorder(combined_Rcrt_f, ShellID)
 #
 #
 ```
@@ -169,14 +174,17 @@ new_Dermo <-rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber) %>% filter(Data
   dplyr::select(FixedLocationID, OysterID:DermoGill, Comments) %>% # 
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
-  dplyr::select(-FixedLocationID)
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
 #
 #
 #Load exisiting data, and append new data
-Dermo_data <- readWorkbook(data_file_location, sheet = 'Dermo', detectDates = TRUE)
+Dermo_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Dermo', detectDates = TRUE)) %>%
+  dplyr::select(OysterID:Comments)
 #
-combined_Dermo <- rbind(Dermo_data, new_Dermo)
-combined_Dermo_f <- combined_Dermo[!duplicated(combined_Dermo),]
+combined_Dermo <- rbindlist(list(Dermo_data, new_Dermo), use.names = TRUE, fill = TRUE)
+combined_Dermo_f <- unique(combined_Dermo)
+setorder(combined_Dermo_f, OysterID)
 #
 #
 ```
@@ -190,14 +198,17 @@ new_Sdtp <-rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | DataStatus == "C
   dplyr::select(FixedLocationID, CupSampleID:NumOtherBiota, Comments, Volume, TareCrucible, AshWeight, PortionofSample, CrucibleDW) %>% # 
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
-  dplyr::select(-FixedLocationID)
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
 #
 #
 #Load exisiting data, and append new data
-Sdtp_data <- readWorkbook(data_file_location, sheet = 'Sediment', detectDates = TRUE)
+Sdtp_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Sediment', detectDates = TRUE)) %>% 
+  dplyr::select(CupSampleID:CrucibleDW)
 #
-combined_Sdtp <- rbind(Sdtp_data, new_Sdtp)
-combined_Sdtp_f <- combined_Sdtp[!duplicated(combined_Sdtp),]
+combined_Sdtp <- rbindlist(list(Sdtp_data, new_Sdtp), use.names = TRUE, fill = TRUE)
+combined_Sdtp_f <- unique(combined_Sdtp)
+setorder(combined_Sdtp_f, CupSampleID)
 #
 #
 ```
@@ -211,14 +222,17 @@ new_Srvy <- rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "
   dplyr::select(FixedLocationID, QuadratID:NumDrills, Comments, NumLegal) %>% # 
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
-  dplyr::select(-FixedLocationID)
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
 #
 #
 #Load exisiting data, and append new data
-Srvy_data <- readWorkbook(data_file_location, sheet = 'Survey', detectDates = TRUE)
+Srvy_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Survey', detectDates = TRUE)) %>%
+  dplyr::select(QuadratID:NumLegal)
 #
-combined_Srvy <- rbind(Srvy_data, new_Srvy)
-combined_Srvy_f <- combined_Srvy[!duplicated(combined_Srvy),]
+combined_Srvy <- rbindlist(list(Srvy_data, new_Srvy), use.names = TRUE, fill = TRUE)
+combined_Srvy_f <- unique(combined_Srvy)
+setorder(combined_Srvy_f, QuadratID)
 #
 #
 ```
@@ -229,11 +243,11 @@ combined_Srvy_f <- combined_Srvy[!duplicated(combined_Srvy),]
 Summary_wb <- loadWorkbook(data_file_location)
 #
 #Overwrite each sheet with new data appended to old
-  writeData(Summary_wb, "SampleEventWQ", combined_WQ_f, startRow = nrow(WQ_data)+2, colNames = FALSE)
-  writeData(Summary_wb, "Recruitment", combined_Rcrt_f, startRow = nrow(Rcrt_data)+2, colNames = FALSE)
-  writeData(Summary_wb, "Dermo", combined_Dermo_f, startRow = nrow(Dermo_data)+2, colNames = FALSE)
-  writeData(Summary_wb, "Sediment", combined_Sdtp_f, startRow = nrow(Sdtp_data)+2, colNames = FALSE)
-  writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = nrow(Srvy_data)+2, colNames = FALSE)
+  writeData(Summary_wb, "SampleEventWQ", combined_WQ_f, startRow = 1, colNames = FALSE)
+  writeData(Summary_wb, "Recruitment", combined_Rcrt_f, startRow = 1, colNames = FALSE)
+  writeData(Summary_wb, "Dermo", combined_Dermo_f, startRow = 1, colNames = FALSE)
+  writeData(Summary_wb, "Sediment", combined_Sdtp_f, startRow = 1, colNames = FALSE)
+  writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = 1, colNames = FALSE)
   #Save workbook
-  saveWorkbook(WQ_wb, "../Data/CERP_PBC_WQ_Summary_Data.xlsx", overwrite=TRUE)
+  saveWorkbook(Summary_wb, data_file_location, overwrite=TRUE)
 ```
