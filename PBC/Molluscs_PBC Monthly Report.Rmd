@@ -277,7 +277,8 @@ Sedi1 <- Sediment %>%
          TotalDW,
          TotalAsh,
          OrganicWt,
-         PctOrganic) %>% 
+         PctOrganic,
+         Comments) %>% 
   filter(RetDate >= ReportStart & RetDate < ReportEnd) %>%
   left_join(FixedLocations1, by = c("FixedLocationID"))
 
@@ -319,7 +320,7 @@ if(length(setdiff(Stations, Dermo2$ID)) > 0){
     Dermo_check <- Dermo2 %>% filter(is.na(DermoMantle) | is.na(DermoGill))
   }
 #
-Sdtp2 <- Sedi1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, TotalDW, TotalAsh) 
+Sdtp2 <- Sedi1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, TotalDW, TotalAsh, Comments) 
 if(length(setdiff(Stations, Sdtp2$ID)) > 0){
   Sdtp_check <- Sdtp2  %>% bind_rows(data.frame(ID = setdiff(Stations, Sdtp2$ID), Cup = NA, TotalDW = NA, TotalAsh = NA)) %>% filter(is.na(TotalDW) | is.na(TotalAsh))
 } else {
@@ -417,7 +418,7 @@ to
 `r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWL_DermoStats$RetDate) %>% format("%B")`.
-* `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
+* `r if(Month == "03" | Month == "09") {paste(LWR_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
 ## Lake Worth Restoration summary 
