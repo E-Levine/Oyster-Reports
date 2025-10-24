@@ -16,7 +16,7 @@ Author <- c("E Levine Williams") #Change to your name
 Database <- "Oysters_25-10-23"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2025-09-01")
+Start_date <- as.Date("2025-01-01")
 End_date <- as.Date("2025-09-30")
 data_file_location <- #... UPDATE ....
 
@@ -147,7 +147,9 @@ setorder(combined_WQ, SampleEventWQID)
 #Combined table of parameters
 new_Rcrt <- rbind((hsdbRcrt %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRcrt %>% filter(DataStatus == "Proofed"))) %>%
   #Filter data to desired columns needed for summary
-  dplyr::select(FixedLocationID, ShellID:NumBottom, Comments) %>% # 
+  dplyr::select(FixedLocationID, ShellID:NumBottom, Comments) %>% 
+  #Convert dates
+  dplyr::mutate(DeployedDate = as.Date(DeployedDate)) %>%
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
   dplyr::select(-FixedLocationID) %>%
@@ -196,6 +198,8 @@ setorder(combined_Dermo_f, OysterID)
 new_Sdtp <-rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboSedi) %>% 
   #Filter data to desired columns needed for summary
   dplyr::select(FixedLocationID, CupSampleID:NumOtherBiota, Comments, Volume, TareCrucible, AshWeight, PortionofSample, CrucibleDW) %>% # 
+  #Convert dates
+  dplyr::mutate(DeployedDate = as.Date(DeployedDate)) %>%
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
   dplyr::select(-FixedLocationID) %>%
@@ -243,11 +247,11 @@ setorder(combined_Srvy_f, QuadratID)
 Summary_wb <- loadWorkbook(data_file_location)
 #
 #Overwrite each sheet with new data appended to old
-  writeData(Summary_wb, "SampleEventWQ", combined_WQ_f, startRow = 1, colNames = FALSE)
-  writeData(Summary_wb, "Recruitment", combined_Rcrt_f, startRow = 1, colNames = FALSE)
-  writeData(Summary_wb, "Dermo", combined_Dermo_f, startRow = 1, colNames = FALSE)
-  writeData(Summary_wb, "Sediment", combined_Sdtp_f, startRow = 1, colNames = FALSE)
-  writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = 1, colNames = FALSE)
+  writeData(Summary_wb, "SampleEventWQ", combined_WQ_f, startRow = 2, colNames = FALSE)
+  writeData(Summary_wb, "Recruitment", combined_Rcrt_f, startRow = 2, colNames = FALSE)
+  writeData(Summary_wb, "Dermo", combined_Dermo_f, startRow = 2, colNames = FALSE)
+  writeData(Summary_wb, "Sediment", combined_Sdtp_f, startRow = 2, colNames = FALSE)
+  writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = 2, colNames = FALSE)
   #Save workbook
   saveWorkbook(Summary_wb, data_file_location, overwrite=TRUE)
 ```
