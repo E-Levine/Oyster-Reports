@@ -6,18 +6,18 @@ output: html_document
 ---
 
 ~~~{=comment}
-This file compiles the monthly summary data for the specified date. Summary data is appended to the existing summary Excel sheet. 
+This file compiles the monthly data for the specified date range. Cleaned data is appended to the existing Excel sheet located at the file path specified. 
 ~~~
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine Williams") #Change to your name
-Database <- "Oysters_25-10-23"  #Set the local database to use
+Database <- "Oysters_25-10-27"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations required to be updated for use.
-Start_date <- as.Date("2025-01-01")
-End_date <- as.Date("2025-09-30")
+Start_date <- as.Date("2025-10-01")
+End_date <- as.Date("2025-10-30")
 data_file_location <- #... UPDATE ....
 
 #Packages
@@ -173,16 +173,21 @@ setorder(combined_Rcrt_f, ShellID)
 #Combined table of parameters
 new_Dermo <-rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboDermo) %>% 
   #Filter data to desired columns needed for summary
-  dplyr::select(FixedLocationID, OysterID:DermoGill, Comments) %>% # 
+  dplyr::select(FixedLocationID, OysterID:DermoGill, Comments) %>% 
+  # Remove extra samples
+  dplyr::filter(as.numeric(substr(OysterID, 10, 11)) < 16) %>%
   #Arrange by station
   arrange(match(FixedLocationID, c(LocationID_order))) %>%
   dplyr::select(-FixedLocationID) %>%
   as.data.table()
 #
 #
-#Load exisiting data, and append new data
+#Load existing data, and append new data
 Dermo_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Dermo', detectDates = TRUE)) %>%
-  dplyr::select(OysterID:Comments)
+  dplyr::select(OysterID:Comments) %>%
+  # Remove extra samples
+  dplyr::filter(as.numeric(substr(OysterID, 10, 11)) < 16) 
+  
 #
 combined_Dermo <- rbindlist(list(Dermo_data, new_Dermo), use.names = TRUE, fill = TRUE)
 combined_Dermo_f <- unique(combined_Dermo)
@@ -219,24 +224,30 @@ setorder(combined_Sdtp_f, CupSampleID)
 
 ```{r Survey count data}
 #
-##SRVY - new data
-#Combined table of parameters
-new_Srvy <- rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboSrvy) %>% 
-  #Filter data to desired columns needed for summary
-  dplyr::select(FixedLocationID, QuadratID:NumDrills, Comments, NumLegal) %>% # 
-  #Arrange by station
-  arrange(match(FixedLocationID, c(LocationID_order))) %>%
-  dplyr::select(-FixedLocationID) %>%
-  as.data.table()
-#
-#
-#Load exisiting data, and append new data
-Srvy_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Survey', detectDates = TRUE)) %>%
-  dplyr::select(QuadratID:NumLegal)
-#
-combined_Srvy <- rbindlist(list(Srvy_data, new_Srvy), use.names = TRUE, fill = TRUE)
-combined_Srvy_f <- unique(combined_Srvy)
-setorder(combined_Srvy_f, QuadratID)
+Months <- unique(format(seq(Start_date, End_date, by = "day"), "%m"))
+Survey_month <- any(c("03", "06", "09", "12") %in% Months)
+if(Survey_month){
+  ##SRVY - new data
+  #Combined table of parameters
+  new_Srvy <- rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboSrvy) %>% 
+    #Filter data to desired columns needed for summary
+    dplyr::select(FixedLocationID, QuadratID:NumDrills, Comments, NumLegal) %>% # 
+    #Arrange by station
+    arrange(match(FixedLocationID, c(LocationID_order))) %>%
+    dplyr::select(-FixedLocationID) %>%
+    as.data.table()
+  #
+  #
+  #Load existing data, and append new data
+  Srvy_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Survey', detectDates = TRUE)) %>%
+    dplyr::select(QuadratID:NumLegal)
+  #
+  combined_Srvy <- rbindlist(list(Srvy_data, new_Srvy), use.names = TRUE, fill = TRUE)
+  combined_Srvy_f <- unique(combined_Srvy)
+  setorder(combined_Srvy_f, QuadratID)
+} else {
+    print("Survey month not included in data request. No survey update needed.")
+  }
 #
 #
 ```
@@ -248,10 +259,15 @@ Summary_wb <- loadWorkbook(data_file_location)
 #
 #Overwrite each sheet with new data appended to old
   writeData(Summary_wb, "SampleEventWQ", combined_WQ_f, startRow = 2, colNames = FALSE)
+  print("WQ data updated")
   writeData(Summary_wb, "Recruitment", combined_Rcrt_f, startRow = 2, colNames = FALSE)
+  print("Recruitment data updated")
   writeData(Summary_wb, "Dermo", combined_Dermo_f, startRow = 2, colNames = FALSE)
+  print("Dermo data updated")
   writeData(Summary_wb, "Sediment", combined_Sdtp_f, startRow = 2, colNames = FALSE)
-  writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = 2, colNames = FALSE)
+  print("Sediment data updated")
+  if(Survey_month){writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = 2, colNames = FALSE)
+    print("Survey data updated")}
   #Save workbook
   saveWorkbook(Summary_wb, data_file_location, overwrite=TRUE)
 ```
