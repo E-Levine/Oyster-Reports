@@ -6,8 +6,8 @@ output:
   html_document:
   word_document: NULL
 params:
-  Start_date: "2025-04-01"
-  End_date: "2025-06-30"
+  Start_date: "2025-07-01"
+  End_date: "2025-09-30"
 ---
 <style>
 .main-container {
@@ -32,6 +32,22 @@ pacman::p_load(odbc, DBI, dbplyr,
   lubridate, zoo,         #Dates
   knitr, kableExtra, scales, gt, gtExtras,
   install = TRUE)
+#
+#
+# Function to determine increase/decrease
+get_change <- function(col) {
+  first <- col[1]
+  last <- col[length(col)]
+  if (last > first) {
+    return("increased")
+  } else if (last < first) {
+    return("decreased")
+  } else {
+    return("no change")
+  }
+}
+#
+#
 ```
 
 ```{css}
@@ -112,11 +128,16 @@ Repro_PBC <- Repro_df %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDa
 #
 ##Survey counts
 Counts_CERP <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+Counts_CERP_change <- as.data.frame(t(sapply(Counts_CERP, get_change))) 
+#
 Counts_CRE <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+Counts_CRE_change <- as.data.frame(t(sapply(Counts_CRE, get_change))) 
+#
 Counts_PBC <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("LW")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+Counts_PBC_change <- as.data.frame(t(sapply(Counts_PBC, get_change))) 
 #
 ##Survey SHs
-SH_CERP <- SH_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(6))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
+SH_CERP <- SH_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 SH_CRE <- SH_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 SH_PBC <- SH_df %>% dplyr::select(AnalysisDate, starts_with("LW")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 #
@@ -125,7 +146,10 @@ Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>%
 Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 ##Sediment
-Rate_sta <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("RateMean")) %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date)
+Rate_sta <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("RateMean")) %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>%
+  mutate(LW.R2_RateMean = case_when(AnalysisDate == as.Date("2025-09-01") ~ 37.47, TRUE ~ LW.R2_RateMean),
+         LW.R3_RateMean = case_when(AnalysisDate == as.Date("2025-09-01") ~ 19.93, TRUE ~ LW.R3_RateMean),
+         LW.R4_RateMean = case_when(AnalysisDate == as.Date("2025-09-01") ~ 6.82, TRUE ~ LW.R4_RateMean))
 Rate_annual <- Sedi_sta  %>% dplyr::select(AnalysisDate, contains("RateMean")) %>% subset(AnalysisDate > (End_date %m-% months(12)) & AnalysisDate < End_date)
 Pct_sta <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("OrganicMean")) %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date)
 Pct_annual <- Sedi_sta %>% dplyr::select(AnalysisDate, contains("OrganicMean")) %>% subset(AnalysisDate >= (End_date %m-% months(12)) & AnalysisDate < End_date)
@@ -137,7 +161,7 @@ Reef_type_annual <- Sedi_sta %>% subset(AnalysisDate >= (End_date %m-% months(12
 
 ```
 
-```{r table formatting, results = 'asis'}
+```{r table formatting, results = "asis"}
 #Salinity
 CERP_Sal <- WQ_Sal_CERP %>% gt() %>% data_color(columns = contains("Sal"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sal_CERP %>% dplyr::select(contains("Sal")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13, 16), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_Sal","", .)) %>% cols_align(align = c("center"), columns = everything())
 #
@@ -163,7 +187,11 @@ PBC_dermo <- Dermo_PBC %>% gt() %>% data_color(columns = contains("Pct"), fn = s
 #
 #
 ##Rcrt
-CERP_rcrt <- Rcrt_CERP %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1800)
+CERP_rcrt <- Rcrt_CERP %>% gt() %>% 
+  data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% 
+  gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+  tab_options(container.width = 1800)
 #
 CRE_rcrt <- Rcrt_CRE %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
 #
@@ -190,32 +218,97 @@ if(nrow(Repro_PBC) > 0){
 }
 #
 #
-##Counts
-CERP_count <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_LiveSD") %>% grp_options(container.width = 2000)
+##Counts - gt_gtoup objetc must be completed in line for RMarkdown to output correctly - CERP tables moved in-line
+#CERP_count <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live"))%>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T) )) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% tab_caption(caption = "Monthly CERP live oyster counts") %>% gt_split(col_slice_at = "SL.S3_LiveSD") %>%   grp_options(container.width = 2000)
+
+#CERP_count_change <- as.data.frame(t(sapply(Counts_CERP, get_change))) %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_LiveSD") %>% grp_options(container.width = 2000)
 #
 CRE_count <- Counts_CRE %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black")
+
+CRE_count_change <- as.data.frame(t(sapply(Counts_CRE, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% 
+  sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% 
+     cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% 
+     gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black") 
 #
 PBC_count <- Counts_PBC %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") %>% tab_options(container.width = 1500)
+
+PBC_count_change <- as.data.frame(t(sapply(Counts_PBC, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% 
+  sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% 
+     cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% 
+     gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") 
 #
 #
-##Dead Ratios
-CERP_dead <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% grp_options(container.width = 1500)
+##Dead Ratios -   (see Counts comment)
+#CERP_dead <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% tab_caption(caption = "Monthly CERP dead ratios")%>% gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% grp_options(container.width = 1500)
+
+#CERP_dead_change <- as.data.frame(t(sapply(Counts_CERP, get_change))) %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% grp_options(container.width = 2000)
 #
 CRE_dead <- Counts_CRE %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black")
+
+CRE_dead_change <- as.data.frame(t(sapply(Counts_CRE, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>%   
+  sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     cols_label_with(fn = ~gsub("DeadMean","Mean", .)) %>% 
+     cols_label_with(fn = ~gsub("DeadSD","SD", .)) %>% 
+     gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black") 
 #
 PBC_dead <- Counts_PBC %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") %>% tab_options(container.width = 1500)
+
+PBC_dead_change <- as.data.frame(t(sapply(Counts_PBC, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% 
+  sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     cols_label_with(fn = ~gsub("DeadMean","Mean", .)) %>% 
+     cols_label_with(fn = ~gsub("DeadSD","SD", .)) %>% 
+     gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") 
 #
 #
 ##SHs
-CERP_SH <- SH_CERP %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_SHMean") %>% grp_options(container.width = 1500)
+#CERP_SH <- SH_CERP %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% tab_caption(caption = "Monthly CERP shell heights")%>% gt_split(col_slice_at = "SL.S3_SHMean") %>% grp_options(container.width = 1500)
 #
 CRE_SH <- SH_CRE %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black")
 #
 PBC_SH <- SH_PBC %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% tab_options(container.width = 1500)
 #
 #Survey summary table - PBC
-PBC_survey_sum <- left_join(rbind(Counts_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = str_remove(str_extract(Info, "^.{5}"), "\\."), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean), Counts_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = paste0(str_remove(str_extract(Info, "^.{4}"), "\\."),"_mean"), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean)) %>% arrange(Station) %>% ungroup() %>% dplyr::select(Station, "Live density (oysters/m2)" = LiveMean, "Dead Ratio" = DeadRatioMean), 
-      rbind(SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = str_remove(str_extract(Info, "^.{5}"), "\\."), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean), SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = paste0(str_remove(str_extract(Info, "^.{4}"), "\\."), "_mean"), Measure = substr(Info, 7, n())) %>% group_by(Station, Measure) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean)) %>% arrange(Station) %>% ungroup() %>% dplyr::select(Station, "Shell height (mm)" = SHMean)) %>% gt() %>% tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4, 8))) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 2, 3), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 5)))
+PBC_survey_sum <- left_join(rbind(
+  Counts_PBC %>% filter(as.yearmon(AnalysisDate) >= as.yearmon(End_date %m-% months(1))) %>% 
+    gather(Info, Value, -AnalysisDate) %>% 
+    mutate(Value = na_if(Value, -999), Station = str_remove(str_extract(Info, "^.{5}"), "\\."), Measure = substr(Info, 7, n())) %>% 
+    group_by(Station, Measure) %>% 
+    summarise(mean = round(mean(Value, na.rm = T), 2)) %>% 
+    spread(Measure, mean), 
+  Counts_PBC %>% filter(as.yearmon(AnalysisDate) >= as.yearmon(End_date %m-% months(1))) %>% 
+    gather(Info, Value, -AnalysisDate) %>% 
+    mutate(Value = na_if(Value, -999), Station = paste0(str_remove(str_extract(Info, "^.{4}"), "\\."),"_mean"), Measure = substr(Info, 7, n())) %>% 
+    group_by(Station, Measure) %>% 
+    summarise(mean = round(mean(Value, na.rm = T), 2)) %>% 
+    spread(Measure, mean)) %>% 
+    arrange(Station) %>% ungroup() %>% dplyr::select(Station, "Live density (oysters/m2)" = LiveMean, "Dead Ratio" = DeadRatioMean), 
+      rbind(SH_PBC %>% filter(as.yearmon(AnalysisDate) >= as.yearmon(End_date %m-% months(1))) %>% 
+              gather(Info, Value, -AnalysisDate) %>% 
+              mutate(Value = na_if(Value, -999), Station = str_remove(str_extract(Info, "^.{5}"), "\\."), Measure = substr(Info, 7, n())) %>% 
+              group_by(Station, Measure) %>% 
+              summarise(mean = round(mean(Value, na.rm = T), 2)) %>% spread(Measure, mean), 
+            SH_PBC %>% filter(as.yearmon(AnalysisDate) >= as.yearmon(End_date %m-% months(1))) %>% 
+              gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Station = paste0(str_remove(str_extract(Info, "^.{4}"), "\\."), "_mean"), Measure = substr(Info, 7, n())) %>%
+              group_by(Station, Measure) %>% 
+              summarise(mean = round(mean(Value, na.rm = T), 2)) %>% 
+              spread(Measure, mean)) %>% 
+    arrange(Station) %>% 
+    ungroup() %>% 
+    dplyr::select(Station, "Shell height (mm)" = SHMean)) %>% gt() %>% tab_style(style = cell_text(weight = "bold"), locations = cells_body(rows = c(4, 8))) %>% cols_align(align = c("center"), columns = everything()) %>%  gt_add_divider(columns = c(1, 2, 3), sides = "right", color = "black") %>% tab_style(style = cell_borders(sides = "top", color = "black"), locations = cells_body(rows = c(1, 5)))
 #
 #
 #
@@ -320,26 +413,81 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 <h1>`r paste("CERP Quarterly Report")`</h1>
 <h2>`r paste("East Coast")`</h2>
 Minimum and maximum values observed during the quarter and data ordered by increasing values.
-<h3> `r paste("Survey summary")` </h3>
-<p> Monthly CERP live oyster counts: </p>
-`r CERP_count` \
-<p>Live Counts range: `r CERP_Counts_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_Counts_temp  %>% slice(1) %>% pull(Value)`\
-Live Counts mid-range:`r CERP_Counts_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_Counts_temp  %>% slice(2) %>% pull(Value)`</p> \
-`r CERP_dead` \
-<p> Monthly CERP dead ratios: </p>
-<p> DeadRatio range: `r CERP_DR_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_DR_temp  %>% slice(1) %>% pull(Value)` \
-DeadRatio mid-range:`r CERP_DR_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_DR_temp  %>% slice(2) %>% pull(Value)`</p> \
-<p> Monthly CERP shell heights: </p>
-`r CERP_SH`\
-<p>Shell height range: `r CERP_SH_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_SH_temp  %>% slice(1) %>% pull(Value)`\
-Shell height mid-range:`r CERP_SH_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_SH_temp  %>% slice(2) %>% pull(Value)` </p>\
+<h3> `r paste("Survey summary")`</h3>
+Live Counts range: `r CERP_Counts_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_Counts_temp  %>% slice(1) %>% pull(Value)`\
+Live Counts mid-range: `r CERP_Counts_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_Counts_temp  %>% slice(2) %>% pull(Value)`
+
+```{r CERP counts table, results= "asis" }
+ Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live"))%>% 
+  gt() %>% 
+  data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))),
+             columns = contains("Mean"), 
+             fn = scales::col_numeric(
+               palette = "plasma", 
+               domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T) )) %>%
+  cols_align(align = c("center"), columns = everything()) %>% 
+  cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% 
+  cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% 
+  gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>%
+  tab_caption(caption = "Monthly CERP live oyster counts") %>%
+  gt_split(col_slice_at = "SL.S3_LiveSD") %>% 
+  grp_options(container.width = 2000)
+
+as.data.frame(t(sapply(Counts_CERP, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% 
+  sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% 
+     cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% 
+     gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>%
+  tab_caption(caption = "Survey live counts comparison") %>%
+     gt_split(col_slice_at = "SL.S3_LiveSD") %>% 
+     grp_options(container.width = 2000)
+```
+
+
+DeadRatio range: `r CERP_DR_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_DR_temp  %>% slice(1) %>% pull(Value)` \
+DeadRatio mid-range:`r CERP_DR_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_DR_temp  %>% slice(2) %>% pull(Value)`
+```{r CERP dead ratios tables}
+Counts_CERP %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% tab_caption(caption = "Monthly CERP dead ratios")%>% gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% grp_options(container.width = 1500)
+
+as.data.frame(t(sapply(Counts_CERP, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% 
+  sub_values(columns = contains("SD"), rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% 
+     cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% 
+     gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>%
+  tab_caption(caption = "CERP dead ratio comparisons") %>% 
+     gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% 
+     grp_options(container.width = 2000)
+```
+
+
+Shell height range: `r CERP_SH_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_SH_temp  %>% slice(1) %>% pull(Value)`\
+Shell height mid-range:`r CERP_SH_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_SH_temp  %>% slice(2) %>% pull(Value)`
+```{r CERP shell heights}
+SH_CERP %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% tab_caption(caption = "Monthly CERP shell heights")%>% gt_split(col_slice_at = "SL.S3_SHMean") %>% grp_options(container.width = 1500)
+
+as.data.frame(t(sapply(SH_CERP, get_change))) %>% 
+  dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% 
+  sub_values(columns = "AnalysisDate", rows = 1, pattern = "creased", replacement = "--") %>% 
+  cols_align(align = c("center"), columns = everything()) %>% 
+     gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>%
+  tab_caption(caption = "CERP shell height comparisons") %>% 
+     gt_split(col_slice_at = "SL.S3_SHMean") %>% 
+     grp_options(container.width = 2000)
+```
 
 
 <h3> `r paste("Recruitment summary")` </h3>
 `r Rcrt_CERP %>% gather(Station, RateMean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CERP_rcrt %>% tab_caption(caption = "Monthly CERP recruitment rates")`
-<p> Recruitment range: `r CERP_Rcrt_temp %>% slice(n()) %>% pull(Value)` - `r CERP_Rcrt_temp %>% slice(1) %>% pull(Value)` 
-Recruitment mid-range: `r CERP_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r CERP_Rcrt_temp %>% slice(2) %>% pull(Value)` </p>
+Recruitment range: `r CERP_Rcrt_temp %>% slice(n()) %>% pull(Value)` - `r CERP_Rcrt_temp %>% slice(1) %>% pull(Value)` 
+Recruitment mid-range: `r CERP_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r CERP_Rcrt_temp %>% slice(2) %>% pull(Value)` 
+`r Rcrt_CERP %>% pivot_longer(names_to = "Station", cols = -RetDate) %>% mutate(Station = sub("_Mean", "", Station)) %>% filter(value == 0) %>% arrange(RetDate) %>% gt(groupname_col = "RetDate") %>% tab_caption(caption = "No recruitment")`
 
 
 <h3> `r paste("Repro summary")` </h3>
@@ -349,33 +497,33 @@ Recruitment mid-range: `r CERP_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r 
 <h3> `r paste("Dermo summary")` </h3>
 `r Dermo_CERP %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples. *Note: Extra samples may have been collected from a different station.")`
 `r CERP_dermo %>% tab_caption(caption = "Monthly CERP dermo intensity and prevalence")`
-<p> Intensity range: `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
+Intensity range: `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
 `r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`\
-Prevalence range: `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
+Prevalence range: `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` 
 
 
 <h3> `r paste("Cage summary")` </h3>
 `r Cage_CERP %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`\
 `r SL_Cage %>% tab_caption(caption = "Monthly St. Lucie cage data")`
-<p>
+
 Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CERP %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
+
 `r LX_Cage %>% tab_caption(caption = "Monthly Loxahatchee cage data")`
-<p>
+
 Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CERP %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
+
 
 
 <h3> `r paste("Water Quality summary")` </h3>
 `r CERP_Sal %>% tab_caption(caption = "Monthly CERP salinity measurements")`
-<p> Salinity range: `r CERP_Sal_temp %>% slice(n()) %>% pull(Value)` - `r CERP_Sal_temp %>% slice(1) %>% pull(Value)`\
+Salinity range: `r CERP_Sal_temp %>% slice(n()) %>% pull(Value)` - `r CERP_Sal_temp %>% slice(1) %>% pull(Value)`\
 Salinity Mid-range: `r CERP_Sal_temp %>% slice(n()-1) %>% pull(Value)` - `r CERP_Sal_temp %>% slice(2) %>% pull(Value)`\
 `r CERP_Sec %>% tab_caption(caption = "Monthly CERP secchi measurements")`
-<p> Secchi range: `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% min()` - `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% max()`\
+Secchi range: `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% min()` - `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% max()`\
 
 
 
@@ -384,21 +532,24 @@ Salinity Mid-range: `r CERP_Sal_temp %>% slice(n()-1) %>% pull(Value)` - `r CERP
 Minimum and maximum values observed during the quarter and data ordered by increasing values.
 <h3> `r paste("Survey summary")` </h3>
 `r CRE_count %>% tab_caption(caption = "Monthly CRE live oyster counts")`
-<p> Live Counts range: `r CRE_Counts_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_Counts_temp  %>% slice(1) %>% pull(Value)`\
-Live Counts Mid-range: `r CRE_Counts_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_Counts_temp  %>% slice(2) %>% pull(Value)`</p>
+Live Counts range: `r CRE_Counts_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_Counts_temp  %>% slice(1) %>% pull(Value)`\
+Live Counts Mid-range: `r CRE_Counts_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_Counts_temp  %>% slice(2) %>% pull(Value)`
+`r CRE_count_change`\
 `r CRE_dead %>% tab_caption(caption = "Monthly CRE dead ratios")`
-<p>DeadRatio range: `r CRE_DR_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_DR_temp  %>% slice(1) %>% pull(Value)`\
-DeadRatio Mid-range: `r CRE_DR_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_DR_temp  %>% slice(2) %>% pull(Value)`</p>
+DeadRatio range: `r CRE_DR_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_DR_temp  %>% slice(1) %>% pull(Value)`\
+DeadRatio Mid-range: `r CRE_DR_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_DR_temp  %>% slice(2) %>% pull(Value)` 
+`r CRE_dead_change`\
 `r CRE_SH %>% tab_caption(caption = "Monthly CRE shell heights")`
-<p>Shell height range: `r CRE_SH_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_SH_temp  %>% slice(1) %>% pull(Value)` \
-Shell height mid-range: `r CRE_SH_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_SH_temp  %>% slice(2) %>% pull(Value)`</p>
+Shell height range: `r CRE_SH_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_SH_temp  %>% slice(1) %>% pull(Value)` \
+Shell height mid-range: `r CRE_SH_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_SH_temp  %>% slice(2) %>% pull(Value)` 
 
 
 <h3> `r paste("Recruitment summary")` </h3>
 `r Rcrt_CRE %>% gather(Station, RateMean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_rcrt %>% tab_caption(caption = "Monthly CRE recruitment rates")`
-<p> Recruitment range: `r CRE_Rcrt_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_Rcrt_temp  %>% slice(1) %>% pull(Value)` \
-Recruitment mid-range: `r CRE_Rcrt_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_Rcrt_temp  %>% slice(2) %>% pull(Value)`</p>
+Recruitment range: `r CRE_Rcrt_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_Rcrt_temp  %>% slice(1) %>% pull(Value)` \
+Recruitment mid-range: `r CRE_Rcrt_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_Rcrt_temp  %>% slice(2) %>% pull(Value)`
+`r Rcrt_CRE %>% pivot_longer(names_to = "Station", cols = -RetDate) %>% mutate(Station = sub("_Mean", "", Station)) %>% filter(value == 0) %>% arrange(RetDate) %>% gt(groupname_col = "RetDate") %>% tab_caption(caption = "No recruitment")`
 
 
 <h3> `r paste("Repro summary")` </h3>
@@ -408,33 +559,33 @@ Recruitment mid-range: `r CRE_Rcrt_temp  %>% slice(n()-1) %>% pull(Value)` - `r 
 <h3> `r paste("Dermo summary")` </h3>
 `r Dermo_CRE %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_dermo %>% tab_caption(caption = "Monthly CRE dermo intensity and prevalence")`
-<p> Intensity range: `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
+Intensity range: `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
 `r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`\
-Prevalence range: `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
+Prevalence range: `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)`
 
 
 <h3> `r paste("Cage summary")` </h3>
 `r Cage_CRE %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_Cage %>% tab_caption(caption = "Monthly CRE-East cage data")`
-<p>
+
 Deployed SH Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.E")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.E")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
+<
 `r CRW_Cage %>% tab_caption(caption = "Monthly CR-West cage data")`
-<p>
+
 Deployed SH Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-</p>
+
 
 
 <h3> `r paste("Water Quality summary")` </h3>
 `r CRE_Sal %>% tab_caption(caption = "Monthly CRE salinity measurements")`
-<p> Salinity range: `r CRE_Sal_temp %>% slice(n()) %>% pull(Value)` - `r CRE_Sal_temp %>% slice(1) %>% pull(Value)`\
+Salinity range: `r CRE_Sal_temp %>% slice(n()) %>% pull(Value)` - `r CRE_Sal_temp %>% slice(1) %>% pull(Value)`\
 Salinity Mid-range: `r CRE_Sal_temp %>% slice(n()-1) %>% pull(Value)` - `r CRE_Sal_temp %>% slice(2) %>% pull(Value)`\
 `r CRE_Sec %>% tab_caption(caption = "Monthly CRE secchi measurements")`
-Secchi range: `r WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`</p>\
+Secchi range: `r WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`\
 
 
 \
@@ -452,18 +603,21 @@ Restored reef station 4 (LWR4) -- Tarpon Cove\
 
 <h3> `r paste("Survey summary")` </h3>
 `r PBC_count %>% tab_caption(caption = "Monthly PBC live oyster counts")`
-<p> Live Counts range: `r PBC_Counts_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(1) %>% pull(Value)` \
-Live counts Mid-range: `r PBC_Counts_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(2) %>% pull(Value)`</p>
+Live Counts range: `r PBC_Counts_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(1) %>% pull(Value)` \
+Live counts Mid-range: `r PBC_Counts_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(2) %>% pull(Value)`
+`r PBC_count_change`\
 `r PBC_dead %>% tab_caption(caption = "Monthly PBC dead ratios")`
-<p>DeadRatio range: `r PBC_DR_temp %>% slice(n()) %>% pull(Value)` - `r PBC_DR_temp %>% slice(1) %>% pull(Value)`\
-DeadRatio Mid-range: `r PBC_DR_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_DR_temp %>% slice(2) %>% pull(Value)`</p>
+DeadRatio range: `r PBC_DR_temp %>% slice(n()) %>% pull(Value)` - `r PBC_DR_temp %>% slice(1) %>% pull(Value)`\
+DeadRatio Mid-range: `r PBC_DR_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_DR_temp %>% slice(2) %>% pull(Value)` 
+`r PBC_dead_change`\
 `r PBC_SH %>% tab_caption(caption = "Monthly PBC shell heights")`
-<p>Shell height range: `r PBC_SH_temp %>% slice(n()) %>% pull(Value)` - `r PBC_SH_temp %>% slice(1) %>% pull(Value)` \
-Shell height Mid-range: `r PBC_SH_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_SH_temp %>% slice(2) %>% pull(Value)` </p>
-<p>Summary by reef type: 
+Shell height range: `r PBC_SH_temp %>% slice(n()) %>% pull(Value)` - `r PBC_SH_temp %>% slice(1) %>% pull(Value)` \
+Shell height Mid-range: `r PBC_SH_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_SH_temp %>% slice(2) %>% pull(Value)` 
+\
+Summary by reef type: 
 `r Counts_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(Mean = round(mean(Value, na.rm = T),3)) %>% spread(Measure, Mean) %>% dplyr::select(Site, LiveMean, DeadRatioMean) %>% gt()`
 `r SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), SH = substr(Info, 7, n())) %>% group_by(Site, SH) %>% summarise(Mean = round(mean(Value, na.rm = T),3)) %>% spread(SH, Mean) %>% gt()`
-<p> Survey summary table: </p>
+Survey summary table:
 `r PBC_survey_sum %>% tab_caption(caption = "Survey summary by station")`
 
 
@@ -474,9 +628,9 @@ Shell height Mid-range: `r PBC_SH_temp %>% slice(n()-1) %>% pull(Value)` - `r PB
 <h3> `r paste("Dermo summary")` </h3>
 `r Dermo_PBC %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_dermo %>% tab_caption(caption = "Monthly PBC dermo intensity and prevalence")`
-<p> Intensity range: `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
+Intensity range: `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
 `r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderately heavy,  5-Heavy")`\
-Prevalence range: `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` </p>
+Prevalence range: `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)`
 Summary by reef type:
 `r Dermo_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% rename("Intensity" = Mean) %>% gt()`
 
@@ -484,8 +638,9 @@ Summary by reef type:
 <h3> `r paste("Recruitment summary")` </h3>
 `r Rcrt_PBC %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>%  gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_rcrt %>% tab_caption(caption = "Monthly PBC recruitment rates")`
-<p> Recruitment range: `r PBC_Rcrt_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Rcrt_temp %>% slice(1) %>% pull(Value)`\
-Recruitment Mid-range: `r PBC_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Rcrt_temp %>% slice(2) %>% pull(Value)`</p>
+Recruitment range: `r PBC_Rcrt_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Rcrt_temp %>% slice(1) %>% pull(Value)`\
+Recruitment Mid-range: `r PBC_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Rcrt_temp %>% slice(2) %>% pull(Value)`
+`r Rcrt_PBC %>% pivot_longer(names_to = "Station", cols = -RetDate) %>% mutate(Station = sub("_Mean", "", Station)) %>% filter(value == 0) %>% arrange(RetDate) %>% gt(groupname_col = "RetDate") %>% tab_caption(caption = "No recruitment")`
 Summary by reef type:
 `r Rcrt_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% gt()`
 
@@ -531,9 +686,9 @@ Sediment trap summary tables:
 <h3> `r paste("Water Quality summary")` </h3>
 Salintiy and Secchi measurements observed during the quarter.
 `r PBC_Sal %>% tab_caption(caption = "Monthly PBC salinity measurements")`
-<p> Salinity range: `r PBC_Sal_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Sal_temp %>% slice(1) %>% pull(Value)`\
+Salinity range: `r PBC_Sal_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Sal_temp %>% slice(1) %>% pull(Value)`\
 Salinity Mid-range: `r PBC_Sal_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Sal_temp %>% slice(2) %>% pull(Value)`\
 `r PBC_Sec %>% tab_caption(caption = "Monthly PBC secchi measurements")`
-<p> Secchi range: `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`\
+Secchi range: `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`\
 
 \

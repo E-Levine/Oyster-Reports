@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2025-04-01" #Start date of reporting quarter
-  End_date: "2025-06-30"   #End date of reporting quarter
+  Start_date: "2025-07-01" #Start date of reporting quarter
+  End_date: "2025-09-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -245,7 +245,7 @@ for(i in seq_along(East_sites)){
 East_live_fig <- ggarrange(
   East_Live_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
   East_Live_list[[2]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
-  East_Live_list[[3]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
+  East_Live_list[[3]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"), #+ scale_y_continuous(limits = c(0, 1600), breaks = seq(0, 1600, by = 400), expand = c(0,0)),
   East_Live_list[[4]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
   East_Live_list[[5]] + rremove("y.title") + rremove("legend"),
   nrow = 5, heights = c(1, 1, 1, 1, 1.25), align = "v"  

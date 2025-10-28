@@ -795,7 +795,10 @@ NorthStations <- c("0312", "0235", "0236")
 SouthStations <- c("0240", "0241", "0237")
 
 #Combined table of all parameters
-Sedi_combined <- left_join(rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboSedi %>% filter(DataStatus == "Proofed"))) %>%
+Sedi_combined <- left_join(rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | DataStatus == "Completed") %>%
+                                    #Sept 2025 data
+                                    mutate(FilterDryWeight = case_when(grepl("^LWR2509-02", CupSampleID) ~ 3.49, grepl("^LWR2509-03", CupSampleID) ~ 3.40, grepl("^LWR2509-04", CupSampleID) ~ 3.33, TRUE ~ FilterDryWeight), FilterTareWeight = case_when(grepl("^LWR2509-02", CupSampleID) ~ 0, grepl("^LWR2509-03", CupSampleID) ~ 0, grepl("^LWR2509-04", CupSampleID) ~ 0, TRUE ~ FilterTareWeight))), 
+                                 (dboSedi %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          DeployedDate = as.Date(DeployedDate, format = "%Y-%m-%d"),

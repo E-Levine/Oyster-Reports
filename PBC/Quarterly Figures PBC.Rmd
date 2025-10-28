@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2025-04-01" #Start date of reporting quarter
-  End_date: "2025-06-30"   #End date of reporting quarter
+  Start_date: "2025-07-01" #Start date of reporting quarter
+  End_date: "2025-09-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -346,7 +346,7 @@ for(i in seq_along(PBC_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 9) +
     geom_col(position = position_dodge(13), width = 10, color = "black") +
     #Adding pattern to indicate estimated values:
-    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(12), size = 8) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
@@ -378,7 +378,7 @@ for(i in seq_along(PBC_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 12) +
     geom_col(position = position_dodge(13), width = 10, color = "black") +
     #Adding pattern to indicate estimated values:
-    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(13), size = 8) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
@@ -410,7 +410,7 @@ for(i in seq_along(PBC_sites)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(13), width = 12) +
     geom_col(position = position_dodge(13), width = 10, color = "black") +
     #Adding pattern to indicate estimated values:
-    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(13), width = 10, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(13), size = 8) +
     scale_x_date("Date", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous("Spat / Shell", expand = c(0,0), limits = c(0, max(pretty(0:ceiling(max_upper*10)/10))), breaks = pretty(0:ceiling(max_upper*10)/10))+
@@ -442,7 +442,7 @@ for(i in seq_along(Sediment_list)){
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(15), width = 13) +
     geom_col(position = position_dodge(15), width = 13, color = "black") +
     #Adding pattern to indicate estimated values:
-    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(15), width = 13, color = "black", show.legend = FALSE)+
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(15), width = 13, color = "black", show.legend = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, fill = Position), position = position_dodge(15), size = 9) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     scale_y_continuous(case_when(Working_param == "Rate" ~ "Sedimentation Rate (g/month)", Working_param == "OrgContent" ~ "Organic Content (%)", Working_param == "OrgWt" ~ "Organic Weight (g/month)", TRUE ~ "Something is missing."), expand = c(0,0), limits = c(0, max(pretty(0:max_upper, n = 4))), breaks = pretty(0:max_upper, n = 4))+
@@ -508,6 +508,7 @@ PBC_pH_fig <- ggarrange(
   PBC_pH %>% filter(Site == "LWL") %>% 
     ggplot(aes(RetDate, pH, shape = Station)) + 
     geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    geom_text(aes(y = 7.5, label = Helper), size = 8.5, legend = FALSE)+
     scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10 , by = 0.5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     Station_fill + Station_color + Station_shape + BaseForm + Legend + 
@@ -515,6 +516,7 @@ PBC_pH_fig <- ggarrange(
   PBC_pH %>% filter(Site == "LWR") %>% 
     ggplot(aes(RetDate, pH, shape = Station)) + 
     geom_point(aes(fill = Station), size = 2.9) + geom_line(aes(color = Station), linewidth = 0.7) +
+    geom_text(aes(y = 7.5, label = Helper), size = 8.5, legend = FALSE)+
     scale_y_continuous(expand = c(0,0), limits = c(7, 10), breaks = seq(7, 10 , by = 0.5)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b %Y", limits = c(End_date %m-% months(12) %m-% days(5), End_date %m-% days(2)))+
     Station_fill + Station_color + Station_shape + BaseForm + Legend + 
