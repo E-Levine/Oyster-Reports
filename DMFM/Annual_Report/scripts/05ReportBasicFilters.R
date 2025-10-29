@@ -119,6 +119,25 @@ rm(SBM_Quad1, SBM_SH1, Survey_Quad1, Survey_SH1)
 ###
 
 
+### Recruitment Data ###
+# Recruitment
+Recruitment <- hsdbRecruitment %>%
+  filter(ShellPosition %in% c(2, 3, 4, 5, 8, 9, 10, 11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate - DeployedDate),
+         BottomMonth = NumBottom/(NumDays / 28),
+         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) 
+###
+
+### Remove intermediate data frames
+rm(hsdbRecruitment)
+###
+
+
 ### Condition Index Data ###
     # Condition Index
 ConditionIndex <- hsdbConditionIndex %>%

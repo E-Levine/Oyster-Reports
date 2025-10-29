@@ -1,16 +1,17 @@
 # Performs basic set up for running all scripts
 
 # Load necessary R packages
-library(tidyverse)
-library(odbc)
-library(DBI)
-library(dbplyr)
-library(lubridate)
-library(knitr)
-library(rmarkdown)
-library(ggpubr)
+library(tidyverse) # Loads a number of very useful packages
+library(odbc) # Necessary for loading data from SQL Server
+library(DBI) # Necessary for loading data from SQL Server
+library(dbplyr) # Necessary for loading data from SQL Server
+library(lubridate) # Makes dealing with dates easier
+library(knitr) # Allows Dynamic Report generation (knit)
+library(rmarkdown) # Necessary for working with RMarkdown files
+library(ggpubr) # Increases the flexibility of ggplot2 generated plots
 library(patchwork) #Required for arranging multiple plots, more flexible
-library(scales)
+library(scales) # Improves scales in plot labels
+library(plotrix) # needed for standard error calculations
 
 # Set background variables
 ReportStart <- as.Date(paste0(ReportYear, "-01-01"))

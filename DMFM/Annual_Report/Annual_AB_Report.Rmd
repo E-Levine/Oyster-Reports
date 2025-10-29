@@ -40,7 +40,7 @@ render("scripts/15ConditionIndex.Rmd", quiet = TRUE)
 # Dermo portion of report
 render("scripts/16Dermo.Rmd", quiet = TRUE)
 # Buceph
-#17
+render("scripts/17Buceph.Rmd", quiet = TRUE)
 # Repro
 #18
 

@@ -7,16 +7,7 @@ title: "Recruitment_Report"
 
 ### Stats for recruitment rates
 # Recruitment rates by station
-RecruitmentStats <- hsdbRecruitment %>%
-  filter(ShellPosition %in% c(2, 3, 4, 5, 8, 9, 10, 11)) %>%
-  mutate(DeployedDate = as.Date(DeployedDate), 
-         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
-         FixedLocationID = substring(ShellID, 19, 22), 
-         NumDays = as.numeric(RetDate - DeployedDate),
-         BottomMonth = NumBottom/(NumDays / 28),
-         AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14)) %>%
-  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+RecruitmentStats <- Recruitment %>%
   group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
   summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
             SD= sd(BottomMonth, na.rm = TRUE),
