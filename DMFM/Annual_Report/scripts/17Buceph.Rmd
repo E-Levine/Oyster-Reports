@@ -1,0 +1,60 @@
+---
+title: "Bucephalus"
+output: html_document
+---
+
+# Perform basic analyses, output figures and tables for Buceph data
+
+``` {r BasicStats}
+
+### Stats for Buceph Prevalence
+# Buceph prevalence by section
+BucephStats <- Buceph %>%
+  mutate(BucephInfected = ifelse(Parasite == "Buceph", 1, 0),
+         AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
+         Plot_Date = as.Date(AnalysisDate + 14)) %>%
+  filter(!is.na(BucephInfected)) %>% # Remove null records
+  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
+  summarise(n_BucephTotal = n(),
+    n_BucephInfected = sum(BucephInfected, na.rm = TRUE),
+    BucephInfected_mean = (n_BucephInfected / n_BucephTotal) * 100,
+    BucephInfected_ci = list(binom.test(n_BucephInfected, n_BucephTotal)$conf.int),
+    .groups = "drop") %>%
+  mutate(
+    BucephInfected_ci_lower = map_dbl(BucephInfected_ci, 1) * 100,
+    BucephInfected_ci_upper = map_dbl(BucephInfected_ci, 2) * 100,
+  )
+  
+
+# Median values
+BucephStatsMedian <- BucephStats %>%
+  filter(AnalysisDate < ReportStart) %>%
+  group_by(SectionName) %>%
+  summarise(BucephPMedian = median(BucephInfected_mean, na.rm = TRUE),
+            BucephPMax = max(BucephInfected_mean, na.rm = TRUE))
+
+```
+
+``` {r Buceph Prevalence Figures}
+
+### Function explanation
+# generate_plot(df, 
+#               x_variable, x_label, 
+#               y_variable, y_label, y_SD, 
+#               UseColor, UseFill, 
+#               title)
+
+# Stats for Buceph Prevalence by Year and Section
+BucephPrevalenceStats_Section_fig <- generate_grouped_plot(BucephStats, 
+                                                "Plot_Date", "Date", 
+                                                "BucephInfected_mean", "Buceph Prevalence (%)", "BucephInfected_ci_upper", 
+                                                "SectionName", "SectionName", 
+                                                "AB Oyster Buceph Prevalence by Year and Section")
+print(BucephPrevalenceStats_Section_fig)
+
+```
+
+``` {Buceph Text}
+### Placeholder for Buceph text for report
+```
+This is text to output for Buceph

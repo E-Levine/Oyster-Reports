@@ -55,7 +55,10 @@ hsdbDermo <- tbl(con,in_schema("hsdb", "Dermo")) %>%
   collect() %>%
   filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
-# Load Repro Data
+# Load Buceph & Repro Data
+hsdbRepro <- tbl(con,in_schema("hsdb", "Repro")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 # Load Recruitment Data
 hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%

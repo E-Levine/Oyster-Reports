@@ -11,6 +11,7 @@ output: html_document
 # Dermo prevalence by section
 DermoStats <- Dermo %>%
   mutate(DermoInfected = ifelse(DermoMantle > 0 | DermoGill > 0, 1, 0),
+         DermoIntensity = (DermoMantle + DermoGill) / 2,
          AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
          Plot_Date = as.Date(AnalysisDate + 14)) %>%
   filter(!is.na(DermoInfected)) %>% # Remove null records
@@ -18,9 +19,15 @@ DermoStats <- Dermo %>%
   summarise(n_DermoTotal = n(),
     n_DermoInfected = sum(DermoInfected, na.rm = TRUE),
     DermoInfected_mean = (n_DermoInfected / n_DermoTotal) * 100,
-    se = sqrt((DermoInfected_mean / 100) * (1 - (DermoInfected_mean / 100)) / n_DermoTotal),
-    ci_lower = (DermoInfected_mean / 100 - 1.96 * se) * 100,
-    ci_upper = (DermoInfected_mean / 100 + 1.96 * se) * 100,
+    DermoInfected_se = sqrt((DermoInfected_mean / 100) * (1 - (DermoInfected_mean / 100)) / n_DermoTotal),
+    DermoInfected_ci_lower = (DermoInfected_mean / 100 - 1.96 * DermoInfected_se) * 100,
+    DermoInfected_ci_upper = (DermoInfected_mean / 100 + 1.96 * DermoInfected_se) * 100,
+   # #  
+    n_DermoIntensity = sum(DermoIntensity, na.rm = TRUE),
+    DermoIntensity_mean = (n_DermoIntensity / n_DermoInfected),
+    DermoIntensity_se = std.error(DermoIntensity),
+    DermoIntensity_ci_lower = (DermoIntensity_mean - DermoIntensity_se),
+    DermoIntensity_ci_upper = (DermoIntensity_mean + DermoIntensity_se),
     .groups = "drop")
   
 
@@ -29,7 +36,9 @@ DermoStatsMedian <- DermoStats %>%
   filter(AnalysisDate < ReportStart) %>%
   group_by(SectionName) %>%
   summarise(DermoPMedian = median(DermoInfected_mean, na.rm = TRUE),
-            DermoPMax = max(DermoInfected_mean, na.rm = TRUE))
+            DermoPMax = max(DermoInfected_mean, na.rm = TRUE),
+            DermoIMedian = median(DermoIntensity_mean, na.rm = TRUE),
+            DermoIMax = max(DermoIntensity_mean, na.rm = TRUE))
 
 ```
 
@@ -42,16 +51,34 @@ DermoStatsMedian <- DermoStats %>%
 #               UseColor, UseFill, 
 #               title)
 
-# Stats for Condition Index by Year and Section
+# Stats for Dermo Prevalence by Year and Section
 DermoPrevalenceStats_Section_fig <- generate_grouped_plot(DermoStats, 
                                                 "Plot_Date", "Date", 
-                                                "DermoInfected_mean", "Dermo Prevalence (%)", "se", 
+                                                "DermoInfected_mean", "Dermo Prevalence (%)", "DermoIntensity_se", 
                                                 "SectionName", "SectionName", 
                                                 "AB Oyster Dermo Prevalence by Year and Section")
 print(DermoPrevalenceStats_Section_fig)
 
 ```
 
+``` {r Dermo Intensity Figures}
+
+### Function explanation
+# generate_plot(df, 
+#               x_variable, x_label, 
+#               y_variable, y_label, y_SD, 
+#               UseColor, UseFill, 
+#               title)
+
+# Stats for Dermo Intensity by Year and Section
+DermoIntensityStats_Section_fig <- generate_grouped_plot(DermoStats, 
+                                                "Plot_Date", "Date", 
+                                                "DermoIntensity_mean", "Mean Dermo Intensity (Mackin scale)", "DermoInfected_se", 
+                                                "SectionName", "SectionName", 
+                                                "AB Oyster Dermo Intensity by Year and Section")
+print(DermoIntensityStats_Section_fig)
+
+```
 
 ``` {Dermo Text}
 ### Placeholder for Dermo text for report
