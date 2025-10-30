@@ -39,10 +39,10 @@ render("scripts/14Recruitment.Rmd", quiet = TRUE)
 render("scripts/15ConditionIndex.Rmd", quiet = TRUE)
 # Dermo portion of report
 render("scripts/16Dermo.Rmd", quiet = TRUE)
-# Buceph
+# Buceph portion of report
 render("scripts/17Buceph.Rmd", quiet = TRUE)
-# Repro
-#18
+# Repro portion of report
+render("scripts/18Repro.Rmd", quiet = TRUE)
 
 ```
 
