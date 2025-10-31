@@ -91,7 +91,7 @@ Stage_fill <- scale_fill_manual("", labels = Stages, values = Stat_pal3, na.valu
 #
 #Cage formatting
 Cage_sites <- c("SLC", "LXN", "CRE", "CRW")
-Stations_cages <- c("SLC" = "St. Lucie-Central Station 1", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
+Stations_cages <- c("SLC" = "St. Lucie-Central Station 2", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
 Cages_fill <- scale_fill_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
 Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
 
@@ -571,7 +571,7 @@ annotate_figure(DermoI_West_Fig,
                 bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.73))
 ```
 
-```{r CERP Cage Mortality Figure, fig.cap = "**Figure 15.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Cage Mortality Figure, fig.cap = "**Figure 15.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). Please note, oysetrs for the St. Lucie-Central cage were collected from station 1.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Cage_Mort %>%
   ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
   geom_col(position = position_dodge(12), width = 14, color = "black") + 
@@ -583,7 +583,7 @@ Cage_Mort %>%
 
 ```
 
-```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). Please note, oysetrs for the St. Lucie-Central cage were collected from station 1.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Cage_SH %>% 
   ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
   geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +
