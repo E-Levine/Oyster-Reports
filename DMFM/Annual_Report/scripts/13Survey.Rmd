@@ -6,10 +6,10 @@ title: "Survey_Report"
 ``` {r BasicStats}
 ### Limit data to March through June samples to reduce seasonal bias
 ShellHeights_1 <- ShellHeights_ALL %>%
-  filter(month(TripDate) > 03 & month(TripDate) < 07)
+  filter(month(TripDate) > 02 & month(TripDate) < 07)
 
 Quadrats_1 <- Quadrats_ALL %>%
-  filter(month(TripDate) > 03 & month(TripDate) < 07)
+  filter(month(TripDate) > 02 & month(TripDate) < 07)
 
 ### Provides how many were measured for each size class for each quadrat
 SHMeasures <- ShellHeights_1 %>%
@@ -32,7 +32,7 @@ QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
   select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
 
 # remove intermediate data frames
-rm(ShellHeights_ALL, ShellHeights_1, SHMeasures, Quadrats_ALL, Quadrats_1)
+# rm(ShellHeights_ALL, ShellHeights_1, Quadrats_ALL, Quadrats_1)
 
 ```
 
@@ -75,10 +75,24 @@ QuadStats_ALL_Oys4median <- QuadStats_ALL_Oys4 %>%
               WeightDensityMedian = median(WeightDensityMean, na.rm = TRUE))
 
 # Prep data frame for creating SH distribution histogram
-ShellHeights1 <- ShellHeights_1 %>%
-  filter(Year == ReportYear)
+ShellHeightsReportYrX <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight),
+  Year == ReportYear) %>%
 
-maxSH <- max(ShellHeights1$ShellHeight, na.rm = TRUE)
+  mutate(ShellHeightBin = cut(ShellHeight, 
+                              breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(ProjectGroup) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(ProjectGroup, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
+
+ShellHeightsReportYr <- ShellHeights_1 %>%
+  filter(Year == ReportYear) 
+
+maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 
 ```
 
@@ -116,7 +130,7 @@ survey_plot_list <- list() # creates empty to list to store output
 
 for (i in seq_along(lv3)) {
   df_source <- QuadStats_ALL_Oys1 %>%
-    filter(SectionName == lv3[i] & ProjectGroup == "Historic Uncultched")
+    filter(SectionName == lv3[i] & ProjectGroup == "NFWF-2021")
 
   max_upper <- max(df_source$OysterDensityMean, na.rm = TRUE)
   
@@ -172,8 +186,11 @@ for (i in seq_along(lv3)) {
   BaseForm 
 }
 # You can access individual plots using survey_plot_list[[i]]. For example: print(survey_plot_list[1])
+# print(survey_plot_list[[1]])
+print(survey_plot_list)
 print(survey_plot_list[[1]])
-
+print(survey_plot_list[[2]])
+print(survey_plot_list[[3]])
 
 
 
@@ -190,13 +207,34 @@ print(survey_plot_list[[1]])
 ### Size Distributions
 # Histograms
 
-histogram1 <- hist(ShellHeights1$ShellHeight, breaks = max(ShellHeights1$ShellHeight, na.rm = TRUE))
-
-ggplot(ShellHeights1, aes(x = ShellHeight, fill = ProjectGroup)) +
-  geom_histogram(bins = max(ShellHeights1$ShellHeight, na.rm = TRUE), color = "black") +
+histogramX <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+  geom_col() +
   facet_wrap(~ ProjectGroup) +
-  labs(title = "Height Distribution by Category", x = "Height (cm)", y = "Frequency") +
-  theme_minimal()
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  BaseForm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+histogramX
+
+histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+  geom_col() +
+  facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  BaseForm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+histogramY
+
 
 ```
 

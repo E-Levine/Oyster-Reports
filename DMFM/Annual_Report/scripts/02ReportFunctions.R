@@ -12,7 +12,8 @@ FilterFunction1 <- function(data) {
     mutate(ProjectGroup = case_when(
       grepl("RESTORE", StationName) ~ "RESTORE-2017",
       grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
-      grepl("SBM", StationName) & TimeSinceCultched > 0 ~ "NFWF-2021",
+      grepl("SBM Hotel", StationName) | grepl("SBM Bulkhead", StationName) ~ "Historic Uncultched",
+      grepl("SBM", StationName) & Year >= 2021 & TimeSinceCultched > 0 ~ "NFWF-2021",
       TRUE ~ "Historic Uncultched")) 
 }
 ###
