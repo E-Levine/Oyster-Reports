@@ -63,7 +63,8 @@ summarise_ClassicSizeClass <- function(data) {
 
 summarise_LegalONLY <- function(data) {
   summarised_data <- data %>%
-    summarise(Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE),
+    summarise(N = sum(!is.na(Num_Legal_76_plus)),
+              Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE),
               Num_Legal_76_plus_SD = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
     mutate(Density_Legal_76_plus_Mean = Num_Legal_76_plus_Mean * 4,
            Density_Legal_76_plus_SD = Num_Legal_76_plus_SD * 4) %>%

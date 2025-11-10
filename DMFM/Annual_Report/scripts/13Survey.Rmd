@@ -57,12 +57,39 @@ QuadStats_ALL_Oys1median <- QuadStats_ALL_Oys1 %>%
               DrillDensityMedian = median(DrillDensityMean, na.rm = TRUE),
               WeightDensityMedian = median(WeightDensityMean, na.rm = TRUE))
 
+
+### Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
+QuadStats_SizeClass_Oys <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_ClassicSizeClass() %>%
+  arrange(Year,
+          ProjectGroup,
+          SectionName)
+# Convert from wide to long format
+QuadStats_SizeClass_Oys_long <- QuadStats_SizeClass_Oys %>%
+  pivot_longer(
+    cols = c(Density_Spat_1_to_30_Mean, 
+             Density_Seed_31_to_75_Mean, 
+             Density_Legal_76_plus_Mean),
+    names_to = "Category",
+    values_to = "Density") %>%
+  # Ensure factors are ordered correctly
+  mutate(SectionName = factor(SectionName, 
+                              levels = c("W", "C", "E")),
+         Category = factor(Category, 
+                           levels = c("Density_Legal_76_plus_Mean", "Density_Seed_31_to_75_Mean", "Density_Spat_1_to_30_Mean")),
+    Year = factor(Year))  # keeps years discrete and in order
+  
+
+##################### NOT SURE THE FOLLOWING IS NEEDED #########################
 # Stats for Total Oyster Density and Total Weight Density by Year and Section
 QuadStats_ALL_Oys4 <- QuadStats %>%
-  group_by(Year, 
+  group_by(Year,
            SectionName) %>%
   summarise_ALL() %>%
-  arrange(Year, 
+  arrange(Year,
           SectionName)
 
   # Median values
@@ -73,6 +100,7 @@ QuadStats_ALL_Oys4median <- QuadStats_ALL_Oys4 %>%
               LiveDeadRatioMedian = median(LiveDeadRatioMean, na.rm = TRUE),
               DrillDensityMedian = median(DrillDensityMean, na.rm = TRUE),
               WeightDensityMedian = median(WeightDensityMean, na.rm = TRUE))
+################################################################################
 
 # Prep data frame for creating SH distribution histogram
 ShellHeightsReportYrX <- ShellHeights_1 %>%
@@ -94,10 +122,173 @@ ShellHeightsReportYr <- ShellHeights_1 %>%
 
 maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 
+
+### Stats for LEGAL Oyster Density by Year and StationName
+QuadStats_Legal_Oys1 <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup,
+           StationName) %>%
+  summarise_LegalONLY() %>%
+  arrange(Year,
+          ProjectGroup,
+          StationName) %>%
+  filter(ProjectGroup != "Historic Uncultched")
+
 ```
 
 ``` {r Survey Figures}
 
+# Bar graph for mean substrate density  by Year and ProjectGroup
+
+QuadStats_Substrate_fig <- ggplot(QuadStats_ALL_Oys1, 
+                 aes(x = as.factor(Year), 
+                 y = WeightDensityMean, 
+                # color = ProjectGroup, 
+                 fill = as.factor(ProjectGroup))) + 
+      geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) + 
+      scale_x_discrete("Year", 
+                       expand = c(0.005, 0), 
+                       guide = guide_axis(angle = -45)) +
+      scale_y_continuous("Mean Sample Weight (kg / m2)", 
+                         expand = c(0, 0),
+                         limits = c(0, ceiling(max(QuadStats_ALL_Oys1$WeightDensityMean, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(QuadStats_ALL_Oys1$WeightDensityMean, na.rm = TRUE))))) + 
+      ggtitle("Mean Sample Weight by Year and Project Group") + 
+      BaseForm +
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0, vjust = 0)) 
+
+print(QuadStats_Substrate_fig)
+
+
+
+# Stacked Bar graph for historic oyster densities, for historic Bars only
+
+ # Create a complete grid for all years, sections, and projects
+  df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(QuadStats_ALL_Oys1$ProjectGroup)) %>%
+    left_join(QuadStats_ALL_Oys1, by = c("Year", "SectionName", "ProjectGroup")) %>% 
+    mutate(has_data = !is.na(OysterDensityMean), # Add a flag for missing data
+           SectionName = factor(SectionName, levels = lv3))
+  
+  df_historic <- df_complete %>%
+    filter(ProjectGroup == "Historic Uncultched")
+  
+Oyster_Density_Stacked_Historic_Fig <- QuadStats_SizeClass_Oys_long %>%
+  filter(ProjectGroup == "Historic Uncultched") %>% # limits to Historic Unculthed only
+  ggplot(aes(x = Year, y = Density, fill = Category)) +
+    geom_bar(stat = "identity", position = "stack") +
+  # Add symbol for years with no data
+    geom_point(
+      data = subset(df_historic, !has_data),
+      aes(x = as.factor(Year),
+          y = ceiling(max(QuadStats_ALL_Oys1$WeightDensityMean, na.rm = TRUE) * 1.05),
+          group = SectionName),
+          shape = 4,   # X shape
+          size = 4,
+          stroke = 1.3,
+          color = "black",
+          inherit.aes = FALSE
+          ) +
+    facet_wrap(~SectionName, nrow = 1) +
+    scale_fill_manual(
+      values = c("Density_Spat_1_to_30_Mean" = "#a6cee3",
+                 "Density_Seed_31_to_75_Mean" = "#1f78b4",
+                 "Density_Legal_76_plus_Mean" = "#b2df8a"),
+      labels = c("Legal", "Seed", "Spat")
+    ) +
+  
+    labs(
+      x = "Year",
+      y = "Oyster Density (per m²)",
+      fill = "Category",
+      title = "Mean Oyster Density of Historic Bars by Section and Year") +
+    BaseForm +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.background = element_rect(fill = "gray90", color = NA),
+      strip.text = element_text(face = "bold"),
+      legend.position = "top",
+      axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))
+
+print(Oyster_Density_Stacked_Historic_Fig)
+
+# Stacked Bar graph for historic oyster densities, for RESTORATION Bars only
+Oyster_Density_Stacked_Restoration_Fig <- QuadStats_SizeClass_Oys_long %>%
+  filter(ProjectGroup != "Historic Uncultched") %>% # limits to Historic Unculthed only
+  ggplot(aes(x = Year, y = Density, fill = Category)) +
+    geom_bar(stat = "identity", position = "stack") +
+    facet_wrap(~SectionName, nrow = 1) +
+    scale_fill_manual(
+      values = c("Density_Spat_1_to_30_Mean" = "#a6cee3",
+                 "Density_Seed_31_to_75_Mean" = "#1f78b4",
+                 "Density_Legal_76_plus_Mean" = "#b2df8a"),
+      labels = c("Legal", "Seed", "Spat")
+    ) +
+    labs(
+      x = "Year",
+      y = "Oyster Density (per m²)",
+      fill = "Category",
+      title = "Mean Oyster Density of Restoration Bars by Section and Year") +
+    BaseForm +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.background = element_rect(fill = "gray90", color = NA),
+      strip.text = element_text(face = "bold"),
+      legend.position = "top",
+      axis.text.x = element_text(angle = -90, hjust = 1, vjust = 1))
+
+print(Oyster_Density_Stacked_Restoration_Fig)
+
+### Size Distributions
+# Histograms
+
+histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+  geom_col() +
+  facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  BaseForm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+histogramY
+
+### Table of Legal Densities
+Oyster_Legal_Density_Restoration <- QuadStats_Legal_Oys1 %>%
+  filter(Year == ReportYear) %>%
+  select(ProjectGroup,
+         StationName,
+         N,
+         Density_Legal_76_plus_Mean,
+         Density_Legal_76_plus_SD) %>%
+  rename(Legal_Density = Density_Legal_76_plus_Mean,
+         SD = Density_Legal_76_plus_SD)
+
+kable(Oyster_Legal_Density_Restoration,
+      caption = paste0("Mean density of legal-sized (Shell height > 75 mm) oysters on Restoration reefs surveyed in ",
+                      ReportYear,
+                      ". N indicates the number of quadrats included in survey. Density is expressed in number of oysters per square meter. SD = Standard Deviation."),
+      col.names = c("Year",
+                    "Project",
+                    "Station Name",
+                    "N",
+                    "Mean Density",
+                    "S.D.")
+      )
+
+```
+
+
+
+
+
+``` {r UNUSED Survey Figures, eval = FALSE}
 ### Function explanation
 # generate_plot(df, 
 #               x_variable, x_label, 
@@ -195,51 +386,36 @@ print(survey_plot_list[[3]])
 
 
 
-
-
-
-
-
-
-
-
-
 ### Size Distributions
 # Histograms
-
+# Not the preferred orientation
 histogramX <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
   geom_col() +
   facet_wrap(~ ProjectGroup) +
   scale_x_discrete(
     breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
   ) +
-  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
-       x = "Shell Height (mm)", 
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"),
+       x = "Shell Height (mm)",
        y = "Percent of Measurements Within Groups")  +
   BaseForm +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 histogramX
 
-histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
-  geom_col() +
-  facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
-  scale_x_discrete(
-    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
-  ) +
-  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
-       x = "Shell Height (mm)", 
-       y = "Percent of Measurements Within Groups")  +
-  BaseForm +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-histogramY
+
+
+
+
+
+
 
 
 ```
 
 
-```{r ABSurveyFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Annual mean density (± S.D.) of ALL oysters recorded at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). "}
+```{r ABSurveyFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Annual mean density (± S.D.) of ALL oysters recorded at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). ", eval = FALSE}
 survey_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
 survey_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
 survey_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
