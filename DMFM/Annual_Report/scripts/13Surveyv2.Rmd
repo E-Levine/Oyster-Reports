@@ -3,6 +3,8 @@ title: "Survey_Report"
 ---
 # Perform basic analyses, output figures and tables for Survey data
 
+# Use modelled means
+
 ``` {r BasicStats}
 ### Limit data to March through June samples to reduce seasonal bias
 ShellHeights_1 <- ShellHeights_ALL %>%
