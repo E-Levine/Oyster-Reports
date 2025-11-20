@@ -12,6 +12,9 @@ library(ggpubr) # Increases the flexibility of ggplot2 generated plots
 library(patchwork) #Required for arranging multiple plots, more flexible
 library(scales) # Improves scales in plot labels
 library(plotrix) # needed for standard error calculations
+library(glmmTMB) # needed for modeled means
+library(DHARMa) # needed for model diagnostics
+library(AICcmodavg) # needed for model selection
 
 # Set background variables
 ReportStart <- as.Date(paste0(ReportYear, "-01-01"))

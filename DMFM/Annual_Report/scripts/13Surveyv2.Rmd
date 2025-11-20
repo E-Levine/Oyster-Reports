@@ -38,8 +38,121 @@ QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
 
 ```
 
-``` {r OysterStats}
+``` {r SampleWeightStats}
+# Analysis indicates that Historic and Restoration data should be modeled seperately
 
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive) 
+
+# Figure out which data distribution to use
+hist(QuadStats$TotalWeight)
+mean(QuadStats$TotalWeight, na.rm = TRUE)
+var(QuadStats$TotalWeight, na.rm = TRUE)
+mean(QuadStats$TotalWeight, na.rm = TRUE) / var(QuadStats$TotalWeight, na.rm = TRUE)
+
+
+
+
+
+# I am not subsetting data at this time
+# fit negative binomial and Poisson regression models (with and without zero-inflation), check and compare goodness of fit, and compare via AICc.
+# The model we end up using for prediction (and extrapolation) will have reasonably good looking residuals (the DHARMa plots) and will be better supported based on AICc.
+# In cases where Poisson and Negative Binomial models both provide an adequate fit, we default to Poisson because it’s a simpler model.
+Weight_ma1 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
+               dispformula = ~1, 
+               ziformula = ~1, 
+               family = nbinom2, 
+               data = QuadStats)
+Weight_ma2 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
+               dispformula = ~1, 
+               ziformula = ~0, 
+               family = nbinom2, 
+               data = QuadStats)
+Weight_ma3 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
+               dispformula = ~1, 
+               ziformula = ~1, 
+               family = poisson, 
+               data = QuadStats)
+Weight_ma4 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
+               dispformula = ~1, 
+               ziformula = ~0, 
+               family = poisson, 
+               data = QuadStats)
+
+# Check goodness of fit
+simulateResiduals(Weight_ma1, n = 1000, plot = T)
+simulateResiduals(Weight_ma2, n = 1000, plot = T)
+simulateResiduals(Weight_ma3, n = 1000, plot = T)
+simulateResiduals(Weight_ma4, n = 1000, plot = T)
+
+# Use AICc to compare negative binomial models with (ma1) and without (ma2) zero-inflation
+aictab(list(Weight_ma1, Weight_ma2))
+
+#Use AICc to compare Poisson models with (ma3) and without (ma4) zero-inflation
+aictab(list(Weight_ma3, Weight_ma4))
+
+# Compare all models
+aictab(list(Weight_ma1, Weight_ma2, Weight_ma3, Weight_ma4))
+
+# Look at summary
+summary(Weight_ma2)
+
+
+
+
+
+
+```
+
+``` {r NumLiveStats}
+# Analysis indicates that Historic and Restoration data should be modeled seperately
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+
+### Historic Model ###
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
+                       family = nbinom2,   
+                       data = QuadStats,
+                       subset = ProjectGroup == "Historic Uncultched")
+
+# Check goodness of fit
+simulateResiduals(NumLive_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was slightly detrimental to the model
+NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
+                       family = nbinom2,  
+                       data = QuadStats,
+                       subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF2021, n = 1000, plot = T)
+
+# Look at summaries
+summary(NumLive_Historic)
+
+summary(NumLive_NFWF2021)
+
+####### Put the modeled means into a data frame for plotting
+
+
+```
+
+
+``` {r Old OysterStats}
 ### Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
 QuadStats_ALL_Oys1 <- QuadStats %>%
   group_by(Year, 
@@ -48,14 +161,7 @@ QuadStats_ALL_Oys1 <- QuadStats %>%
   arrange(Year,
           ProjectGroup)
 
-  # Median values
-QuadStats_ALL_Oys1median <- QuadStats_ALL_Oys1 %>%
-  filter(Year != ReportYear) %>%
-  group_by(ProjectGroup) %>%
-  summarise(OysterDensityMedian = median(OysterDensityMean, na.rm = TRUE),
-              LiveDeadRatioMedian = median(LiveDeadRatioMean, na.rm = TRUE),
-              DrillDensityMedian = median(DrillDensityMean, na.rm = TRUE),
-              WeightDensityMedian = median(WeightDensityMean, na.rm = TRUE))
+
 
 ### Stats for Total Oyster Density and Total Weight Density by Year and Section and ProjectGroup
 QuadStats_ALL_Oys2 <- QuadStats %>%
@@ -294,143 +400,6 @@ kable(Oyster_Legal_Density_Restoration,
 
 ```
 
-
-
-
-
-``` {r UNUSED Survey Figures, eval = FALSE}
-### Function explanation
-# generate_plot(df, 
-#               x_variable, x_label, 
-#               y_variable, y_label, y_SD, 
-#               UseColor, UseFill, 
-#               title)
-
-# Stats for Total Oyster Density and Total Weight Density by Year and ProjectGroup
-# Oysters
-QuadStats_ALL_Oys1_fig <- generate_grouped_plot(QuadStats_ALL_Oys1, 
-                                                "Year", "Year", 
-                                                "OysterDensityMean", "Live oysters / m2)", "OysterDensitySD", 
-                                                "ProjectGroup", "ProjectGroup", 
-                                                "AB Oyster Density by Year and ProjectGroup")
-print(QuadStats_ALL_Oys1_fig)
-
-
-
-############################
-###############Creating Survey figures per section for better customization
-# Creates data frames for each section in each estuary by listing the variations and looping through those variations
-# lv1 <- c("AB_W", "AB_C", "AB_E")
-# lv2 <- list("AB", "AB", "AB")
-lv3 <- c("W", "C", "E")
-lv4 <- c("AB West", "AB Central", "AB East") # creates list of section
-survey_plot_list <- list() # creates empty to list to store output
-
-  
-  
-
-for (i in seq_along(lv3)) {
-  df_source <- QuadStats_ALL_Oys1 %>%
-    filter(SectionName == lv3[i] & ProjectGroup == "NFWF-2021")
-
-  max_upper <- max(df_source$OysterDensityMean, na.rm = TRUE)
-  
-   # Create a complete grid for all years for this section
-  df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3[i]) %>%
-    left_join(df_source, by = c("Year", "SectionName")) %>% 
-    mutate(has_data = !is.na(OysterDensityMean)) # Add a flag for missing data
-  
-    # Define bar width (controls shading width too)
-  bar_width <- 0.8
-  
-  survey_plot_list[[i]] <- df_complete %>% 
-  ggplot(aes(x = Year, 
-             y = OysterDensityMean, 
-             fill = factor(SectionName))) + 
-
-        # --- Bars for months with data ---
-    geom_bar(
-      data = subset(df_complete, has_data),
-      aes(y = OysterDensityMean, fill = factor(SectionName)),
-      stat = "identity", color = "black", width = bar_width
-    ) +
-        
-    # --- Light shading for months with no data ---
-    geom_rect(
-      data = subset(df_complete, !has_data),
-      aes(xmin = Year - bar_width / 2,
-          xmax = Year + bar_width / 2,
-          ymin = 0,
-          ymax = ceiling(max_upper)),
-      fill = "grey10", color = NA, inherit.aes = FALSE
-    ) +
-    
-    # Add symbol for years with no data
-    geom_point(
-      data = subset(df_complete, !has_data),
-      aes(x = Year),
-      y = ceiling(max_upper * 0.25),  # constant numeric
-      shape = 4,   # X shape
-      size = 4,
-      stroke = 1.3,
-      color = "black"
-    ) +
-      
-  scale_x_continuous("Year", 
-                     breaks = Years_Survey,
-                     labels = Years_Survey,
-                     expand = c(0.005, 0)) +
-  scale_y_continuous("oyster per square meter", expand = c(0, 0),
-                     limits = c(0, ceiling(max_upper * 1.1)), #Provides a 5% buffer to the top of bars
-                     breaks = pretty(c(0, max_upper))) + 
-  ggtitle(lv4[i]) + 
-  BaseForm 
-}
-# You can access individual plots using survey_plot_list[[i]]. For example: print(survey_plot_list[1])
-# print(survey_plot_list[[1]])
-print(survey_plot_list)
-print(survey_plot_list[[1]])
-print(survey_plot_list[[2]])
-print(survey_plot_list[[3]])
-
-
-
-
-### Size Distributions
-# Histograms
-# Not the preferred orientation
-histogramX <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
-  geom_col() +
-  facet_wrap(~ ProjectGroup) +
-  scale_x_discrete(
-    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
-  ) +
-  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"),
-       x = "Shell Height (mm)",
-       y = "Percent of Measurements Within Groups")  +
-  BaseForm +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-histogramX
-
-
-
-
-
-
-
-
-
-
-```
-
-
-```{r ABSurveyFigs, warning = FALSE, message = FALSE, fig.cap = "Figure X. Annual mean density (± S.D.) of ALL oysters recorded at stations in the West, Central, and East sections of Apalachicola Bay over the past fifteen months (five quarters). ", eval = FALSE}
-survey_plot_list[[1]] + rremove('x.text') + theme(plot.margin = unit(c(0,0.2,-0.5,0.1), "lines")) +
-survey_plot_list[[2]] + rremove('x.text')+ theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
-survey_plot_list[[3]] + theme(plot.margin = unit(c(-0.5,0.2,-0.5,0.1), "lines")) +
-plot_layout(ncol = 1)
-```
 
 
 
