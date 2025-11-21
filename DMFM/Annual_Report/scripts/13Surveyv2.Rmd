@@ -39,80 +39,94 @@ QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
 ```
 
 ``` {r SampleWeightStats}
-# Analysis indicates that Historic and Restoration data should be modeled seperately
+# Analysis indicates that Historic and Restoration data should be modeled separately
 
 # Figure out which data distribution to use
-# Historic
-hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
-# NFWF-2021
-hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive) 
-
-# Figure out which data distribution to use
+# All
 hist(QuadStats$TotalWeight)
-mean(QuadStats$TotalWeight, na.rm = TRUE)
-var(QuadStats$TotalWeight, na.rm = TRUE)
-mean(QuadStats$TotalWeight, na.rm = TRUE) / var(QuadStats$TotalWeight, na.rm = TRUE)
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$TotalWeight)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$TotalWeight) 
 
-
-
-
-
-# I am not subsetting data at this time
-# fit negative binomial and Poisson regression models (with and without zero-inflation), check and compare goodness of fit, and compare via AICc.
-# The model we end up using for prediction (and extrapolation) will have reasonably good looking residuals (the DHARMa plots) and will be better supported based on AICc.
-# In cases where Poisson and Negative Binomial models both provide an adequate fit, we default to Poisson because it’s a simpler model.
-Weight_ma1 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
-               dispformula = ~1, 
-               ziformula = ~1, 
-               family = nbinom2, 
-               data = QuadStats)
-Weight_ma2 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
-               dispformula = ~1, 
-               ziformula = ~0, 
-               family = nbinom2, 
-               data = QuadStats)
-Weight_ma3 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
-               dispformula = ~1, 
-               ziformula = ~1, 
-               family = poisson, 
-               data = QuadStats)
-Weight_ma4 <- glmmTMB(TotalWeight ~ ProjectGroup * Year, 
-               dispformula = ~1, 
-               ziformula = ~0, 
-               family = poisson, 
-               data = QuadStats)
+### Historic Model ###
+# Gamma out performed Gaussian
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = Gamma(link = "log"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "Historic Uncultched")
 
 # Check goodness of fit
-simulateResiduals(Weight_ma1, n = 1000, plot = T)
-simulateResiduals(Weight_ma2, n = 1000, plot = T)
 simulateResiduals(Weight_ma3, n = 1000, plot = T)
-simulateResiduals(Weight_ma4, n = 1000, plot = T)
 
-# Use AICc to compare negative binomial models with (ma1) and without (ma2) zero-inflation
-aictab(list(Weight_ma1, Weight_ma2))
+# Look at summary
+summary(Weight_ma2)
 
-#Use AICc to compare Poisson models with (ma3) and without (ma4) zero-inflation
-aictab(list(Weight_ma3, Weight_ma4))
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Gamma out performed Gaussian
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+
+Weight_ma1 <- glmmTMB(TotalWeight ~ factor(Year),
+                      family = Gamma(link = "log"),   
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+Weight_ma2 <- glmmTMB(TotalWeight ~ factor(Year),
+                      family = Gamma(link = "log"),  
+                      ziformula = ~1, 
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+Weight_ma3 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = Gamma(link = "log"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+Weight_ma4 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID),
+                      family = Gamma(link = "log"),
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021",
+                      na.action = na.omit)
+
+Weight_ma5 <- glmmTMB(TotalWeight ~ factor(Year),
+                      family = gaussian(link = "log"),   
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+Weight_ma6 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID),
+                      family = Gamma(link = "log"),
+                      ziformula = ~0, 
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
 
 # Compare all models
-aictab(list(Weight_ma1, Weight_ma2, Weight_ma3, Weight_ma4))
+aictab(list(Weight_ma1, Weight_ma2, Weight_ma3, Weight_ma4, Weight_ma5, Weight_ma6))
+
+# Check goodness of fit
+simulateResiduals(Weight_ma3, n = 1000, plot = T)
+simulateResiduals(Weight_ma6, n = 1000, plot = T)
+simulateResiduals(Weight_ma4, n = 1000, plot = T)
+
+
 
 # Look at summary
 summary(Weight_ma2)
 
 
 
-
-
-
 ```
 
 ``` {r NumLiveStats}
-# Analysis indicates that Historic and Restoration data should be modeled seperately
+# Analysis indicates that Historic and Restoration data should be modeled separately
 
 # Figure out which data distribution to use
 # Historic
-hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$NumLive)
 # NFWF-2021
 hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
 
@@ -120,19 +134,25 @@ hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
 # Negative binomial out performed Poisson
 # Zero-inflation did not improve model fit
 # Leaving out Random effect of Location was very detrimental to the model
-NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
+# Adding in extra nested structure to the random effects improved AIC and ultimately DHARMa, but keeping Section as a fixed effect was best
+# Adding in dispformula = ~ SectionName improved fit, suggesting that variance is different between sections, but so are means. Preference for the simpler model meant leaving that out
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID/QuadratID), 
                        family = nbinom2,   
                        data = QuadStats,
                        subset = ProjectGroup == "Historic Uncultched")
 
+# Compare all models
+#aictab(list(NumLive_Historic,NumLive_Historic2))
 # Check goodness of fit
 simulateResiduals(NumLive_Historic, n = 1000, plot = T)
+
 
 ### Restoration Model ###
 ## NFWF-2021 ##
 # Negative binomial out performed Poisson
 # Zero-inflation did not improve model fit
 # Leaving out Random effect of Location was slightly detrimental to the model
+# Adding nested random effects did not improve AIC, thus simpler is chosen
 NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
                        family = nbinom2,  
                        data = QuadStats,
@@ -146,8 +166,29 @@ summary(NumLive_Historic)
 
 summary(NumLive_NFWF2021)
 
+# Create dataframe to store 
 ####### Put the modeled means into a data frame for plotting
+NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year * SectionName, type = "response") |>
+  as.data.frame() |>
+  mutate(ProjectGroup = "Historic Uncultched")
 
+NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ factor(Year), type = "response") |>
+  as.data.frame() |>
+  mutate(ProjectGroup = "NFWF-2021")
+
+NumLiveStats_all <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021) |>
+  rename(NumLiveMean = response,
+         NumLiveLower = asymp.LCL,
+         NumLiveUpper = asymp.UCL) |>
+  mutate(
+         
+         LiveMeanDensity = round((NumLiveMean * 4),
+         LiveLowerDensity = round((NumLiveLower * 4),
+         LiveUpperDensity = round((NumLiveUpper * 4),
+         NumLiveMean = round(NumLiveMean, 2),
+         NumLiveLower = round(NumLiveLower,
+         NumLiveUpper = round(NumLiveUpper) |>
+  select(-SE, -df)
 
 ```
 

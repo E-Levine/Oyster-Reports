@@ -15,6 +15,7 @@ library(plotrix) # needed for standard error calculations
 library(glmmTMB) # needed for modeled means
 library(DHARMa) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
+library(emmeans) # needed to extract modeled means and CI
 
 # Set background variables
 ReportStart <- as.Date(paste0(ReportYear, "-01-01"))
