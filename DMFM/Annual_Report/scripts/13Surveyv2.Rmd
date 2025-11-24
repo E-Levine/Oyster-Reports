@@ -146,14 +146,13 @@ NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | 
 # Check goodness of fit
 simulateResiduals(NumLive_Historic, n = 1000, plot = T)
 
-
 ### Restoration Model ###
 ## NFWF-2021 ##
 # Negative binomial out performed Poisson
 # Zero-inflation did not improve model fit
 # Leaving out Random effect of Location was slightly detrimental to the model
-# Adding nested random effects did not improve AIC, thus simpler is chosen
-NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
+# Adding nested random effects did not improve AIC, thus simpler is chosen, but keeping Section as a fixed effect was best
+NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), # Best
                        family = nbinom2,  
                        data = QuadStats,
                        subset = ProjectGroup == "NFWF-2021")
@@ -163,7 +162,6 @@ simulateResiduals(NumLive_NFWF2021, n = 1000, plot = T)
 
 # Look at summaries
 summary(NumLive_Historic)
-
 summary(NumLive_NFWF2021)
 
 # Create dataframe to store 
@@ -172,23 +170,34 @@ NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year * SectionName, type = 
   as.data.frame() |>
   mutate(ProjectGroup = "Historic Uncultched")
 
-NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ factor(Year), type = "response") |>
+NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year * SectionName, type = "response") |>
   as.data.frame() |>
   mutate(ProjectGroup = "NFWF-2021")
 
-NumLiveStats_all <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021) |>
+NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021) %>%
   rename(NumLiveMean = response,
          NumLiveLower = asymp.LCL,
-         NumLiveUpper = asymp.UCL) |>
-  mutate(
-         
-         LiveMeanDensity = round((NumLiveMean * 4),
-         LiveLowerDensity = round((NumLiveLower * 4),
-         LiveUpperDensity = round((NumLiveUpper * 4),
-         NumLiveMean = round(NumLiveMean, 2),
-         NumLiveLower = round(NumLiveLower,
-         NumLiveUpper = round(NumLiveUpper) |>
+         NumLiveUpper = asymp.UCL) %>%
+  mutate(LiveMeanDensity = round((NumLiveMean * 4), 1),
+         LiveLowerDensity = round((NumLiveLower * 4), 1),
+         LiveUpperDensity = round((NumLiveUpper * 4), 1),
+         NumLiveMean = round(NumLiveMean, 1),
+         NumLiveLower = round(NumLiveLower, 1),
+         NumLiveUpper = round(NumLiveUpper, 1)) %>%
   select(-SE, -df)
+
+# Generate raw mean and SD
+NumLiveStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Num|Live|Weight|Drill"))
+
+NumLiveStats_ALL <- left_join(NumLiveStats_modeled, NumLiveStats_RAW, by = c("Year", "ProjectGroup", "SectionName"))
+# rm(NumLiveStats_historic, NumLiveStats_RAW, NumLiveStats_RAW, NumLiveStats_RAW)
 
 ```
 
