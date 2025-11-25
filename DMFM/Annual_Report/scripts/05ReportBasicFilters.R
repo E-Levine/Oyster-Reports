@@ -3,7 +3,12 @@
 ### Location Data ###
 FixedLocations1 <- dboFixedLocations %>% 
   mutate(StationNumber = as.numeric(StationNumber),
-         DateLastCultched = as.Date(DateLastCultched)) %>%
+         DateLastCultched = as.Date(DateLastCultched),
+         SectionName = case_when(
+           SectionName == "W" ~ "West",
+           SectionName == "C" ~ "Central",
+           SectionName == "E" ~ "East",
+           TRUE ~ SectionName)) %>%
   select(FixedLocationID,
          Estuary,
          SectionName,

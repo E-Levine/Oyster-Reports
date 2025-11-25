@@ -29,7 +29,7 @@ Years_Recruitment <- seq(2015, ReportYear)
 Years_OyHealth <- seq(2016, ReportYear)
 
 # Set important lists
-lv3 <- c("W", "C", "E")
+lv3 <- c("West", "Central", "East")
 
 # Configure chunks
 knitr::opts_chunk$set(
