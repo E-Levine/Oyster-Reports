@@ -38,14 +38,14 @@ summarise_ALL <- function(data) {
               LiveDeadRatioSD = sd(LiveDeadRatio, na.rm = TRUE),
               NumDrillsMean = mean(NumDrills, na.rm = TRUE),
               NumDrillsSD = sd(NumDrills, na.rm = TRUE),
-              TotalWeightMean = mean(TotalWeight, na.rm = TRUE),
-              TotalWeightSD = sd(TotalWeight, na.rm = TRUE)) %>%
+              RawWeightMean = mean(TotalWeight, na.rm = TRUE),
+              RawWeightSD = sd(TotalWeight, na.rm = TRUE)) %>%
     mutate(OysterDensityMean = NumLiveMean * 4,
            OysterDensitySD = NumLiveSD * 4,
            DrillDensityMean = NumDrillsMean * 4,
            DrillDensitySD = NumDrillsSD * 4,
-           WeightDensityMean = TotalWeightMean * 4,
-           WeightDensitySD = TotalWeightSD * 4)
+           RawWeightDensityMean = RawWeightMean * 4,
+           RawWeightDensitySD = RawWeightSD * 4)
   return(summarised_data)
 }
 
@@ -111,3 +111,40 @@ generate_grouped_plot <- function(df, x_variable, x_label, y_variable, y_label, 
   
   return(plot_list)
 }
+
+
+
+# ----------------------------
+# Function to extract diagnostics
+# ----------------------------
+extract_diagnostics <- function(model, model_name = "Model") {
+
+  # 1. R-squared (handles NA for conditional R2)
+  r2_vals <- performance::r2(model)
+  r2_marg <- unname(r2_vals$R2_marginal)
+  r2_cond <- if ("R2_conditional" %in% names(r2_vals)) unname(r2_vals$R2_conditional) else NA
+  
+  # 2. Dispersion parameter
+  disp <- performance::check_overdispersion(model)$dispersion_ratio
+
+  # 3. Return a one-row dataframe
+  data.frame(
+    Model = model_name,
+    Num_Observations = nobs(model),
+    R2_Marginal = r2_marg,
+    R2_Conditional = r2_cond,
+    Dispersion_Ratio = disp
+  )
+}
+
+# ----------------------------
+# Example: Run for Historic + Restoration
+# ----------------------------
+
+# diag_historic <- extract_diagnostics(NumLive_Historic,  "Historic Model")
+# diag_restoration <- extract_diagnostics(NumLive_Restoration, "Restoration Model")
+# 
+# # Combine into Table A1
+# TableA1 <- rbind(diag_historic, diag_restoration)
+
+

@@ -33,7 +33,7 @@ source("scripts/05ReportBasicFilters.R")
 #12
 
 # Survey portion of report
-render("scripts/13Survey.Rmd", quiet = TRUE)
+render("scripts/13Surveyv2.Rmd", quiet = TRUE)
 # Recruitment portion of report
 render("scripts/14Recruitment.Rmd", quiet = TRUE)
 # Condition Index portion of report

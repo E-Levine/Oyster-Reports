@@ -14,6 +14,7 @@ library(scales) # Improves scales in plot labels
 library(plotrix) # needed for standard error calculations
 library(glmmTMB) # needed for modeled means
 library(DHARMa) # needed for model diagnostics
+library(performance) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
 library(emmeans) # needed to extract modeled means and CI
 
