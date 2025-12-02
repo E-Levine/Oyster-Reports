@@ -16,7 +16,8 @@ FixedLocations1 <- dboFixedLocations %>%
          ParcelName,
          StationNumber,
          StationNameNumber,
-         DateLastCultched) %>% 
+         DateLastCultched,
+         ParcelArea) %>% 
   distinct()
 
     ### Remove intermediate data frames

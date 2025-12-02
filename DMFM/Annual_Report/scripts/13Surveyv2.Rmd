@@ -528,44 +528,133 @@ histogramY
 ```
 
 
-``` {r Legal Densities}
+``` {r NumLiveStats}
+# Round Legal Number to a whole number
+QuadStatsLegal <- QuadStats %>%
+  filter(Year == ReportYear & ProjectGroup == "NFWF-2021") %>%
+  mutate(NumLegal = round(Num_Legal_76_plus))
 
-### Stats for LEGAL Oyster Density by Year and StationName
-QuadStats_Legal_Oys1 <- QuadStats %>%
-  group_by(Year, 
-           ProjectGroup,
-           StationName) %>%
+# Analysis indicates ......
+
+# Figure out which data distribution to use
+# NFWF-2021
+hist(subset(QuadStatsLegal, ProjectGroup == "NFWF-2021")$NumLegal)
+
+# FixedLocationID 0309
+hist(subset(QuadStatsLegal, FixedLocationID == "0309")$NumLegal)
+# FixedLocationID 0310
+hist(subset(QuadStatsLegal, FixedLocationID == "0310")$NumLegal)
+# FixedLocationID 0311
+hist(subset(QuadStatsLegal, FixedLocationID == "0311")$NumLegal)
+# data distributions appear similar between reefs
+
+### Testing pooled vs. reef-specific means
+# Model A (pooled)
+m_pooled <- glmmTMB(NumLegal ~ 1,
+                    family = nbinom2,
+                    data = QuadStatsLegal)
+# Model B (reef-specific means)
+m_grouped <- glmmTMB(NumLegal ~ FixedLocationID,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Compared
+anova(m_pooled, m_grouped)
+#### Results indicate adding FixedLocationID marginally improved model fit (ΔAIC = 0.7, p = 0.096), but the improvement was not statistically significant, so the simpler intercept-only model was used.
+
+
+### Testing to see if each reef needs its own dispersion parameter
+## Model with shared dispersion:
+m1 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~1,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with reef-specific dispersion:
+m2 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Compare:
+anova(m1, m2)
+#### Results indicate adding reef-specific dispersion did not improve model fit (ΔAIC = -2, p = 0.316), and the difference was not statistically significant.
+
+
+### Testing to see if zero inflation varies strongly among reef
+## Without zero inflation:
+m0 <- glmmTMB(NumLegal ~ FixedLocationID,
+              ziformula = ~0,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# With zero inflation:
+mzi <- glmmTMB(NumLegal ~ FixedLocationID,
+               ziformula = ~1,
+               family = nbinom2,
+               data = QuadStatsLegal)
+# Compare:
+anova(m0, mzi)
+#### Results indicate adding reef-specific zero inflation did not help fit and  was not significant (p = 1)
+
+
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~1,
+              ziformula = ~0,
+              family = nbinom2,
+              data = QuadStatsLegal)
+
+# Check goodness of fit
+simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
+
+
+
+
+
+
+# Look at summaries
+summary(NumLegal_NFWF2021)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+
+
+NumLegalStats_nfwf2021 <- emmeans(NumLegal_NFWF2021, ~ FixedLocationID, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021")
+
+NumLegalStats_modeled <- NumLegalStats_nfwf2021 %>%
+  rename(NumLegalMean = response,
+         NumLegalLower = asymp.LCL,
+         NumLegalUpper = asymp.UCL) %>%
+  mutate(LegalMeanDensity = round((NumLegalMean * 4), 1),
+         LegalLowerDensity = round((NumLegalLower * 4), 1),
+         LegalUpperDensity = round((NumLegalUpper * 4), 1),
+         NumLegalMean = round(NumLegalMean, 1),
+         NumLegalLower = round(NumLegalLower, 1),
+         NumLegalUpper = round(NumLegalUpper, 1)) %>%
+  select(-SE, -df) %>%
+  mutate(LegalUpperDensity = case_when(
+    NumLegalMean <= 0 ~ 0,
+    TRUE ~ LegalUpperDensity
+  ))
+
+# Generate raw mean and SD
+NumLegalStats_RAW <- QuadStatsLegal %>%
+  group_by(FixedLocationID) %>%
   summarise_LegalONLY() %>%
-  arrange(Year,
-          ProjectGroup,
-          StationName) %>%
-  filter(ProjectGroup != "Historic Uncultched")
+  arrange(FixedLocationID) %>%
+  select(-matches("Num|Live|Weight|Drill"))
+
+NumLegalStats_ALL <- left_join(NumLegalStats_modeled, 
+                              NumLegalStats_RAW, 
+                              by = c("FixedLocationID")) %>%
+  left_join(FixedLocations1,
+            by = c("FixedLocationID"))
 
 
-### Table of Legal Densities
-Oyster_Legal_Density_Restoration <- QuadStats_Legal_Oys1 %>%
-  filter(Year == ReportYear) %>%
-  select(ProjectGroup,
-         StationName,
-         N,
-         Density_Legal_76_plus_Mean,
-         Density_Legal_76_plus_SD) %>%
-  rename(Legal_Density = Density_Legal_76_plus_Mean,
-         SD = Density_Legal_76_plus_SD)
-
-kable(Oyster_Legal_Density_Restoration,
-      caption = paste0("Mean density of legal-sized (Shell height > 75 mm) oysters on Restoration reefs surveyed in ",
-                      ReportYear,
-                      ". N indicates the number of quadrats included in survey. Density is expressed in number of oysters per square meter. SD = Standard Deviation."),
-      col.names = c("Year",
-                    "Project",
-                    "Station Name",
-                    "N",
-                    "Mean Density",
-                    "S.D.")
-      )
 
 ```
+
+
 
 
 
