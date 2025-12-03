@@ -63,6 +63,7 @@ summarise_ClassicSizeClass <- function(data) {
 
 summarise_LegalONLY <- function(data) {
   summarised_data <- data %>%
+    group_by(ProjectGroup, FixedLocationID) %>%
     summarise(N = sum(!is.na(Num_Legal_76_plus)),
               Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE),
               Num_Legal_76_plus_SD = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%

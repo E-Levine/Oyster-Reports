@@ -208,7 +208,7 @@ TotalWeightStats_FIGURE_ALL <- TotalWeightStats_ALL %>%
       scale_x_discrete("Year", 
                        expand = c(0.005, 0), 
                        guide = guide_axis(angle = -45)) +
-      scale_y_continuous("Mean Sample Weight Density (kg / m²)", 
+      scale_y_continuous("Mean Sample Weight Density (kg / m2)", 
                          expand = c(0, 0),
                          limits = c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity, na.rm = TRUE)) * 1.05),
                          breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity, na.rm = TRUE))))) + 
@@ -389,7 +389,7 @@ NumLiveStats_FIGURE_Historic <- NumLiveStats_FIG_Historic %>%
       scale_x_discrete("Year", 
                        expand = c(0.005, 0), 
                        guide = guide_axis(angle = -45)) +
-      scale_y_continuous("Mean Oyster Density (per m²)", 
+      scale_y_continuous("Mean Oyster Density (per m2)", 
                          expand = c(0, 0),
                          limits = c(0, ceiling(max(NumLiveStats_FIG_Historic$LiveUpperDensity, na.rm = TRUE)) * 1.05),
                          breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_Historic$LiveUpperDensity, na.rm = TRUE))))) + 
@@ -437,7 +437,7 @@ NumLiveStats_FIGURE_NFWF2021 <- NumLiveStats_FIG_NFWF2021 %>%
       scale_x_discrete("Year", 
                        expand = c(0.005, 0), 
                        guide = guide_axis(angle = -45)) +
-      scale_y_continuous("Mean Oyster Density (per m²)", 
+      scale_y_continuous("Mean Oyster Density (per m2)", 
                          expand = c(0, 0),
                          limits = c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$LiveUpperDensity, na.rm = TRUE)) * 1.05),
                          breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$LiveUpperDensity, na.rm = TRUE))))) + 
@@ -528,18 +528,37 @@ histogramY
 ```
 
 
-``` {r NumLiveStats}
+``` {r NumLegalStats}
+# Determine which stations have enough legal oysters to merit inclusion in the modeling process
+# For this we will only include stations whose raw mean is greater than 1 legal oysters PER QUADRAT
+QuadStatsLegal_List <- QuadStats %>% # Determine raw mean per quadrat 
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  summarise(N = sum(!is.na(Num_Legal_76_plus)),
+              Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE)) 
+QuadStatsLegal_NoModel <- QuadStatsLegal_List %>%
+  filter(Num_Legal_76_plus_Mean < 2)
+QuadStatsLegal_YesModel <- QuadStatsLegal_List %>%
+  filter(Num_Legal_76_plus_Mean >= 2)
+rm(QuadStatsLegal_List)
+
 # Round Legal Number to a whole number
 QuadStatsLegal <- QuadStats %>%
-  filter(Year == ReportYear & ProjectGroup == "NFWF-2021") %>%
+  filter(Year == ReportYear) %>%
+  right_join(QuadStatsLegal_YesModel,
+            by = c("FixedLocationID")) %>%
   mutate(NumLegal = round(Num_Legal_76_plus))
 
 # Analysis indicates ......
 
 # Figure out which data distribution to use
+# Historic
+hist(subset(QuadStatsLegal, ProjectGroup == "Historic Uncultched")$NumLegal)
 # NFWF-2021
 hist(subset(QuadStatsLegal, ProjectGroup == "NFWF-2021")$NumLegal)
 
+# FixedLocationID 0024
+hist(subset(QuadStatsLegal, FixedLocationID == "0024")$NumLegal)
 # FixedLocationID 0309
 hist(subset(QuadStatsLegal, FixedLocationID == "0309")$NumLegal)
 # FixedLocationID 0310
@@ -554,12 +573,16 @@ m_pooled <- glmmTMB(NumLegal ~ 1,
                     family = nbinom2,
                     data = QuadStatsLegal)
 # Model B (reef-specific means)
-m_grouped <- glmmTMB(NumLegal ~ FixedLocationID,
+m_Reef_Specific <- glmmTMB(NumLegal ~ FixedLocationID,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Model C (ProjectGroup-specific means)
+m_Project_Specific <- glmmTMB(NumLegal ~ ProjectGroup,
                      family = nbinom2,
                      data = QuadStatsLegal)
 # Compared
-anova(m_pooled, m_grouped)
-#### Results indicate adding FixedLocationID marginally improved model fit (ΔAIC = 0.7, p = 0.096), but the improvement was not statistically significant, so the simpler intercept-only model was used.
+anova(m_pooled, m_Reef_Specific, m_Project_Specific)
+#### Results indicate adding ProjectGroup massively improved model fit (ΔAIC = 11, p < 0.001). Adding reef-specific means marginally improved model fit and was not statistically significant (ΔAIC = 0.3, p = 0.12) Thus models for each ProjectGroup were used.
 
 
 ### Testing to see if each reef needs its own dispersion parameter
@@ -573,9 +596,14 @@ m2 <- glmmTMB(NumLegal ~ FixedLocationID,
               dispformula = ~FixedLocationID,
               family = nbinom2,
               data = QuadStatsLegal)
+# Model with ProjectGroup-specific dispersion:
+m3 <- glmmTMB(NumLegal ~ ProjectGroup,
+              dispformula = ~ProjectGroup,
+              family = nbinom2,
+              data = QuadStatsLegal)
 # Compare:
-anova(m1, m2)
-#### Results indicate adding reef-specific dispersion did not improve model fit (ΔAIC = -2, p = 0.316), and the difference was not statistically significant.
+anova(m1, m2, m3)
+#### Results indicate adding reef-specific dispersion did not improve model fit (ΔAIC = -2.3, p = 0.35), and the difference was not statistically significant. Adding ProjectGroup dispersion found similar results (ΔAIC = -1.5, p = 0.054). Thus, no extra dispersion parameter will be used.
 
 
 ### Testing to see if zero inflation varies strongly among reef
@@ -591,16 +619,29 @@ mzi <- glmmTMB(NumLegal ~ FixedLocationID,
                data = QuadStatsLegal)
 # Compare:
 anova(m0, mzi)
-#### Results indicate adding reef-specific zero inflation did not help fit and  was not significant (p = 1)
+#### Results indicate adding reef-specific zero inflation did not help fit and was not significant (p = 1)
+#### Manual checking revealed that there are no zero values in NumLegal, thus zero-inflation shouldn't be necessary
 
 
+
+### Historic
 # Negative binomial out performed Poisson
-# Zero-inflation did not improve model fit
-NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
-              dispformula = ~1,
-              ziformula = ~0,
+NumLegal_Historic <- glmmTMB(NumLegal ~ 1,
               family = nbinom2,
-              data = QuadStatsLegal)
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "Historic Uncultched")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_Historic, n = 1000, plot = T)
+
+
+
+### NFWF-2021
+# Negative binomial out performed Poisson
+NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "NFWF-2021")
 
 # Check goodness of fit
 simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
@@ -611,17 +652,23 @@ simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
 
 
 # Look at summaries
+summary(NumLegal_Historic)
 summary(NumLegal_NFWF2021)
+
 
 # Create dataframe to store 
 ####### Put the modeled means into a data frame for plotting
-
+NumLegalStats_historic <- emmeans(NumLegal_Historic, ~ 1, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched",
+         "1" = "0024") %>%
+  rename("FixedLocationID" = "1")
 
 NumLegalStats_nfwf2021 <- emmeans(NumLegal_NFWF2021, ~ FixedLocationID, type = "response") %>%
   as.data.frame() %>%
   mutate(ProjectGroup = "NFWF-2021")
 
-NumLegalStats_modeled <- NumLegalStats_nfwf2021 %>%
+NumLegalStats_modeled <- bind_rows(NumLegalStats_historic, NumLegalStats_nfwf2021) %>%
   rename(NumLegalMean = response,
          NumLegalLower = asymp.LCL,
          NumLegalUpper = asymp.UCL) %>%
@@ -631,20 +678,21 @@ NumLegalStats_modeled <- NumLegalStats_nfwf2021 %>%
          NumLegalMean = round(NumLegalMean, 1),
          NumLegalLower = round(NumLegalLower, 1),
          NumLegalUpper = round(NumLegalUpper, 1)) %>%
-  select(-SE, -df) %>%
+  select(-SE, -df, -ProjectGroup) %>%
   mutate(LegalUpperDensity = case_when(
     NumLegalMean <= 0 ~ 0,
     TRUE ~ LegalUpperDensity
   ))
 
 # Generate raw mean and SD
-NumLegalStats_RAW <- QuadStatsLegal %>%
+NumLegalStats_RAW <- QuadStats %>%
+  filter(Year == ReportYear) %>%
   group_by(FixedLocationID) %>%
   summarise_LegalONLY() %>%
   arrange(FixedLocationID) %>%
   select(-matches("Num|Live|Weight|Drill"))
 
-NumLegalStats_ALL <- left_join(NumLegalStats_modeled, 
+NumLegalStats_ALL <- right_join(NumLegalStats_modeled, 
                               NumLegalStats_RAW, 
                               by = c("FixedLocationID")) %>%
   left_join(FixedLocations1,
@@ -656,7 +704,39 @@ NumLegalStats_ALL <- left_join(NumLegalStats_modeled,
 
 
 
+``` {r NumLegalStats for Appendix}
+# Summary Table for the Appendix
+NumLegalStats_TABLE <- NumLegalStats_ALL %>%
+  select(FixedLocationID, 
+         ProjectGroup,
+         N,
+         StationNumber,
+         StationNameNumber,
+         Density_Legal_76_plus_Mean,
+         Density_Legal_76_plus_SD,
+         LegalMeanDensity,
+         LegalLowerDensity,
+         BagsPerAcre) %>%
+  arrange(ProjectGroup,
+          StationNumber)
+  
+kable(NumLegalStats_TABLE,
+      digits = 1,
+      col.names = c("FixedLocationID", "Project", "N", "Station Number", "Station Name",
+      "Raw Mean Density (Legal)", "Raw SD (Legal)",
+      "Modeled Mean Density (Legal)", "LCL 95% (Legal)", "Bags per Acre (LCL 95%)"),
+      caption = "Raw and Modeled Mean Densities of Legal-sized oysters. Density is expressed in number of oysters per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 8 per square meter are not modeled. ")
 
+# I may leave this out since r2() does not support models of class `glmmTMB` without random effects and from nbinom2-family with log-link-function.
+# # Diagnostic Table for the Appendix
+# diag_NumLegal_Historic <- extract_diagnostics(NumLegal_Historic,  "Historic Uncultched")
+# diag_NumLegal_NFWF2021 <- extract_diagnostics(NumLegal_NFWF2021,  "NFWF-2021")
+# 
+# # Combine into a single Table
+# NumLegal_Diagnostic_Table <- rbind(diag_NumLegal_Historic, diag_NumLegal_NFWF2021)
+# kable(NumLegal_Diagnostic_Table)
+
+```
 
 
 ``` {Survey Text}
