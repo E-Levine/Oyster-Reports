@@ -704,7 +704,22 @@ NumLegalStats_ALL <- right_join(NumLegalStats_modeled,
 
 
 
-``` {r NumLegalStats for Appendix}
+``` {r NumLegalStats for Tables}
+
+# Summary Table for Report
+NumLegalStats_TABLE <- NumLegalStats_ALL %>%
+  select(FixedLocationID, 
+         ProjectGroup,
+         StationNumber,
+         StationNameNumber,
+         ParcelArea,
+         LegalLowerDensity,
+         BagsPerAcre, # Calculated from LCL 
+         MinBags) %>% # This needs to be changed to Estimated Harvestable Bags (10% of Total bags)
+  arrange(ProjectGroup,
+          StationNumber) %>%
+  select(-StationNumber)
+
 # Summary Table for the Appendix
 NumLegalStats_TABLE <- NumLegalStats_ALL %>%
   select(FixedLocationID, 
@@ -716,7 +731,9 @@ NumLegalStats_TABLE <- NumLegalStats_ALL %>%
          Density_Legal_76_plus_SD,
          LegalMeanDensity,
          LegalLowerDensity,
-         BagsPerAcre) %>%
+         LegalUpperDensity, # Maybe include this, though I'm not sure
+         BagsPerAcre, # Calculated from LCL 
+         MinBags) %>% # This needs to be changed to Estimated Harvestable Bags (10% of Total bags)
   arrange(ProjectGroup,
           StationNumber)
   
@@ -737,6 +754,317 @@ kable(NumLegalStats_TABLE,
 # kable(NumLegal_Diagnostic_Table)
 
 ```
+
+
+
+
+``` {r NumLegalStats LCL calculations A, eval = FALSE}
+### Looking at three ways to calculate the Lower Confidence level 95% for Legal densities
+
+######
+######
+######
+### A) emmeans → modeled mean per quadrat → multiply by n_quadrats
+
+# model: m (glmmTMB); reef name variable: FixedLocationID
+# choose reef(s) of interest
+
+# emm_all <- emmeans(m, ~ FixedLocationID, type = "response")
+# emm_df <- as.data.frame(emm_all)
+LCL_calcs_A <- NumLegalStats_modeled %>%
+  select(-LegalMeanDensity, -LegalLowerDensity, -LegalUpperDensity)
+
+print(LCL_calcs_A)
+######
+######
+######
+
+```
+
+```{r NumLegalStats LCL calculations B, eval = FALSE}
+### B) Colin’s explicit parametric bootstrap (draw mean, simulate NB per quadrat)
+
+#List of models we want to use for prediction and extrapolation.
+modList <- list(NumLegal_Historic, NumLegal_NFWF2021, NumLegal_NFWF2021, NumLegal_NFWF2021)
+
+#Add relevant model estimates to extrapDat. I just copied these from summary() as they are all nbinom and no zero-inflation
+extrapDat <- data.frame(LCL_calcs_A, 
+                        meanLog = c(2.6626, 3.4078, 3.1724, 3.0788), 
+                        meanLogSE = c(0.1431, 0.1069, 0.1532, 0.1540), 
+                        disp = c(4.21, 7.22, 7.22, 7.22),
+                        N = 15)
+
+
+#Final data frame called extrapDat2 is all set up for bootstrapping and to stor results
+
+extrapDat2 <- extrapDat %>% mutate(`Mean Total` = NA, `L95 Total` = NA, `U95 Total` = NA)
+
+nSims <- 1000
+#REady to bootstrap
+# had to remove nested if loops
+for (j in 1:nrow(extrapDat2)){
+  totalCount <- NULL
+  extrapolated <- NULL
+  for (i in 1:nSims){
+        extrapolated[i] <- sum(rnbinom(n = 1, 
+                                       mu = exp(rnorm(1, 
+                                                      mean = extrapDat2$meanLog[j], 
+                                                      sd = extrapDat2$meanLogSE[j])), 
+                                       size = extrapDat2$disp[j]))
+    
+     
+    totalCount <- c(totalCount, extrapolated[i])
+  }
+  extrapDat2$`Mean Total`[j] <- mean(totalCount)
+  extrapDat2$`L95 Total`[j] <- quantile(totalCount, 0.025)
+  extrapDat2$`U95 Total`[j] <- quantile(totalCount, 0.975)
+
+}
+
+print(extrapDat2)
+```
+
+``` {r NumLegalStats LCL calculations C historic, eval = FALSE}
+###C) Recommended: Model-based parametric bootstrap using simulate() (glmmTMB)
+
+# Build newdata that lists each quadrat/unit to be summed across reef
+# If you have actual quadrat rows, use them (one row per quadrat).
+# If you only know the number of quadrats per reef, create that many rows per reef.
+make_quadrat_df <- function(reef_id, n_quads) {
+  data.frame(
+    FixedLocationID = factor(rep(reef_id, n_quads)),
+    # include other covariates used in the model (Year, ProjectGroup, etc.)
+    #Year = NA,     # fill with relevant Year if model uses Year (or set to target Year)
+    stringsAsFactors = FALSE
+  )
+}
+
+# Example: create newdata for all reefs
+nd <- bind_rows(
+  make_quadrat_df("0024", 15)
+)
+
+# IMPORTANT: newdata must have all predictors used in model. If model has Year or other covariates,
+# you should fill them appropriately (e.g., Year = 2024, etc.)
+# Also ensure factor levels match model's levels.
+
+# Simulate responses:
+set.seed(14)
+nsim <- 1000
+sims <- simulate(NumLegal_Historic, nsim = nsim, newdata = nd)
+
+# sims is a list (or matrix) of simulated response vectors; each column is a replicate
+# For glmmTMB, simulate returns a list of nsim vectors.
+# Convert to matrix for aggregation:
+sims_mat <- do.call(cbind, sims)     # rows = quadrats in nd, cols = sims
+
+# Add FixedLocationID to nd for aggregation
+nd$FixedLocationID <- factor(nd$FixedLocationID, levels = levels(nd$FixedLocationID))
+
+# For each simulation replicate, sum by reef
+library(matrixStats)
+reef_ids <- unique(nd$FixedLocationID)
+mean_by_reef <- sapply(seq_len(nsim), function(i) {
+  tapply(sims_mat[, i], nd$FixedLocationID, mean)
+})
+# mean_by_reef is matrix (rows = reefs, cols = sims)
+# Convert to tidy table
+mean_by_reef_df <- data.frame(
+  simulation = seq_along(mean_by_reef),
+  FixedLocationID = names(mean_by_reef),
+  mean = as.numeric(mean_by_reef)
+)
+
+#colnames(mean_by_reef_df) <- as.character(reef_ids)  # replicate-wise columns: each col a reef? adjust orientation
+
+# Compute stats per reef:
+library(tidyr)
+# mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
+#   # rows are reefs, columns sims; we'll compute quantiles
+#   rownames_to_column("FixedLocationID") %>%
+#   pivot_longer(-FixedLocationID, names_to = "sim", values_to = "total")
+
+summary_table <- mean_by_reef_df %>%
+  group_by(FixedLocationID) %>%
+  summarize(
+    mean_total = mean(mean),
+    lcl_total = quantile(mean, 0.025),
+    ucl_total = quantile(mean, 0.975),
+    .groups = "drop"
+  )
+
+summary_table
+
+```
+
+
+``` {r NumLegalStats LCL calculations Restoration, eval = FALSE}
+###########################
+###########################
+###########################
+# Lazy version of code above, adjusted for Restoration
+###C) Recommended: Model-based parametric bootstrap using simulate() (glmmTMB)
+
+# Build newdata that lists each quadrat/unit to be summed across reef
+# If you have actual quadrat rows, use them (one row per quadrat).
+# If you only know the number of quadrats per reef, create that many rows per reef.
+make_quadrat_df <- function(reef_id, n_quads) {
+  data.frame(
+    FixedLocationID = factor(rep(reef_id, n_quads)),
+    # include other covariates used in the model (Year, ProjectGroup, etc.)
+    #Year = NA,     # fill with relevant Year if model uses Year (or set to target Year)
+    stringsAsFactors = FALSE
+  )
+}
+
+# Example: create newdata for all reefs
+nd <- bind_rows(
+  make_quadrat_df("0309", 15),
+  make_quadrat_df("0310", 15),
+  make_quadrat_df("0311", 15)
+)
+
+# IMPORTANT: newdata must have all predictors used in model. If model has Year or other covariates,
+# you should fill them appropriately (e.g., Year = 2024, etc.)
+# Also ensure factor levels match model's levels.
+
+# Simulate responses:
+set.seed(14)
+nsim <- 1000
+sims <- simulate(NumLegal_NFWF2021, nsim = nsim, newdata = nd)
+
+# sims is a list (or matrix) of simulated response vectors; each column is a replicate
+# For glmmTMB, simulate returns a list of nsim vectors.
+# Convert to matrix for aggregation:
+sims_mat <- do.call(cbind, sims)     # rows = quadrats in nd, cols = sims
+
+# Add FixedLocationID to nd for aggregation
+nd$FixedLocationID <- factor(nd$FixedLocationID, levels = levels(nd$FixedLocationID))
+
+# For each simulation replicate, sum by reef
+library(matrixStats)
+reef_ids <- unique(nd$FixedLocationID)
+mean_by_reef <- sapply(seq_len(nsim), function(i) {
+  tapply(sims_mat[, i], nd$FixedLocationID, mean)
+})
+# mean_by_reef is matrix (rows = reefs, cols = sims)
+# Convert to tidy table
+sum_by_reef_df <- as.data.frame(t(sum_by_reef))
+colnames(sum_by_reef_df) <- as.character(reef_ids)  # replicate-wise columns: each col a reef? adjust orientation
+
+
+# Compute stats per reef:
+library(tidyr)
+mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
+  # rows are reefs, columns sims; we'll compute quantiles
+  rownames_to_column("FixedLocationID") %>%
+  pivot_longer(-FixedLocationID, names_to = "sim", values_to = "mean")
+
+summary_table <- mean_by_reef_long %>%
+  group_by(FixedLocationID) %>%
+  summarize(
+    mean_total = mean(mean),
+    lcl_total = quantile(mean, 0.025),
+    ucl_total = quantile(mean, 0.975),
+    .groups = "drop"
+  )
+
+summary_table
+
+```
+
+
+
+``` {r NumLegalStats LCL calculations vC2, eval = FALSE}
+
+###############################################
+###############################################
+###############################################
+##### C v2 using chatGPT to make the above code work for multiple reefs and multiple models
+
+# 1. Store your reef IDs
+reef_ids <- c("0024", "0309", "0310", "0311")
+
+# 2. Store each model in a named list
+models <- list(
+  "0024" = NumLive_Historic,
+  "0309" = NumLegal_NFWF2021,
+  "0310" = NumLegal_NFWF2021,
+  "0311" = NumLegal_NFWF2021
+)
+
+# 3. Function to build newdata for a single reef
+make_quadrat_df <- function(reef_id, n_quads) {
+  data.frame(
+    FixedLocationID = factor(rep(reef_id, n_quads)),
+    # Include all covariates the model uses!
+    # Example (if model has Year):
+    # Year = 2024,
+    stringsAsFactors = FALSE
+  )
+}
+
+# 4. Number of simulations per reef
+nsim <- 1000
+set.seed(14)
+
+# 5. Loop over reefs and simulate
+library(dplyr)
+library(purrr)
+
+results <- map_dfr(reef_ids, function(reef) {
+
+  mod <- models[[reef]]
+  n_quads <- 15  # Insert real number of quadrats for that reef
+
+  # Build newdata for this reef
+  nd <- make_quadrat_df(reef, n_quads)
+
+  # Make sure factor levels match model
+  nd$FixedLocationID <- factor(nd$FixedLocationID,
+                               levels = mod$frame$FixedLocationID |> levels())
+
+  # Simulate
+  sims_mat <- simulate(mod, nsim = nsim, newdata = nd)
+  sims_mat <- as.matrix(sims_mat)
+
+  # Compute reef-wide means for each simulation
+  mean_by_sim <- colMeans(sims_mat)
+
+  # Return a tidy data frame
+  tibble(
+    reef_id = reef,
+    simulation = 1:nsim,
+    mean = mean_by_sim
+  )
+})
+
+
+mean_by_reef_df <- as.data.frame(results)
+
+# Compute stats per reef:
+library(tidyr)
+mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
+  # rows are reefs, columns sims; we'll compute quantiles
+  rownames_to_column("FixedLocationID") %>%
+  pivot_longer(-FixedLocationID, names_to = "sim", values_to = "total")
+
+summary_table <- mean_by_reef_df %>%
+  group_by(reef_id) %>%
+  summarize(
+    mean_total = mean(mean),
+    lcl_total = quantile(mean, 0.025),
+    ucl_total = quantile(mean, 0.975),
+    .groups = "drop"
+  )
+
+summary_table
+
+```
+
+
+
+
 
 
 ``` {Survey Text}
