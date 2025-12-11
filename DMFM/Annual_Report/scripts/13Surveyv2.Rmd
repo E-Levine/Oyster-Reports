@@ -27,10 +27,7 @@ QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
   mutate(
     Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
     Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
-    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured),
-    LiveDeadRatio = ifelse(is.null(NumLive) | is.null(NumDead) | is.na(NumLive) | is.na(NumDead) | (NumLive + NumDead == 0), 
-                           0,
-                           NumDead / (NumLive + NumDead))) %>%
+    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)) %>%
   select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
 
 # remove intermediate data frames
@@ -141,19 +138,16 @@ TotalWeightStats_nfwf2021 <- emmeans(TotalWeight_NFWF2021, ~ Year, type = "respo
          asymp.UCL = upper.CL)
 
 TotalWeightStats_modeled <- bind_rows(TotalWeightStats_historic, TotalWeightStats_nfwf2021) %>%
-  rename(TotalWeightMean = response,
-         TotalWeightLower = asymp.LCL,
-         TotalWeightUpper = asymp.UCL) %>%
-  mutate(TotalWeightMeanDensity = round((TotalWeightMean * 4), 1),
-         TotalWeightLowerDensity = round((TotalWeightLower * 4), 1),
-         TotalWeightUpperDensity = round((TotalWeightUpper * 4), 1),
-         TotalWeightMean = round(TotalWeightMean, 1),
-         TotalWeightLower = round(TotalWeightLower, 1),
-         TotalWeightUpper = round(TotalWeightUpper, 1)) %>%
+  rename(TotalWeightMean_modeled = response,
+         TotalWeightLower_modeled = asymp.LCL,
+         TotalWeightUpper_modeled = asymp.UCL) %>%
+  mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
+         TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
+         TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
   select(-SE, -df) %>%
-  mutate(TotalWeightUpperDensity = case_when(
-    TotalWeightMean <= 0 ~ 0,
-    TRUE ~ TotalWeightUpperDensity
+  mutate(TotalWeightUpperDensity_modeled = case_when(
+    TotalWeightMean_modeled <= 0 ~ 0,
+    TRUE ~ TotalWeightUpperDensity_modeled
   ))
 
 # Generate raw mean and SD
@@ -163,7 +157,7 @@ TotalWeightStats_RAW <- QuadStats %>%
   summarise_ALL() %>%
   arrange(Year,
           ProjectGroup) %>%
-  select(-matches("Num|Live|Oyster|Drill"))
+  select(-matches("Num"))
 
 TotalWeightStats_ALL <- left_join(TotalWeightStats_modeled, 
                               TotalWeightStats_RAW, 
@@ -172,7 +166,7 @@ TotalWeightStats_ALL <- left_join(TotalWeightStats_modeled,
 #  # Create a complete grid for all years, sections, and projects
 # df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
 #     left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
-#     mutate(has_data = !is.na(OysterDensityMean), # Add a flag for missing data
+#     mutate(has_data = !is.na(RawOysterDensityMean), # Add a flag for missing data
 #            SectionName = factor(SectionName, levels = lv3))
 
 
@@ -197,12 +191,12 @@ TotalWeightStats_ALL <- left_join(TotalWeightStats_modeled,
     
 TotalWeightStats_FIGURE_ALL <- TotalWeightStats_ALL %>%
   ggplot(aes(x = as.factor(Year), 
-             y = TotalWeightMeanDensity,
+             y = TotalWeightMeanDensity_modeled,
              fill = as.factor(ProjectGroup))) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
-    geom_errorbar(aes(ymin = TotalWeightLowerDensity, 
-                      ymax = TotalWeightUpperDensity),
+    geom_errorbar(aes(ymin = TotalWeightLowerDensity_modeled, 
+                      ymax = TotalWeightUpperDensity_modeled),
                       width = 0.3, 
                       position = position_dodge(width = 0.9)) + # Add error bars
       scale_x_discrete("Year", 
@@ -210,8 +204,8 @@ TotalWeightStats_FIGURE_ALL <- TotalWeightStats_ALL %>%
                        guide = guide_axis(angle = -45)) +
       scale_y_continuous("Mean Sample Weight Density (kg / m2)", 
                          expand = c(0, 0),
-                         limits = c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity, na.rm = TRUE)) * 1.05),
-                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity, na.rm = TRUE))))) + 
+                         limits = c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE))))) + 
       ggtitle("Modeled Mean Sample Weight Density by Year and Project Group") + 
       BaseForm +
       theme(legend.position = "bottom",
@@ -225,11 +219,11 @@ print(TotalWeightStats_FIGURE_ALL)
 TotalWeightStats_TABLE <- TotalWeightStats_ALL %>%
   select(ProjectGroup,
          Year, 
-         RawWeightDensityMean,
-         RawWeightDensitySD,
-         TotalWeightMeanDensity,
-         TotalWeightLowerDensity,
-         TotalWeightUpperDensity) %>%
+         TotalWeightDensityMean_raw,
+         TotalWeightDensitySD_raw,
+         TotalWeightMeanDensity_modeled,
+         TotalWeightLowerDensity_modeled,
+         TotalWeightUpperDensity_modeled) %>%
   arrange(ProjectGroup,
           Year)
   
@@ -311,19 +305,16 @@ NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year * SectionName, type = 
   mutate(ProjectGroup = "NFWF-2021")
 
 NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021) %>%
-  rename(NumLiveMean = response,
-         NumLiveLower = asymp.LCL,
-         NumLiveUpper = asymp.UCL) %>%
-  mutate(LiveMeanDensity = round((NumLiveMean * 4), 1),
-         LiveLowerDensity = round((NumLiveLower * 4), 1),
-         LiveUpperDensity = round((NumLiveUpper * 4), 1),
-         NumLiveMean = round(NumLiveMean, 1),
-         NumLiveLower = round(NumLiveLower, 1),
-         NumLiveUpper = round(NumLiveUpper, 1)) %>%
+  rename(NumLiveMean_modeled = response,
+         NumLiveLower_modeled = asymp.LCL,
+         NumLiveUpper_modeled = asymp.UCL) %>%
+  mutate(NumLiveMeanDensity_modeled = NumLiveMean_modeled * 4,
+         NumLiveLowerDensity_modeled = NumLiveLower_modeled * 4,
+         NumLiveUpperDensity_modeled = NumLiveUpper_modeled * 4) %>%
   select(-SE, -df) %>%
-  mutate(LiveUpperDensity = case_when(
-    NumLiveMean <= 0 ~ 0,
-    TRUE ~ LiveUpperDensity
+  mutate(NumLiveUpperDensity_modeled = case_when(
+    NumLiveMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLiveUpperDensity_modeled
   ))
 
 # Generate raw mean and SD
@@ -334,7 +325,7 @@ NumLiveStats_RAW <- QuadStats %>%
   summarise_ALL() %>%
   arrange(Year,
           ProjectGroup) %>%
-  select(-matches("Num|Live|Weight|Drill"))
+  select(-matches("Drill|Weight"))
 
 NumLiveStats_ALL <- left_join(NumLiveStats_modeled, 
                               NumLiveStats_RAW, 
@@ -346,7 +337,7 @@ NumLiveStats_ALL <- left_join(NumLiveStats_modeled,
  # Create a complete grid for all years, sections, and projects
 df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
     left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
-    mutate(has_data = !is.na(OysterDensityMean), # Add a flag for missing data
+    mutate(has_data = !is.na(NumLiveDensityMean_raw), # Add a flag for missing data
            SectionName = factor(SectionName, levels = lv3))
   
 ```
@@ -367,16 +358,16 @@ NumLiveStats_FIG_Historic <- NumLiveStats_ALL %>%
 
 NumLiveStats_FIGURE_Historic <- NumLiveStats_FIG_Historic %>%
   ggplot(aes(x = as.factor(Year), 
-             y = LiveMeanDensity,
+             y = NumLiveMeanDensity_modeled,
              fill = SectionName)) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
-    geom_errorbar(aes(ymin = LiveLowerDensity, ymax = LiveUpperDensity), width = 0.3) + # Add error bars
+    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, ymax = NumLiveUpperDensity_modeled), width = 0.3) + # Add error bars
   # Add symbol for years with no data
     geom_point(
       data = subset(df_historic, !has_data),
       aes(x = as.factor(Year),
-          y = ceiling(max(NumLiveStats_FIG_Historic$LiveMeanDensity, na.rm = TRUE) * 0.5),
+          y = ceiling(max(NumLiveStats_FIG_Historic$NumLiveMeanDensity_modeled, na.rm = TRUE) * 0.5),
           group = SectionName),
           shape = 4,   # X shape
           size = 4,
@@ -391,8 +382,8 @@ NumLiveStats_FIGURE_Historic <- NumLiveStats_FIG_Historic %>%
                        guide = guide_axis(angle = -45)) +
       scale_y_continuous("Mean Oyster Density (per m2)", 
                          expand = c(0, 0),
-                         limits = c(0, ceiling(max(NumLiveStats_FIG_Historic$LiveUpperDensity, na.rm = TRUE)) * 1.05),
-                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_Historic$LiveUpperDensity, na.rm = TRUE))))) + 
+                         limits = c(0, ceiling(max(NumLiveStats_FIG_Historic$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_Historic$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
       ggtitle("Modeled Mean Oyster Density on Historic Uncultched Reefs by Year and Section") + 
       BaseForm +
       theme(legend.position = "bottom",
@@ -415,16 +406,16 @@ NumLiveStats_FIG_NFWF2021 <- NumLiveStats_ALL %>%
 
 NumLiveStats_FIGURE_NFWF2021 <- NumLiveStats_FIG_NFWF2021 %>%
   ggplot(aes(x = as.factor(Year), 
-             y = LiveMeanDensity,
+             y = NumLiveMeanDensity_modeled,
              fill = SectionName)) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
-    geom_errorbar(aes(ymin = LiveLowerDensity, ymax = LiveUpperDensity), width = 0.3) + # Add error bars
+    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, ymax = NumLiveUpperDensity_modeled), width = 0.3) + # Add error bars
   # Add symbol for years with no data
     geom_point(
       data = subset(df_nfwf2021, !has_data),
       aes(x = as.factor(Year),
-          y = ceiling(max(NumLiveStats_FIG_NFWF2021$LiveMeanDensity, na.rm = TRUE) * 0.5),
+          y = ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveMeanDensity_modeled, na.rm = TRUE) * 0.5),
           group = SectionName),
           shape = 4,   # X shape
           size = 4,
@@ -439,8 +430,8 @@ NumLiveStats_FIGURE_NFWF2021 <- NumLiveStats_FIG_NFWF2021 %>%
                        guide = guide_axis(angle = -45)) +
       scale_y_continuous("Mean Oyster Density (per m2)", 
                          expand = c(0, 0),
-                         limits = c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$LiveUpperDensity, na.rm = TRUE)) * 1.05),
-                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$LiveUpperDensity, na.rm = TRUE))))) + 
+                         limits = c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
       ggtitle("Modeled Mean Oyster Density on NFWF-2021 Reefs by Year and Section") + 
       BaseForm +
       theme(legend.position = "bottom",
@@ -453,11 +444,11 @@ NumLiveStats_TABLE <- NumLiveStats_ALL %>%
   select(ProjectGroup,
          Year,
          SectionName, 
-         OysterDensityMean,
-         OysterDensitySD,
-         LiveMeanDensity,
-         LiveLowerDensity,
-         LiveUpperDensity) %>%
+         NumLiveDensityMean_raw,
+         NumLiveDensitySD_raw,
+         NumLiveMeanDensity_modeled,
+         NumLiveLowerDensity_modeled,
+         NumLiveUpperDensity_modeled) %>%
   arrange(ProjectGroup,
           SectionName,
           Year)
@@ -669,35 +660,43 @@ NumLegalStats_nfwf2021 <- emmeans(NumLegal_NFWF2021, ~ FixedLocationID, type = "
   mutate(ProjectGroup = "NFWF-2021")
 
 NumLegalStats_modeled <- bind_rows(NumLegalStats_historic, NumLegalStats_nfwf2021) %>%
-  rename(NumLegalMean = response,
-         NumLegalLower = asymp.LCL,
-         NumLegalUpper = asymp.UCL) %>%
-  mutate(LegalMeanDensity = round((NumLegalMean * 4), 1),
-         LegalLowerDensity = round((NumLegalLower * 4), 1),
-         LegalUpperDensity = round((NumLegalUpper * 4), 1),
-         NumLegalMean = round(NumLegalMean, 1),
-         NumLegalLower = round(NumLegalLower, 1),
-         NumLegalUpper = round(NumLegalUpper, 1)) %>%
+  rename(NumLegalMean_modeled = response,
+         NumLegalLower_modeled = asymp.LCL,
+         NumLegalUpper_modeled = asymp.UCL) %>%
+  mutate(NumLegalMeanDensity_modeled = NumLegalMean_modeled * 4,
+         NumLegalLowerDensity_modeled = NumLegalLower_modeled * 4,
+         NumLegalUpperDensity_modeled = NumLegalUpper_modeled * 4) %>%
   select(-SE, -df, -ProjectGroup) %>%
-  mutate(LegalUpperDensity = case_when(
-    NumLegalMean <= 0 ~ 0,
-    TRUE ~ LegalUpperDensity
+  mutate(NumLegalUpperDensity_modeled = case_when(
+    NumLegalMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLegalUpperDensity_modeled
   ))
 
 # Generate raw mean and SD
 NumLegalStats_RAW <- QuadStats %>%
   filter(Year == ReportYear) %>%
   group_by(FixedLocationID) %>%
-  summarise_LegalONLY() %>%
+  group_by(ProjectGroup, FixedLocationID) %>%
+    summarise(N = sum(!is.na(Num_Legal_76_plus)),
+              NumLegal_76plus_Mean_raw = mean(Num_Legal_76_plus, na.rm = TRUE),
+              NumLegal_76_plus_SD_raw = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
+    mutate(NumLegal_76plus_DensityMean_raw = NumLegal_76plus_Mean_raw * 4,
+           NumLegal_76plus_DensitySD_raw = NumLegal_76_plus_SD_raw * 4) %>%
   arrange(FixedLocationID) %>%
-  select(-matches("Num|Live|Weight|Drill"))
+  select(-matches("Live|Weight|Drill"))
 
 NumLegalStats_ALL <- right_join(NumLegalStats_modeled, 
                               NumLegalStats_RAW, 
                               by = c("FixedLocationID")) %>%
   left_join(FixedLocations1,
-            by = c("FixedLocationID"))
-
+            by = c("FixedLocationID")) %>%
+  mutate(ParcelArea = case_when( # For parcels with no Area (Historic bars) assign area as 1 acre
+    is.na(ParcelArea) ~ 1,
+    TRUE ~ ParcelArea),
+    LowerBagsPerAcre = (NumLegalLowerDensity_modeled * 4047) / 225,
+    HarvestableBags = case_when( # Only reefs with LowerBags perAcre is >= 400 are harvestable
+      LowerBagsPerAcre >= 400 ~ (LowerBagsPerAcre * ParcelArea) * 0.1,
+      TRUE ~ NA))
 
 
 ```
@@ -708,41 +707,48 @@ NumLegalStats_ALL <- right_join(NumLegalStats_modeled,
 
 # Summary Table for Report
 NumLegalStats_TABLE <- NumLegalStats_ALL %>%
+  filter(!is.na(NumLegalMean_modeled)) %>%
   select(FixedLocationID, 
          ProjectGroup,
          StationNumber,
          StationNameNumber,
          ParcelArea,
-         LegalLowerDensity,
-         BagsPerAcre, # Calculated from LCL 
-         MinBags) %>% # This needs to be changed to Estimated Harvestable Bags (10% of Total bags)
+         NumLegalLowerDensity_modeled,
+         LowerBagsPerAcre, # Calculated from LCL 
+         HarvestableBags) %>% # Estimated Harvestable Bags (10% of Total bags)
   arrange(ProjectGroup,
           StationNumber) %>%
   select(-StationNumber)
 
+kable(NumLegalStats_TABLE,
+      digits = 1,
+      col.names = c("FixedLocationID", "Project", "Station Name", "Reef Acreage",
+      "Modeled Mean Density (LCL 95%)", "Estimated Bags per Acre (LCL 95%)", "Estimated Harvestable Bags (LCL 95%)"),
+      caption = "Modeled Mean Densities of legal-sized oysters (≥76 mm shell height) on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. LCL = Lower Confidence Limit. NA indicates reef densities do not meet the required 400 bags per acre threshold for harvest. Reefs with a raw mean density at or below 8 legal-size oysters/m² (144 bags/acre) were not modeled. Raw and modeled mean densities for all reefs sampled available in Appendix A. ")
+
 # Summary Table for the Appendix
-NumLegalStats_TABLE <- NumLegalStats_ALL %>%
+NumLegalStats_TABLE_appendix <- NumLegalStats_ALL %>%
   select(FixedLocationID, 
          ProjectGroup,
          N,
          StationNumber,
          StationNameNumber,
-         Density_Legal_76_plus_Mean,
-         Density_Legal_76_plus_SD,
-         LegalMeanDensity,
-         LegalLowerDensity,
-         LegalUpperDensity, # Maybe include this, though I'm not sure
-         BagsPerAcre, # Calculated from LCL 
-         MinBags) %>% # This needs to be changed to Estimated Harvestable Bags (10% of Total bags)
+         ParcelArea,
+         NumLegal_76plus_DensityMean_raw,
+         NumLegal_76plus_DensitySD_raw,
+         NumLegalMeanDensity_modeled,
+         NumLegalLowerDensity_modeled,
+         NumLegalUpperDensity_modeled) %>%
   arrange(ProjectGroup,
-          StationNumber)
+          StationNumber) %>%
+  select(-StationNumber)
   
-kable(NumLegalStats_TABLE,
+kable(NumLegalStats_TABLE_appendix,
       digits = 1,
-      col.names = c("FixedLocationID", "Project", "N", "Station Number", "Station Name",
+      col.names = c("FixedLocationID", "Project", "N", "Station Name", "Reef Acreage",
       "Raw Mean Density (Legal)", "Raw SD (Legal)",
-      "Modeled Mean Density (Legal)", "LCL 95% (Legal)", "Bags per Acre (LCL 95%)"),
-      caption = "Raw and Modeled Mean Densities of Legal-sized oysters. Density is expressed in number of oysters per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 8 per square meter are not modeled. ")
+      "Modeled Mean Density (Legal)", "LCL 95% (Legal)", "UCL 95% (Legal)"),
+      caption = "Raw and Modeled Mean Densities of Legal-sized oysters on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. N = Number of quadrats collected, SD = Standard deviation. LCL = Lower confidence limit. UCL = Upper confidence limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 8 per square meter were not modeled. ")
 
 # I may leave this out since r2() does not support models of class `glmmTMB` without random effects and from nbinom2-family with log-link-function.
 # # Diagnostic Table for the Appendix

@@ -32,49 +32,22 @@ FilterFunction2 <- function(data) {
 ### Survey Functions ###
 summarise_ALL <- function(data) {
   summarised_data <- data %>%
-    summarise(NumLiveMean = mean(NumLive, na.rm = TRUE),
-              NumLiveSD = sd(NumLive, na.rm = TRUE),
-              LiveDeadRatioMean = mean(LiveDeadRatio, na.rm = TRUE),
-              LiveDeadRatioSD = sd(LiveDeadRatio, na.rm = TRUE),
-              NumDrillsMean = mean(NumDrills, na.rm = TRUE),
-              NumDrillsSD = sd(NumDrills, na.rm = TRUE),
-              RawWeightMean = mean(TotalWeight, na.rm = TRUE),
-              RawWeightSD = sd(TotalWeight, na.rm = TRUE)) %>%
-    mutate(OysterDensityMean = NumLiveMean * 4,
-           OysterDensitySD = NumLiveSD * 4,
-           DrillDensityMean = NumDrillsMean * 4,
-           DrillDensitySD = NumDrillsSD * 4,
-           RawWeightDensityMean = RawWeightMean * 4,
-           RawWeightDensitySD = RawWeightSD * 4)
+    summarise(NumLiveMean_raw = mean(NumLive, na.rm = TRUE),
+              NumLiveSD_raw = sd(NumLive, na.rm = TRUE),
+              NumDrillsMean_raw = mean(NumDrills, na.rm = TRUE),
+              NumDrillsSD_raw = sd(NumDrills, na.rm = TRUE),
+              TotalWeightMean_raw = mean(TotalWeight, na.rm = TRUE),
+              TotalWeightSD_raw = sd(TotalWeight, na.rm = TRUE)) %>%
+    mutate(NumLiveDensityMean_raw = NumLiveMean_raw * 4,
+           NumLiveDensitySD_raw = NumLiveSD_raw * 4,
+           NumDrillDensityMean_raw = NumDrillsMean_raw * 4,
+           NumDrillDensitySD_raw = NumDrillsSD_raw * 4,
+           TotalWeightDensityMean_raw = TotalWeightMean_raw * 4,
+           TotalWeightDensitySD_raw = TotalWeightSD_raw * 4)
   return(summarised_data)
 }
 
-summarise_ClassicSizeClass <- function(data) {
-  summarised_data <- data %>%
-    summarise(Num_Spat_1_to_30_Mean = mean(Num_Spat_1_to_30, na.rm = TRUE),
-              Num_Seed_31_to_75_Mean = mean(Num_Seed_31_to_75, na.rm = TRUE),
-              Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE)) %>%
-    mutate(Density_Spat_1_to_30_Mean = Num_Spat_1_to_30_Mean * 4,
-           Density_Seed_31_to_75_Mean = Num_Seed_31_to_75_Mean * 4,
-           Density_Legal_76_plus_Mean = Num_Legal_76_plus_Mean * 4,
-           SumDensityMean = Density_Spat_1_to_30_Mean + Density_Seed_31_to_75_Mean + Density_Legal_76_plus_Mean)
-  return(summarised_data)
-}
 
-summarise_LegalONLY <- function(data) {
-  summarised_data <- data %>%
-    group_by(ProjectGroup, FixedLocationID) %>%
-    summarise(N = sum(!is.na(Num_Legal_76_plus)),
-              Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE),
-              Num_Legal_76_plus_SD = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
-    mutate(Density_Legal_76_plus_Mean = Num_Legal_76_plus_Mean * 4,
-           Density_Legal_76_plus_SD = Num_Legal_76_plus_SD * 4) %>%
-    mutate(BagsPerAcre = (Density_Legal_76_plus_Mean * 4047) / 225,
-           BagsPerAcreSD = (Density_Legal_76_plus_SD * 4047) / 225) %>%
-    mutate(MaxBags = BagsPerAcre + BagsPerAcreSD,
-           MinBags = BagsPerAcre - BagsPerAcreSD)
-  return(summarised_data)
-}
 ###
 
 
