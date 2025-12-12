@@ -3,31 +3,111 @@ title: "Recruitment_Report"
 ---
 # Perform basic analyses, output figures and tables for Recruitment data
 
-``` {r BasicStats}
+``` {r Model Selection}
 
-### Stats for recruitment rates
-# Recruitment rates by station
-RecruitmentStats <- Recruitment %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, StationNumber, SectionName) %>% 
-  summarise(RecMean = mean(BottomMonth, na.rm = TRUE), 
-            SD= sd(BottomMonth, na.rm = TRUE),
-            Upper = RecMean + SD)
+Recruitment <- Recruitment %>%
+  mutate(Month = month(RetDate),
+         Year = year(RetDate)) %>%
+  filter(Year <= ReportYear)
 
-#Recruitment rates by section
-RecruitmentStats_Section <- RecruitmentStats %>%
-  group_by(AnalysisDate,Plot_Date, Estuary, SectionName) %>% 
-  summarise(SectionRecMean = mean(RecMean, na.rm = TRUE), 
-            SectionSD = sd(RecMean, na.rm = TRUE),
-            SectionUpper = SectionRecMean + SectionSD)
 
-# Median values
-RecruitmentStatsMedian <- RecruitmentStats %>%
-  filter(AnalysisDate < ReportStart) %>%
-  group_by(SectionName) %>%
-  summarise(RecruitmentMedian = median(RecMean, na.rm = TRUE),
-            RecruitmentMax = max(RecMean, na.rm = TRUE))
+# Analysis indicates No difference in distributions between years, suggests using a single model
+
+# Figure out which data distribution to use
+# All years
+hist(Recruitment$NumBottom)
+# past years
+hist(subset(Recruitment, RetDate <= ReportStart)$NumBottom)
+# current year
+hist(subset(Recruitment, RetDate >= ReportStart)$NumBottom) 
+
+# Treating Month and year as factor and not as numerical greatly improved fit.
+# Attempts to add in extra nested random effects like Section and ShellID either worsened fit or resulted in non-convergence
+# Zero-inflation (~1) did not improve fit
+# testdispersion indicates no evidence of excess or under dispersion
+
+RecruitmentRate <- glmmTMB(
+  NumBottom ~ factor(SectionName) * factor(Month) + factor(Year) +
+    (1 | FixedLocationID) +
+    offset(log(NumDays)),
+  ziformula = ~ 0,
+  family = nbinom2,
+  data = Recruitment)
+
+simulateResiduals(RecruitmentRate, n = 1000, plot = T)
+
+acf(residuals(m3, type = "pearson"))
+
+summary(RecruitmentRate)
+
+# No summary table of raw means in appendix
+#“Due to variable deployment duration (21–35 days), raw counts were standardized using a 28-day offset model. Raw means and standard deviations are not presented because they do not correspond directly to the standardized modeled rate estimates.”
+
+# Diagnostic Table for the Appendix
+diag_RecruitmentRate <- extract_diagnostics(RecruitmentRate,  "Recruitment Rate")
 
 ```
+
+
+``` {r Data extraction}
+# Predict standardized monthly settlement rates
+# Rate units are spat per shell per day
+#Use 28 days because that gives values comparable to your historic method:
+
+#1. Predicted Means + 95% CI for All Years (Section × Month)
+# Make sure Month, Year, SectionName are factors
+emm_ALL <- emmeans(
+  RecruitmentRate,
+  specs = ~ Year * SectionName * Month,
+  at = list(
+    NumDays = 28
+  ),
+  type = "response"
+)
+emm_ALL <- as.data.frame(emm_ALL)
+emm_ALL$asymp.UCL[is.infinite(emm_ALL$asymp.UCL)] <- 0 # replace any overruns to 0
+
+##########
+#2. Predicted Means + 95% CI for all previous years combined (2015–2023 pooled)
+emm_prev <- emm_ALL %>%
+  filter(Year != ReportYear)
+
+df_prev_mean <- emm_prev %>%
+  group_by(SectionName, Month) %>%
+  summarize(
+    mean_resp = mean(response),
+    lcl = mean(asymp.LCL),
+    ucl = mean(asymp.UCL),
+    .groups = "drop"
+  )
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ``` {r Recruitment Figures}
 
