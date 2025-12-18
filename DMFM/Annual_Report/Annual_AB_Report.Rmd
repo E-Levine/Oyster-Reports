@@ -23,6 +23,9 @@ source("scripts/04ReportLoadData.R")
 # Apply basic filters to data
 source("scripts/05ReportBasicFilters.R")
 
+```
+
+```{r ReportChapters}
 # Water Quality - Drought Index
 #10
 

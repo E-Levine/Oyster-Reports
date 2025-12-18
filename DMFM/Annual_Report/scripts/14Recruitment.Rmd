@@ -30,13 +30,12 @@ RecruitmentRate <- glmmTMB(
   NumBottom ~ factor(SectionName) * factor(Month) + factor(Year) +
     (1 | FixedLocationID) +
     offset(log(NumDays)),
-  ziformula = ~ 0,
   family = nbinom2,
   data = Recruitment)
 
 simulateResiduals(RecruitmentRate, n = 1000, plot = T)
 
-acf(residuals(m3, type = "pearson"))
+acf(residuals(RecruitmentRate, type = "pearson"))
 
 summary(RecruitmentRate)
 
@@ -70,7 +69,7 @@ emm_ALL$asymp.UCL[is.infinite(emm_ALL$asymp.UCL)] <- 0 # replace any overruns to
 ##########
 #2. Predicted Means + 95% CI for all previous years combined (2015–2023 pooled)
 emm_prev <- emm_ALL %>%
-  filter(Year != ReportYear)
+  filter(Year < ReportYear)
 
 df_prev_mean <- emm_prev %>%
   group_by(SectionName, Month) %>%
@@ -81,7 +80,186 @@ df_prev_mean <- emm_prev %>%
     .groups = "drop"
   )
 
+# Current Year Predicted Means + 95% CI for current year
+currentyear <- emm_ALL %>%
+  filter(Year == ReportYear)
 
+############# Raw means and SD (28-day standardized)
+RecRaw_Historic <- Recruitment %>%
+  filter(Year < ReportYear) %>%
+  mutate(RecRateRaw = NumBottom / (NumDays / 28)) %>%
+  group_by(SectionName,
+           Month) %>%
+  summarise(RecRateMeanRAW = mean(RecRateRaw, na.rm = TRUE),
+            RecRateSDRAW = sd(RecRateRaw, na.rm = TRUE))
+
+RecRaw_Current <- Recruitment %>%
+  filter(Year == ReportYear) %>%
+  mutate(RecRateRaw = NumBottom / (NumDays / 28)) %>%
+  group_by(SectionName,
+           Month) %>%
+  summarise(RecRateMeanRAW = mean(RecRateRaw, na.rm = TRUE),
+            RecRateSDRAW = sd(RecRateRaw, na.rm = TRUE))
+
+# Summary Table for Appendix
+RecruitmentRateHistoric_TABLE <- left_join(RecRaw_Historic, df_prev_mean, by = c("SectionName", "Month")) %>%
+  rename(RecruitmentMean_modeled = mean_resp,
+         RecruitmentLower_modeled = lcl,
+         RecruitmentUpper_modeled = ucl,
+         RecruitmentMean_raw = RecRateMeanRAW,
+         RecruitmentSD_raw = RecRateSDRAW) %>%
+  mutate(SectionName = factor(SectionName, levels = lv3)) %>%
+  arrange(SectionName)
+
+
+RecruitmentRateCurrent_TABLE <- left_join(RecRaw_Current, currentyear, by = c("SectionName", "Month")) %>%
+  rename(RecruitmentMean_modeled = response,
+         RecruitmentLower_modeled = asymp.LCL,
+         RecruitmentUpper_modeled = asymp.UCL,
+         RecruitmentMean_raw = RecRateMeanRAW,
+         RecruitmentSD_raw = RecRateSDRAW) %>%
+  mutate(SectionName = factor(SectionName, levels = lv3)) %>%
+  arrange(SectionName) %>%
+  select(-Year, -SE, -df)
+
+```
+
+
+
+``` {r ChatFigures}
+# Set data frames
+hist_monthly <- df_prev_mean %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+# Section | Month | mean | lcl | ucl
+
+hist_yearly <- emm_prev %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+# Section | Year | Month | mean
+
+# Historical
+# ggplot Skeleton
+HistoricalRecruitment_FIGURE <-
+ggplot() +
+  # 1. Historical CI ribbon
+  geom_ribbon(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      ymin = lcl,
+      ymax = ucl,
+      group = SectionName
+    ),
+    alpha = 0.25
+  ) +
+
+  # 2. Individual years (thin lines)
+  geom_line(
+    data = hist_yearly,
+    aes(
+      x = Month,
+      y = response,
+      group = Year
+    ),
+    linewidth = 0.5,
+    alpha = 0.4
+  ) +
+
+  # 3. Historical mean line
+  geom_line(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      y = mean_resp
+    ),
+    linewidth = 1.2
+  ) +
+
+  facet_grid(rows = vars(SectionName)) +
+  
+  scale_x_continuous(breaks = 1:12, labels = month.abb) +
+  
+  labs(
+    x = "Month",
+    y = "Modeled recruitment rate",
+    title = "Historical Monthly Oyster Recruitment (2015–2023)"
+  ) +
+  theme_bw() 
+
+print(HistoricalRecruitment_FIGURE)
+
+########################
+# Current Year
+
+CurrentRecruitment_FIGURE <- ggplot() +
+
+  # 1. Historical CI ribbon
+  geom_ribbon(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      ymin = lcl,
+      ymax = ucl,
+      group = SectionName
+    ),
+    alpha = 0.25
+  ) +
+
+  # 2. Historical monthly mean line
+  geom_line(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      y = mean_resp
+    ),
+    linewidth = 1.2
+  ) +
+
+  # 3. Current year's mean as a symbol
+    geom_point(
+    data = currentyear,
+    aes(
+      x = Month,
+      y = response
+    ),
+    shape = 2,        # triangle point up
+    size = 3,
+    stroke = 1
+  ) +
+
+  # 4. Current year's 95% CI
+  geom_errorbar(
+    data = currentyear,
+    aes(
+      x = Month,
+      ymin = asymp.LCL,
+      ymax = asymp.UCL
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+
+  facet_grid(rows = vars(SectionName)) +
+
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb
+  ) +
+
+  labs(
+    x = "Month",
+    y = "Modeled recruitment rate",
+    title = "Monthly Oyster Recruitment in 2024 Relative to Historical Conditions"
+  ) +
+
+  theme_bw() 
+  # theme(
+  #   panel.spacing.y = unit(1.1, "lines"),
+  #   strip.background = element_blank(),
+  #   strip.text.y = element_text(face = "bold")
+  # )
+
+
+print(CurrentRecruitment_FIGURE)
 
 
 ```
@@ -105,28 +283,6 @@ df_prev_mean <- emm_prev %>%
 
 
 
-
-
-
-
-``` {r Recruitment Figures}
-
-### Function explanation
-# generate_plot(df, 
-#               x_variable, x_label, 
-#               y_variable, y_label, y_SD, 
-#               UseColor, UseFill, 
-#               title)
-
-# Stats for Recruitment Rate by Year and Section
-RecruitmentStats_Section_fig <- generate_grouped_plot(RecruitmentStats_Section, 
-                                                "Plot_Date", "Date", 
-                                                "SectionRecMean", "Spat / month)", "SectionSD", 
-                                                "SectionName", "SectionName", 
-                                                "AB Oyster Recruitment by Year and Section")
-print(RecruitmentStats_Section_fig)
-
-```
 
 ``` {Recruitment Text}
 ### Placeholder for Recruitment text for report
