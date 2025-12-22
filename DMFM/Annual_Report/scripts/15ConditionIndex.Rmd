@@ -10,22 +10,104 @@ output: html_document
 ### Stats for ConditionIndex rates
 # ConditionIndex by section
 ConditionIndexStats <- ConditionIndex %>%
-  mutate(CI = ((TissueDryWeight - TarePanWeight) / ShellDryWeight) * 100,
-         AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14)) %>%
-  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
-  summarise(ConditionIndexMean = mean(CI, na.rm = TRUE), 
-            SD= sd(CI, na.rm = TRUE),
-            Upper = ConditionIndexMean + SD)
-
-# Median values
-ConditionIndexStatsMedian <- ConditionIndexStats %>%
-  filter(AnalysisDate < ReportStart) %>%
-  group_by(SectionName) %>%
-  summarise(ConditionIndexMedian = median(ConditionIndexMean, na.rm = TRUE),
-            ConditionIndexMax = max(ConditionIndexMean, na.rm = TRUE))
+  mutate(Month = month(TripDate),
+         Year = year(TripDate),
+         CI = ((TissueDryWeight - TarePanWeight) * 100) / (TotalWeight - ShellWetWeight)) %>%
+  filter(Year <= ReportYear) %>%
+  filter(CI > 0) %>%
+  filter(!is.na(CI))
 
 ```
+
+```{r Model selection OIMMP}
+#########
+# OIMMP
+ # Attempted to use Section, Year,ShellVolume, ShellLinear, ShellHeight, and TotalWeight. Month outperformed by over 3000
+# Adding FixedLocationID as random effect help (over 300) but adding section as nested random effect didn't
+# tried using gaussian distribution, actually worse fit
+# tried different Dispersion parameters, none or FixedLocation. Month outperformed all. improving the dispersion test and AIC
+# tried to include Year month interaction, but that didn't converge appears that the seasonal trend persists from year to year, though there is some variation 
+
+ConditionIndex <- glmmTMB( #### Best by 200
+  CI ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
+  family = Gamma(link = "log"),
+  dispformula = ~ factor(Month),
+  data = ConditionIndexStats)
+
+# ### Use AICc to compare the models: we'll use the model with the lowest score for making any inferences moving forward
+# oimmp_models <- list(
+#   '8-Month&Location' = oimmp_CI.month.location,
+#   '12-Disp.1' = oimmp_CI.month.location.disp1,
+#   '13-Disp.Month' = oimmp_CI.month.location.dispmonth,
+#   '14-Disp.Location' = oimmp_CI.month.location.displocation)
+# 
+# aictab(oimmp_models) #will use one for analysis
+
+simulationOutput <- simulateResiduals(ConditionIndex, n = 1000, refit = FALSE, plot = TRUE)
+
+acf(residuals(ConditionIndex, type = "pearson"))
+
+summary(ConditionIndex)
+
+# Diagnostic Table for the Appendix
+diag_oimmp_CI <- extract_diagnostics(ConditionIndex,  "Condition Index")
+# This needs some work
+# “Because variance partitioning metrics (marginal and conditional R2) are not uniquely defined for Gamma generalized linear mixed models with modeled dispersion, model fit was assessed using likelihood-based criteria and simulation-based diagnostics. DHARMa residual simulations indicated no evidence of over- or under-dispersion (dispersion ratio = 0.98, p = 0.76) and no systematic residual patterns.”
+
+
+```
+
+
+``` {r Data extraction}
+# Predict standardized monthly mean condition index
+# Rate units are dimensionless
+
+#1. Predicted Means + 95% CI for All Months
+# Make sure Month, are factors
+emm_month <- emmeans(
+  ConditionIndex,
+  specs = ~ Month,
+  type = "response") %>%
+  as.data.frame(emm_month) %>%
+  rename(ConditionIndexMean_modeled = response,
+         ConditionIndexLower_modeled = asymp.LCL,
+         ConditionIndexUpper_modeled = asymp.UCL) %>%
+  select(-SE, -df)
+
+
+#2. Predicted Means + 95% CI for All Years
+# Make sure Month, are factors
+emm_year <- emmeans(
+  ConditionIndex,
+  specs = ~ Year,
+  type = "response") %>%
+  as.data.frame(emm_year) %>%
+  rename(ConditionIndexMean_modeled = response,
+         ConditionIndexLower_modeled = asymp.LCL,
+         ConditionIndexUpper_modeled = asymp.UCL) %>%
+  select(-SE, -df)
+
+############# Raw means and SD
+# Months
+CI_Month_Raw <- ConditionIndexStats %>%
+  group_by(Month) %>%
+  summarise(CIMean_Raw = mean(CI, na.rm = TRUE),
+            CISD_Raw = sd(CI, na.rm = TRUE),
+            .groups = "drop")
+
+# Years
+CI_Year_Raw <- ConditionIndexStats %>%
+  group_by(Year) %>%
+  summarise(CIMean_Raw = mean(CI, na.rm = TRUE),
+            CISD_Raw = sd(CI, na.rm = TRUE),
+            .groups = "drop")
+
+# Summary Table for Appendix
+ConditionIndexMonth_TABLE <- left_join(CI_Month_Raw, emm_month, by = c("Month"))
+ConditionIndexYear_TABLE <- left_join(CI_Year_Raw, emm_year, by = c("Year"))
+
+```
+
 
 
 ``` {r ConditionIndex Figures}
@@ -51,3 +133,116 @@ print(ConditionIndexStats_Section_fig)
 ### Placeholder for ConditionIndex text for report
 ```
 This is text to output for ConditionIndex
+
+
+``` {r Model Selection Cahill, eval = FALSE}
+# Extra items were considered, but rejuected. I'm saving them here, but the above code will be stripped of extraneous values.
+### Stats for ConditionIndex rates
+# ConditionIndex by section
+ConditionIndexStats <- ConditionIndex %>%
+  mutate(Month = month(TripDate),
+         Year = year(TripDate),
+         CI_cahill = ((TissueDryWeight - TarePanWeight) / ShellDryWeight) * 100,
+         CI_oimmp = ((TissueDryWeight - TarePanWeight) * 100) / (TotalWeight - ShellWetWeight),
+         ShellVolume = ShellHeight * ShellLength * ShellWidth,
+         ShellLinear = ShellHeight + ShellLength + ShellWidth,
+         ShellVolume_scaled = scale(ShellVolume)[,1],
+         ShellLinear_scaled = scale(ShellLinear)[,1],
+         ShellHeight_scaled = scale(ShellHeight)[,1],
+         TotalWeight_scaled = scale(TotalWeight)[,1]) %>%
+  filter(Year <= ReportYear)
+
+CI_Cahill <- ConditionIndexStats %>%
+  filter(!is.na(CI_cahill))
+
+CI_oimmp <- ConditionIndexStats %>%
+  filter(CI_oimmp > 0) %>%
+  filter(!is.na(CI_oimmp))
+# Cahill's values were considered, but were roughly the same to OIMMP. Going with OIMMP for consistency
+# Figure out which data distribution to use
+# Cahill
+# All years
+hist(CI_Cahill$CI_cahill)
+# past years
+hist(subset(CI_Cahill, TripDate <= ReportStart)$CI_cahill)
+# current year
+hist(subset(CI_Cahill, TripDate >= ReportStart)$CI_cahill) 
+# try nBinom2 and gamma
+
+# OIMMP
+# All years
+hist(CI_oimmp$CI_oimmp)
+# past years
+hist(subset(CI_oimmp, TripDate <= ReportStart)$CI_oimmp)
+# current year
+hist(subset(CI_oimmp, TripDate >= ReportStart)$CI_oimmp) 
+
+
+# Cahill
+Cahill_CI.section <- glmmTMB(
+  CI_cahill ~ factor(SectionName),
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.year <- glmmTMB(
+  CI_cahill ~ factor(Year),
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.month <- glmmTMB( #### Best by over 2000
+  CI_cahill ~ factor(Month),
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.ShellVolume_scaled <- glmmTMB(
+  CI_cahill ~ ShellVolume_scaled,
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.ShellLinear_scaled <- glmmTMB(
+  CI_cahill ~ ShellLinear_scaled,
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.ShellHeight_scaled <- glmmTMB(
+  CI_cahill ~ ShellHeight_scaled,
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.TotalWeight_scaled <- glmmTMB(
+  CI_cahill ~ TotalWeight_scaled,
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+
+Cahill_CI.month.location <- glmmTMB( #### Best by over 300
+  CI_cahill ~ factor(Month) + (1 | FixedLocationID),
+  family = Gamma(link = "log"),
+  data = CI_Cahill)
+         
+### Use AICc to compare the models: we'll use the model with the lowest score for making any inferences moving forward
+Cahill_models <- list(
+  '1-Section' = Cahill_CI.section,
+  '2-Year' = Cahill_CI.year, 
+  '3-Month' = Cahill_CI.month, 
+  '4-Volume' = Cahill_CI.ShellVolume_scaled, 
+  '5-Linear' = Cahill_CI.ShellLinear_scaled,
+  '6-ShellHeight' = Cahill_CI.ShellHeight_scaled,
+  '7-TotalWeight' = Cahill_CI.TotalWeight_scaled,
+  '8-Month&Location' = Cahill_CI.month.location,
+  '9-bestfromother' = cahill_CI)
+
+aictab(Cahill_models) #will use one for analysis
+
+simulateResiduals(cahill_CI, n = 1000, refit = FALSE, plot = TRUE)
+
+cahill_CI <- glmmTMB( #### Best by 200
+  CI_cahill ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
+  family = Gamma(link = "log"),
+  dispformula = ~ factor(Month),
+  data = CI_Cahill)
+
+summary(cahill_CI)
+
+
+```
+
