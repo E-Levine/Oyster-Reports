@@ -21,6 +21,9 @@ ConditionIndexStats <- ConditionIndex %>%
 
 ```{r Model selection OIMMP}
 #########
+# Figure out which data distribution to use
+# All years
+hist(ConditionIndexStats$CI)
 # OIMMP
  # Attempted to use Section, Year,ShellVolume, ShellLinear, ShellHeight, and TotalWeight. Month outperformed by over 3000
 # Adding FixedLocationID as random effect help (over 300) but adding section as nested random effect didn't
@@ -85,7 +88,7 @@ emm_year <- emmeans(
   rename(ConditionIndexMean_modeled = response,
          ConditionIndexLower_modeled = asymp.LCL,
          ConditionIndexUpper_modeled = asymp.UCL) %>%
-  select(-SE, -df)
+  select(-SE, -df) 
 
 ############# Raw means and SD
 # Months
@@ -104,28 +107,127 @@ CI_Year_Raw <- ConditionIndexStats %>%
 
 # Summary Table for Appendix
 ConditionIndexMonth_TABLE <- left_join(CI_Month_Raw, emm_month, by = c("Month"))
+kable(ConditionIndexMonth_TABLE,
+      digits = 1,
+      col.names = c("Month", 
+      "Raw Mean Condition Index", "Raw SD",
+      "Modeled Mean Condition Index", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Condition Index by Month. Condition Index is a dimensionless value. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+
 ConditionIndexYear_TABLE <- left_join(CI_Year_Raw, emm_year, by = c("Year"))
+kable(ConditionIndexYear_TABLE,
+      digits = 1,
+      col.names = c("Year", 
+      "Raw Mean Condition Index", "Raw SD",
+      "Modeled Mean Condition Index", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Condition Index by Year Condition Index is a dimensionless value. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
 
 ```
 
 
 
 ``` {r ConditionIndex Figures}
+# Month
+# ggplot Skeleton
+ConditionIndexMonth_FIGURE <-
+ggplot() +
+  # 1. Line
+  geom_line(
+    data = emm_month,
+    aes(
+      x = Month,
+      y = ConditionIndexMean_modeled
+    ),
+    linewidth = 1.2
+  ) +
+  # 2. mean as a symbol
+    geom_point(
+    data = emm_month,
+    aes(
+      x = Month,
+      y = ConditionIndexMean_modeled
+    ),
+    shape = 1,        # open circle
+    size = 3,
+    stroke = 1
+  ) +
+  # 4. 95% CI
+  geom_errorbar(
+    data = emm_month,
+    aes(
+      x = Month,
+      ymin = ConditionIndexLower_modeled,
+      ymax = ConditionIndexUpper_modeled
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  # Scale
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb
+  ) +
+  # labels
+  labs(
+    x = "Month",
+    y = "Mean Condition Index",
+    title = "Monthly Mean Condition Index"
+  ) +
 
-### Function explanation
-# generate_plot(df, 
-#               x_variable, x_label, 
-#               y_variable, y_label, y_SD, 
-#               UseColor, UseFill, 
-#               title)
+  theme_bw() 
 
-# Stats for Condition Index by Year and Section
-ConditionIndexStats_Section_fig <- generate_grouped_plot(ConditionIndexStats, 
-                                                "Plot_Date", "Date", 
-                                                "ConditionIndexMean", "Condition Index)", "SD", 
-                                                "SectionName", "SectionName", 
-                                                "AB Oyster ConditionIndex by Year and Section")
-print(ConditionIndexStats_Section_fig)
+print(ConditionIndexMonth_FIGURE)  
+  
+######
+# Year
+# ggplot Skeleton
+ConditionIndexYear_FIGURE <-
+ggplot() +
+  # 1. Line
+  geom_line(
+    data = emm_year,
+    aes(
+      x = as.factor(Year),
+      y = ConditionIndexMean_modeled,
+      group = 1
+    ),
+    linewidth = 1.2
+  ) +
+  # 2. mean as a symbol
+    geom_point(
+    data = emm_year,
+    aes(
+      x = as.factor(Year),
+      y = ConditionIndexMean_modeled
+    ),
+    shape = 1,        # open circle
+    size = 3,
+    stroke = 1
+  ) +
+  # 4. 95% CI
+  geom_errorbar(
+    data = emm_year,
+    aes(
+      x = as.factor(Year),
+      ymin = ConditionIndexLower_modeled,
+      ymax = ConditionIndexUpper_modeled
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  # Scale
+  scale_x_discrete() +
+
+  # labels
+  labs(
+    x = "Year",
+    y = "Mean Condition Index",
+    title = "Yearly Mean Condition Index"
+  ) +
+
+  theme_bw() 
+
+print(ConditionIndexYear_FIGURE) 
 
 ```
 
