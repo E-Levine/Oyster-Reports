@@ -19,7 +19,7 @@ ConditionIndexStats <- ConditionIndex %>%
 
 ```
 
-```{r Model selection OIMMP}
+```{r Model selection}
 #########
 # Figure out which data distribution to use
 # All years
@@ -38,11 +38,15 @@ ConditionIndex <- glmmTMB( #### Best by 200
   data = ConditionIndexStats)
 
 # ### Use AICc to compare the models: we'll use the model with the lowest score for making any inferences moving forward
-# oimmp_models <- list(
-#   '8-Month&Location' = oimmp_CI.month.location,
-#   '12-Disp.1' = oimmp_CI.month.location.disp1,
-#   '13-Disp.Month' = oimmp_CI.month.location.dispmonth,
-#   '14-Disp.Location' = oimmp_CI.month.location.displocation)
+# Using the following found no strong support for a difference between sections given the small improvement in the model including Section as a Fixed Effect, no improvement when including section as a random effect, and the knowledge that west has fewer observations than the other sections, especially lacking months with typically higher CI values
+# ConditionIndex.Section <- glmmTMB(
+#   CI ~ factor(Month) + factor(Year) + factor(SectionName) + (1 | FixedLocationID),
+#   family = Gamma(link = "log"),
+#   dispformula = ~ factor(Month),
+#   data = ConditionIndexStats)
+# 
+# aictab(list(ConditionIndex, ConditionIndex.Section, ConditionIndex.SectionRand))
+# summary(ConditionIndex.Section)
 # 
 # aictab(oimmp_models) #will use one for analysis
 
@@ -167,6 +171,7 @@ ggplot() +
     breaks = 1:12,
     labels = month.abb
   ) +
+  coord_cartesian(ylim = c(6, 15)) +
   # labels
   labs(
     x = "Month",
@@ -217,6 +222,7 @@ ggplot() +
   ) +
   # Scale
   scale_x_discrete() +
+  coord_cartesian(ylim = c(6, 15)) +
 
   # labels
   labs(
@@ -345,6 +351,9 @@ cahill_CI <- glmmTMB( #### Best by 200
 
 summary(cahill_CI)
 
+
+CI_current <- ConditionIndexStats %>%
+  filter(Year == ReportYear)
 
 ```
 
