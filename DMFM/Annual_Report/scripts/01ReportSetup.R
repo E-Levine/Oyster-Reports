@@ -17,6 +17,8 @@ library(DHARMa) # needed for model diagnostics
 library(performance) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
 library(emmeans) # needed to extract modeled means and CI
+library(brms) # needed for categorical models and diagnostics
+library(bayesplot) # needed for categorical diagnostics and plotting
 
 # Set background variables
 ReportStart <- as.Date(paste0(ReportYear, "-01-01"))

@@ -158,14 +158,14 @@ ConditionIndex <- hsdbConditionIndex %>%
          StationNumber,
          StationNameNumber,
          Year,
-         ShellHeight,
-         ShellLength,
-         ShellWidth,
+         ShellHeight, # unnecessary, not in model
+         ShellLength, # unnecessary, not in model
+         ShellWidth, # unnecessary, not in model
          TotalWeight,
          TissueWetWeight,
          ShellWetWeight,
          TissueDryWeight,
-         ShellDryWeight,
+         ShellDryWeight, # unnecessary, not in model
          TarePanWeight,
          Comments)
 ###
@@ -189,6 +189,10 @@ Dermo <- hsdbDermo %>%
          StationNumber,
          StationNameNumber,
          Year,
+         ShellHeight,
+         ShellLength,
+         ShellWidth,
+         TotalWeight,
          DermoMantle,
          DermoGill,
          Comments)
@@ -218,9 +222,9 @@ Buceph <- hsdbRepro %>%
 
 # Repro
 Repro <- hsdbRepro %>%
-  FilterFunction2() %>%
+  left_join(Dermo, by = 'OysterID') %>%
   select(OysterID,
-         SampleEventID,
+         SampleEventID.x,
          FixedLocationID,
          TripDate,
          Estuary,
@@ -229,10 +233,16 @@ Repro <- hsdbRepro %>%
          StationNumber,
          StationNameNumber,
          Year,
+         ShellHeight,
+         ShellLength,
+         ShellWidth,
+         TotalWeight,
          Sex,
          ReproStage,
          BadSlide,
-         Comments)
+         Comments.x) %>%
+  rename(SampleEventID = SampleEventID.x,
+         Comments = Comments.x)
 ###
 
 ### Remove intermediate data frames

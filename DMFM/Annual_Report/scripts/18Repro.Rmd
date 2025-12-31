@@ -8,28 +8,167 @@ output: html_document
 ``` {r BasicStats}
 
 ### Stats for Repro 
-# Repro by section
 ReproStats <- Repro %>%
-  mutate(AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14)) %>%
-  count(AnalysisDate, Plot_Date, Estuary, SectionName, Sex, name = "count") %>%
-  mutate(percent = count / sum(count) * 100)
+  mutate(Month = month(TripDate),
+         Year = year(TripDate),
+         LinearOy = ShellHeight + ShellLength + ShellWidth, # not used
+         CubicOy = ShellHeight * ShellLength * ShellWidth, # not used
+         SH_scaled = scale(ShellHeight)[, 1], # not used
+         Wt_scaled = scale(TotalWeight)[, 1],
+         LO_scaled = scale(LinearOy)[, 1], # not used
+         CO_scaled = scale(CubicOy)[, 1], # not used
+         Sex = factor(Sex, 
+                      levels = c("M", "F", "M/F", "Z"))) %>%
+  filter(Year <= ReportYear) 
   
-```
-
-``` {r Repro Figures}
-ggplot(ReproStats, aes(x = Plot_Date, y = percent, fill = Sex)) +
-  geom_bar(stat = "identity", position = "stack") +
-  labs(
-    title = "Oyster Sex Composition by Month",
-    x = "Month",
-    y = "Percentage of Oysters",
-    fill = "Sex"
-  ) +
-  scale_fill_brewer(palette = "Set2") +
-  theme_minimal(base_size = 14)
+# Remove Null values that can break the later models
+ReproStats2 <- ReproStats %>%
+  filter(!is.na(Sex) & !is.na(ShellHeight))
 
 ```
+
+```{r SexRatio Model selection, eval = FALSE}
+#########
+### Leaving this chunk in to show my work, but it doesn't need to be run when knitted to save time
+# Figure out which effects to use
+library(nnet) # need for multinom()
+
+# Use multinom to narrow down which effects to include
+m1 <- multinom(Sex ~ 1, # 5 @ 1153
+               data = ReproStats2)
+m2 <- multinom(Sex ~ factor(SectionName), # 3 @ 1028
+               data = ReproStats2)
+m3 <- multinom(Sex ~ factor(Month), # 1 @ 0
+               data = ReproStats2)
+m4 <- multinom(Sex ~ factor(Year), # 4 @ 1097
+               data = ReproStats2)
+m5 <- multinom(Sex ~ Wt_scaled, # 2 @ 777
+               data = ReproStats2)
+aictab(list(m1, m2, m3, m4, m5))
+
+m31 <- multinom(Sex ~ factor(Month), # 4 @ 382
+               data = ReproStats2)
+m32 <- multinom(Sex ~ factor(Month) + Wt_scaled, # 1 @ 0
+               data = ReproStats2)
+m33 <- multinom(Sex ~ factor(Month) + factor(SectionName), # 2 @ 252
+               data = ReproStats2)
+m34 <- multinom(Sex ~ factor(Month) + factor(Year), # 3 @ 325
+               data = ReproStats2)
+aictab(list(m31, m32, m33, m34))
+
+m321 <- multinom(Sex ~ factor(Month) + Wt_scaled, # 3 @ 230
+               data = ReproStats2)
+m322 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(SectionName), # 1 @ 0
+               data = ReproStats2)
+m323 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(Year), # 2 @ 194
+               data = ReproStats2)
+aictab(list(m321, m322, m323))
+
+m3221 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(SectionName), # 2 @ 29
+               data = ReproStats2)
+m3222 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(SectionName) + factor(Year), # 1 @ 0
+               data = ReproStats2)
+aictab(list(m3221, m3222))
+
+# Exploring interactions between factors
+im1 <- multinom(Sex ~ factor(Month) + factor(SectionName) + factor(Year) + Wt_scaled , # 2 @ 50
+               data = ReproStats2)
+im2 <- multinom(Sex ~ factor(Month)*factor(SectionName) + factor(Year) + Wt_scaled , # 3 @ 64
+               data = ReproStats2)
+im3 <- multinom(Sex ~ factor(Month)*factor(Year) + factor(SectionName) + Wt_scaled , # 4 @ 105
+               data = ReproStats2)
+im4 <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , # 1 @ 0
+               data = ReproStats2)
+aictab(list(im1, im2, im3, im4))
+
+im41 <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , # 1 @ 0
+               data = ReproStats2)
+im42 <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month), # 2 @ 485
+               data = ReproStats2)
+im43 <- multinom(Sex ~ factor(SectionName)*factor(Year) + Wt_scaled , # 3 @ 1183
+               data = ReproStats2)
+im44 <- multinom(Sex ~ factor(SectionName)*factor(Year), # 4 @ 1658
+               data = ReproStats2)
+aictab(list(im41, im42, im43, im44))
+
+# Adding FixedLocationID as fixed effect because multinom doesn't support random effects. It still improves fit 
+im41x <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , 
+               data = ReproStats2)
+im41y <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled + FixedLocationID, 
+               data = ReproStats2)
+aictab(list(im41x, im41y))
+
+# Using glmmTMB to confirm that FixedLocationID should be included as random effect
+im411 <- glmmTMB(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , 
+               data = ReproStats2)
+im412 <- glmmTMB(Sex ~ factor(SectionName) * factor(Year) + factor(Month) + Wt_scaled + (1 | FixedLocationID), 
+               data = ReproStats2)
+im413 <- glmmTMB(Sex ~ factor(SectionName) * factor(Year) + factor(Month) + Wt_scaled + 
+                   (1 | FixedLocationID) + (1 | SectionName:Year), 
+               data = ReproStats2)
+aictab(list(im411, im412, im413))
+
+```
+
+
+```{r SexRatio Model FINAL, eval = FALSE}
+#########
+# Produces final model, which takes ~25 minutes to run, so only run it if you have the time
+
+# setting priors to actively prevent separation 
+priors <- c( # Fixed effects (log-odds scale)
+  prior(normal(0, 0.5), class = "b", dpar = "muF"),
+  prior(normal(0, 0.5), class = "b", dpar = "muMF"),
+  prior(normal(0, 0.5), class = "b", dpar = "muZ")
+)
+priors <- c( # Intercepts
+  priors,
+  prior(normal(0, 1), class = "Intercept", dpar = "muF"),
+  prior(normal(0, 1), class = "Intercept", dpar = "muMF"),
+  prior(normal(0, 1), class = "Intercept", dpar = "muZ")
+)
+priors <- c( # Random effects (both grouping factors)
+  priors,
+  prior(exponential(2), class = "sd", dpar = "muF"),
+  prior(exponential(2), class = "sd", dpar = "muMF"),
+  prior(exponential(2), class = "sd", dpar = "muZ")
+)
+
+# The interaction term creates many sparse cells. To fix that I used random interaction (1 | SectionName:Year).
+# Using preset priors to actively prevent separation. Why: log-odds of ±5 are already extreme biologically; prevents runaway coefficients; improves sampler geometry
+# The portion chains to control use HMC settings that are stable, but not excessive
+SexRatio <- brm(
+  Sex ~ factor(SectionName) + factor(Year) + factor(Month) + Wt_scaled +
+      (1 | FixedLocationID) + (1 | SectionName:Year),
+  data = ReproStats2,
+  family = categorical(),
+  prior = priors,
+  chains = 4, 
+  cores = 8,
+  iter = 2000,
+  warmup = 1000,
+  control = list(adapt_delta = 0.95, 
+                 max_treedepth = 12))
+
+loo(SexRatio)
+summary(SexRatio)
+
+# after fitting
+saveRDS(SexRatio,
+  file = "models/sexratio_brm_final.rds")
+
+```
+
+```{r SexRatio}
+### Loads model without having to rerun it
+SexRatio <- readRDS("models/sexratio_brm_final.rds")
+
+
+
+
+
+
+
 
 ``` {Repro Text}
 ### Placeholder for Repro text for report
