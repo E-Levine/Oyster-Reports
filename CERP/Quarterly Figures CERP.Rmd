@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2025-04-01" #Start date of reporting quarter
-  End_date: "2025-06-30"   #End date of reporting quarter
+  Start_date: "2025-07-01" #Start date of reporting quarter
+  End_date: "2025-09-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -91,7 +91,7 @@ Stage_fill <- scale_fill_manual("", labels = Stages, values = Stat_pal3, na.valu
 #
 #Cage formatting
 Cage_sites <- c("SLC", "LXN", "CRE", "CRW")
-Stations_cages <- c("SLC" = "St. Lucie-Central Station 1", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
+Stations_cages <- c("SLC" = "St. Lucie-Central Station 2", "LXN" = "Loxahatchee-North Station 2", "CRE" = "Caloosahatchee River - Iona Cove", "CRW" = "Caloosahatchee River - Bird Island")
 Cages_fill <- scale_fill_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
 Cages_color <- scale_color_manual("", labels = Stations_cages, values = Stat_pal2, na.value = "#999999")
 
@@ -245,7 +245,7 @@ for(i in seq_along(East_sites)){
 East_live_fig <- ggarrange(
   East_Live_list[[1]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + guides(color = guide_legend(override.aes = list(size=2))),
   East_Live_list[[2]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
-  East_Live_list[[3]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
+  East_Live_list[[3]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"), #+ scale_y_continuous(limits = c(0, 1600), breaks = seq(0, 1600, by = 400), expand = c(0,0)),
   East_Live_list[[4]] + rremove("x.text") + rremove("x.title") + rremove("y.title") + rremove("legend"),
   East_Live_list[[5]] + rremove("y.title") + rremove("legend"),
   nrow = 5, heights = c(1, 1, 1, 1, 1.25), align = "v"  
@@ -571,7 +571,7 @@ annotate_figure(DermoI_West_Fig,
                 bottom = text_grob("Date", family = "serif", size = 16.5, color = "black", vjust = 0.73))
 ```
 
-```{r CERP Cage Mortality Figure, fig.cap = "**Figure 15.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Cage Mortality Figure, fig.cap = "**Figure 15.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). Please note, oysetrs for the St. Lucie-Central cage were collected from station 1.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Cage_Mort %>%
   ggplot(aes(AnalysisDate, Mean, fill = Site)) + 
   geom_col(position = position_dodge(12), width = 14, color = "black") + 
@@ -583,7 +583,7 @@ Cage_Mort %>%
 
 ```
 
-```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom).", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r CERP Cage SH Figure, fig.cap = "**Figure 16.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central (top), Station 2 in Loxahatchee-North (2nd from top), Iona Cove in Caloosahatchee River-East (2nd from bottom) and Bird Island in Caloosahatchee River-West (bottom). Please note, oysetrs for the St. Lucie-Central cage were collected from station 1.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 Cage_SH %>% 
   ggplot(aes(AnalysisDate, Mean, fill = Site, pattern = Type, color = Site)) + 
   geom_errorbar(aes(ymin = Mean, ymax = Mean + SD, color = Site), position = position_dodge(18), width = 10) +

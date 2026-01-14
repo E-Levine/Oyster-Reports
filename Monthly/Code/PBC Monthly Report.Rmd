@@ -4,7 +4,7 @@ output:
   word_document:
       reference_docx: Monthly-Reports-template.docx
 params: 
-  Month: "06"  #Enter 2-digit month
+  Month: "12"  #Enter 2-digit month
   Year: "2025" #Enter 4-digit year
 knit: (function(inputFile, encoding) {
   rmarkdown::render(
@@ -17,7 +17,7 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r VariableSet, include=FALSE}
-Author <- c("EL Williams") #Change to your name
+Author <- c("DB") #Change to your name
 ```
 
 ```{r PackageLoad & VarSet, echo = FALSE, warning = FALSE, message = FALSE}
@@ -26,7 +26,7 @@ if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  #DF manipulation
   openxlsx, lubridate, knitr, here,
-  flextable, officer, officedown,
+  flextable, officer, officedown, magrittr,
   install = TRUE)
 #
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
@@ -50,7 +50,7 @@ ReportEnd <- as.Date(format(ceiling_date(ReportStart %m+% months(2)) - days(1), 
 ```
 
 ```{r Data Download}
-#Laod data from the sumamry file
+#Load data from the sumamry file
 FixedLocations <-  readWorkbook(data_file_location, sheet = 'FixedLocations', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(Estuary %in% Estuaries)
 #
 SampleEventWQ <-  readWorkbook(data_file_location, sheet = 'SampleEventWQ', detectDates = TRUE, colNames = TRUE, na.strings = c("NA")) %>% filter(substring(SampleEventID, 1, 2) %in% Estuaries)
@@ -264,7 +264,7 @@ Sedi1 <- Sediment %>%
          TotalAsh = case_when(is.na(Proportion) ~(AshWeight - TareCrucible)*(1/PortionofSample), TRUE ~ (AshWeight - TareCrucible)*(1/Proportion)),
          PctOrganic = ((TotalDW-round(TotalAsh,3))/TotalDW)*100,
          OrganicWt = TotalDW*(PctOrganic/100)) %>%
-  select(CupSampleID,
+  dplyr::select(CupSampleID,
          FixedLocationID,
          SampleEventID,
          DeployedDate,
@@ -274,6 +274,7 @@ Sedi1 <- Sediment %>%
          NumDays,
          Position,
          Proportion,
+         FilterDryWeight,
          TotalDW,
          TotalAsh,
          OrganicWt,
@@ -320,7 +321,7 @@ if(length(setdiff(Stations, Dermo2$ID)) > 0){
     Dermo_check <- Dermo2 %>% filter(is.na(DermoMantle) | is.na(DermoGill))
   }
 #
-Sdtp2 <- Sedi1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, TotalDW, TotalAsh, Comments) 
+Sdtp2 <- Sedi1 %>% filter(AnalysisDate > ReportStart & AnalysisDate < ReportEnd) %>% mutate(ID = paste0(Estuary, SectionName, "-", StationNumber), Cup = str_sub(CupSampleID, -1)) %>% dplyr::select(ID, Cup, FilterDryWeight, TotalDW, TotalAsh, Comments) 
 if(length(setdiff(Stations, Sdtp2$ID)) > 0){
   Sdtp_check <- Sdtp2  %>% bind_rows(data.frame(ID = setdiff(Stations, Sdtp2$ID), Cup = NA, TotalDW = NA, TotalAsh = NA)) %>% filter(is.na(TotalDW) | is.na(TotalAsh))
 } else {
@@ -418,7 +419,7 @@ to
 `r round((LWL_DermoStats %>% filter(RetDate == max(LWL_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWL_DermoStats$RetDate) %>% format("%B")`.
-* `r if(Month == "03" | Month == "09") {paste(LWR_Srvy_note)} else {paste("Survey was not conducted this month")}`
+* `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
 ## Lake Worth Restoration summary 
@@ -455,7 +456,7 @@ to
 `r round((LWR_DermoStats %>% filter(RetDate == max(LWR_DermoStats$RetDate)))$DermoPct,1)`% 
 of the oysters sampled in
 `r max(LWR_DermoStats$RetDate) %>% format("%B")`.
-* `r if(Month == "03" | Month == "09") {paste(LWL_Srvy_note)} else {paste("Survey was not conducted this month")}`
+* `r if(Month == "03" | Month == "09") {paste(LWR_Srvy_note)} else {paste("Survey was not conducted this month")}`
 \
 
 ## Lake Worth sediment trap summary 
@@ -545,7 +546,7 @@ flextable(Sedi_table) %>% separate_header() %>% align(align = "center", part = "
 \
 *Water quality*
 \
-`r if(nrow(WQ_check) > 0) {flextable(WQ_checks) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
+`r if(nrow(WQ_check) > 0) {flextable(WQ_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
 \
 \
 *Recruitment*
