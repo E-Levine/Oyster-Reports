@@ -1,19 +1,21 @@
 # Oyster-Reports
 PROJECT DESCRIPTION: <br>
-Project for housing code for generating FWRI Oyster reports.  RMarkdown scripts exist for each Report type and funding agency, but their method of use varies based on current data source and compilation method. Please refer to the "File Structure" and "File Use" sections. SQL code for data requests are housed in /Data_requests.
+Project for housing code for generating FWRI Oyster reports.  RMarkdown scripts exist for various Report types and funding agencies, but their method of use varies based on current data source and compilation method. Please refer to the "File Structure" and "File Use" sections. SQL code for external data requests are housed in /Data_requests.
 Data managers are currently the only FWRI staff who will be able to execute these scripts. Code is still being written and revised.
+Updates to some monthly and quarterly reports to allow for in-network sharing and maintenance of files. In-network files allow for other staff members to compile reports.  
 
 
 ### FOLDER SCHEMA <br>
-- /CERP - RMarkdown scripts for Comprehensive Everglades Restoration Plan project - Current versions: Monthly report, Quarterly figures and summary, Annual figures and summary.<br>
+- /CERP - RMarkdown scripts for Comprehensive Everglades Restoration Plan project - Current versions: Monthly report, Quarterly figures and summary, Annual figures and summary. Repository for files with access to the database. In-network versions can be found in their respective report-type folders.<br>
 - /Data - Summary data Excel files. Files can be read by anyone but can only be modified by specified users. If write access is needed, please request access from E-Levine. <br>
-- /Data_requests - SQL code for pulling and formatting data requested by grant/project managers.
+- /Data_requests - SQL code for pulling and formatting data requested in-house or by grant/project managers.
 - /DBHYDRO - R code for selecting, pulling, and cleaning DBHYDRO data. Cleaned data is maintained in the repo as designated within code. Folders are maintained to help distinguish between data saved locally vs in the repo. Currently tested and released for FLOW data. May require edits for other data types.<br>
 - /DMFM - RMarkdown scripts for sharing with the Division of Marine Fisheries Management  - Current versions: AS NEEDED.<br>
 - /FLTIG - RMarkdown scripts for the Florida Trustees Implementation Group Data Gaps project  - Current versions: Annually.<br>
-- /NFWF2 - RMarkdown scripts for the National Fish and Wildlife Foundation 2.0 project - Current versions: Quarterly..<br>
+- /Monthly - RMarkdown scripts for compilation of monthly reports by staff other than data manager. <br>
+- /NFWF2 - RMarkdown scripts for the National Fish and Wildlife Foundation 2.0 project - Current versions: Quarterly. <br>
 - /Presentations - RMarkdown scripts for Presentations given to other groups. As needed. <br>
-- /PBC - RMarkdown scripts for Plam Beach County project - Current versions: Monthly, Quarterly.<br>
+- /PBC - RMarkdown scripts for Plam Beach County project - Current versions: Monthly, Quarterly. Repository for files with access to the database. In-network versions can be found in their respective report-type folders.<br>
 
 
 ### FILE USE <br>
