@@ -272,7 +272,6 @@ Minimum and maximum values observed during the quarter and data ordered by incre
 <h3> `r paste("Survey summary")`</h3>
 Live Counts range: `r CERP_Counts_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_Counts_temp  %>% slice(1) %>% pull(Value)`\
 Live Counts mid-range: `r CERP_Counts_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_Counts_temp  %>% slice(2) %>% pull(Value)`
-
 ```{r CERP counts table, results= "asis" }
  Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live"))%>% 
   gt() %>% 
@@ -301,8 +300,9 @@ as.data.frame(t(sapply(Counts_CERP, get_change))) %>%
      gt_split(col_slice_at = "SL.S3_LiveSD") %>% 
      grp_options(container.width = 2000)
 ```
-
-
+\
+\
+\
 DeadRatio range: `r CERP_DR_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_DR_temp  %>% slice(1) %>% pull(Value)` \
 DeadRatio mid-range:`r CERP_DR_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_DR_temp  %>% slice(2) %>% pull(Value)`
 ```{r CERP dead ratios tables}
@@ -320,8 +320,9 @@ as.data.frame(t(sapply(Counts_CERP, get_change))) %>%
      gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% 
      grp_options(container.width = 2000)
 ```
-
-
+\
+\
+\
 Shell height range: `r CERP_SH_temp  %>% slice(n()) %>% pull(Value)` - `r CERP_SH_temp  %>% slice(1) %>% pull(Value)`\
 Shell height mid-range:`r CERP_SH_temp  %>% slice(n()-1) %>% pull(Value)` - `r CERP_SH_temp  %>% slice(2) %>% pull(Value)`
 ```{r CERP shell heights}
@@ -336,53 +337,65 @@ as.data.frame(t(sapply(SH_CERP, get_change))) %>%
      gt_split(col_slice_at = "SL.S3_SHMean") %>% 
      grp_options(container.width = 2000)
 ```
-
-
+\
+\
+\
+\
 <h3> `r paste("Recruitment summary")` </h3>
 `r Rcrt_CERP %>% gather(Station, RateMean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CERP_rcrt %>% tab_caption(caption = "Monthly CERP recruitment rates")`
 Recruitment range: `r CERP_Rcrt_temp %>% slice(n()) %>% pull(Value)` - `r CERP_Rcrt_temp %>% slice(1) %>% pull(Value)` 
 Recruitment mid-range: `r CERP_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r CERP_Rcrt_temp %>% slice(2) %>% pull(Value)` 
 `r Rcrt_CERP %>% pivot_longer(names_to = "Station", cols = -RetDate) %>% mutate(Station = sub("_Mean", "", Station)) %>% filter(value == 0) %>% arrange(RetDate) %>% gt(groupname_col = "RetDate") %>% tab_caption(caption = "No recruitment")`
-
-
+\
+\
+\
+\
 <h3> `r paste("Repro summary")` </h3>
 `r if(!is.null(CERP_repro) & !is.character(CRE_repro)){CERP_repro %>% tab_caption(caption = "Monthly CERP reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
-
-
+\
+\
+\
+\
 <h3> `r paste("Dermo summary")` </h3>
 `r Dermo_CERP %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples. *Note: Extra samples may have been collected from a different station.")`
 `r CERP_dermo %>% tab_caption(caption = "Monthly CERP dermo intensity and prevalence")`
 Intensity range: `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
 `r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`\
 Prevalence range: `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)` 
-
-
+\
+\
+\
+\
 <h3> `r paste("Cage summary")` </h3>
 `r Cage_CERP %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`\
-`r SL_Cage %>% tab_caption(caption = "Monthly St. Lucie cage data")`
-
+`r SL_Cage %>% tab_caption(caption = "Monthly St. Lucie cage data")`\
+*The SL cages were moved to station 2 in January 2024, Oysters are still collected from station 1.\
+Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CERP %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(contains("SL")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
-Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
+*Any "NA" retrieved shell height values indicate when a cage was not retrieved due to being missing, flipped, or some other issue.
 
 `r LX_Cage %>% tab_caption(caption = "Monthly Loxahatchee cage data")`
 
+Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Deployed SH Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CERP %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(contains("LX")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
-Percent Mortality Range: `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. < 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-
-
-
+*Any "NA" retrieved shell height values indicate when a cage was not retrieved due to being missing, flipped, or some other issue.
+\
+\
+\
+\
 <h3> `r paste("Water Quality summary")` </h3>
 `r CERP_Sal %>% tab_caption(caption = "Monthly CERP salinity measurements")`
 Salinity range: `r CERP_Sal_temp %>% slice(n()) %>% pull(Value)` - `r CERP_Sal_temp %>% slice(1) %>% pull(Value)`\
 Salinity Mid-range: `r CERP_Sal_temp %>% slice(n()-1) %>% pull(Value)` - `r CERP_Sal_temp %>% slice(2) %>% pull(Value)`\
 `r CERP_Sec %>% tab_caption(caption = "Monthly CERP secchi measurements")`
 Secchi range: `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% min()` - `r WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% max()`\
-
-
-
+\
+\
+\
+\
 \
 <h2>`r paste("West Coast")`</h2>
 Minimum and maximum values observed during the quarter and data ordered by increasing values.
@@ -390,36 +403,52 @@ Minimum and maximum values observed during the quarter and data ordered by incre
 `r CRE_count %>% tab_caption(caption = "Monthly CRE live oyster counts")`
 Live Counts range: `r CRE_Counts_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_Counts_temp  %>% slice(1) %>% pull(Value)`\
 Live Counts Mid-range: `r {if (nrow(CRE_Counts_temp) > 2) slice(., n() - 1) %>% pull(Value) else paste("")}` - `r {if (nrow(CRE_Counts_temp) > 2) slice(2)%>% pull(Value) else paste("")} `
-`r CRE_count_change`\
+`r CRE_count_change`
+\
+\
+\
+\
 `r CRE_dead %>% tab_caption(caption = "Monthly CRE dead ratios")`
 DeadRatio range: `r CRE_DR_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_DR_temp  %>% slice(1) %>% pull(Value)`\
 DeadRatio Mid-range: `r {if (nrow(CRE_DR_temp) > 2) slice(n()-1) %>% pull(Value) else paste("")}` - `r {if (nrow(CRE_DR_temp) > 2)  slice(2) %>% pull(Value) else paste("")} ` 
-`r CRE_dead_change`\
+`r CRE_dead_change`
+\
+\
+\
+\
 `r CRE_SH %>% tab_caption(caption = "Monthly CRE shell heights")`
 Shell height range: `r CRE_SH_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_SH_temp  %>% slice(1) %>% pull(Value)` \
 Shell height mid-range: `r {if (nrow(CRE_SH_temp) > 2) slice(n()-1)  %>% pull(Value)else paste("")}` - `r {if (nrow(CRE_SH_temp) > 2) slice(2) %>% pull(Value) else paste("")}` 
-
-
+\
+\
+\
+\
 <h3> `r paste("Recruitment summary")` </h3>
 `r Rcrt_CRE %>% gather(Station, RateMean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_rcrt %>% tab_caption(caption = "Monthly CRE recruitment rates")`
 Recruitment range: `r CRE_Rcrt_temp  %>% slice(n()) %>% pull(Value)` - `r CRE_Rcrt_temp  %>% slice(1) %>% pull(Value)` \
 Recruitment mid-range: `r CRE_Rcrt_temp  %>% slice(n()-1) %>% pull(Value)` - `r CRE_Rcrt_temp  %>% slice(2) %>% pull(Value)`
 `r Rcrt_CRE %>% pivot_longer(names_to = "Station", cols = -RetDate) %>% mutate(Station = sub("_Mean", "", Station)) %>% filter(value == 0) %>% arrange(RetDate) %>% gt(groupname_col = "RetDate") %>% tab_caption(caption = "No recruitment")`
-
-
+\
+\
+\
+\
 <h3> `r paste("Repro summary")` </h3>
 `r if(!is.null(CRE_repro) & !is.character(CRE_repro)){CRE_repro %>% tab_caption(caption = "Monthly CRE reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
-
-
+\
+\
+\
+\
 <h3> `r paste("Dermo summary")` </h3>
 `r Dermo_CRE %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_dermo %>% tab_caption(caption = "Monthly CRE dermo intensity and prevalence")`
 Intensity range: `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
 `r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderate heavy,  5-Heavy")`\
 Prevalence range: `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)`
-
-
+\
+\
+\
+\
 <h3> `r paste("Cage summary")` </h3>
 `r Cage_CRE %>% gather(Station, SHMean, -RetDate) %>% mutate(Station = substr(Station, 1, 6)) %>% filter(is.na(SHMean)) %>% dplyr::select(-SHMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r CRE_Cage %>% tab_caption(caption = "Monthly CRE-East cage data")`
@@ -427,15 +456,17 @@ Prevalence range: `r Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %
 Deployed SH Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.E")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.E")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-<
+
 `r CRW_Cage %>% tab_caption(caption = "Monthly CR-West cage data")`
-
+*The CRW cages were moved to station 4 in January 2026. Oysters are still collected from station 3.\
+Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
 Deployed SH Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Dep')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
-Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`\
-Percent Mortality Range: `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains('Pct')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
-
-
-
+Retrieved SH Range: `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(min_value = min(across(everything()), na.rm = TRUE)) %>% unlist()` - `r Cage_CRE %>% dplyr::select(contains("CR.W")) %>% dplyr::select(contains('Ret')) %>% mutate(across(where(is.numeric), ~ifelse(. <= 0 | is.na(.), NA, .))) %>% summarise(max_value = max(across(everything()), na.rm = TRUE)) %>% unlist()`
+*Any "NA" retrieved shell height values indicate when a cage was not retrieved due to being missing, flipped, or some other issue.
+\
+\
+\
+\
 <h3> `r paste("Water Quality summary")` </h3>
 `r CRE_Sal %>% tab_caption(caption = "Monthly CRE salinity measurements")`
 Salinity range: `r CRE_Sal_temp %>% slice(n()) %>% pull(Value)` - `r CRE_Sal_temp %>% slice(1) %>% pull(Value)`\

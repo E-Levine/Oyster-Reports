@@ -306,14 +306,15 @@ Natural reef station 3 (LWL3)  -- Bird Island\
 Restored reef station 2 (LWR2) -- Grassy Flats\
 Restored reef station 3 (LWR3) -- Snook Island\
 Restored reef station 4 (LWR4) -- Tarpon Cove\
-
-
+\
+\
 <h3> `r paste("Survey summary")` </h3>
 `r PBC_count %>% tab_caption(caption = "Monthly PBC live oyster counts")`
 Live Counts range: `r PBC_Counts_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(1) %>% pull(Value)` \
 Live counts Mid-range: `r PBC_Counts_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(2) %>% pull(Value)`
 `r PBC_count_change`\
 `r PBC_dead %>% tab_caption(caption = "Monthly PBC dead ratios")`
+\
 DeadRatio range: `r PBC_DR_temp %>% slice(n()) %>% pull(Value)` - `r PBC_DR_temp %>% slice(1) %>% pull(Value)`\
 DeadRatio Mid-range: `r PBC_DR_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_DR_temp %>% slice(2) %>% pull(Value)` 
 `r PBC_dead_change`\
@@ -326,22 +327,28 @@ Summary by reef type:
 `r SH_PBC %>% gather(Info, Value, -AnalysisDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), SH = substr(Info, 7, n())) %>% group_by(Site, SH) %>% summarise(Mean = round(mean(Value, na.rm = T),3)) %>% spread(SH, Mean) %>% gt()`
 Survey summary table:
 `r PBC_survey_sum %>% tab_caption(caption = "Survey summary by station")`
-
-
+\
+\
+\
+\
 <h3> `r paste("Repro summary")` </h3>
 `r if(!is.null(PBC_repro)  & !is.character(PBC_repro)){PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
-
-
+\
+\
+\
+\
 <h3> `r paste("Dermo summary")` </h3>
 `r Dermo_PBC %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_dermo %>% tab_caption(caption = "Monthly PBC dermo intensity and prevalence")`
 Intensity range: `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
 `r paste("Intensity categories: 0-Uninfected; 0.5-Very light;  1-Light;  2-Light to moderate;  3-Moderate;  4-Moderately heavy,  5-Heavy")`\
-Prevalence range: `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)`
+Prevalence range: `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% max(na.rm = T)`\
 Summary by reef type:
 `r Dermo_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% rename("Intensity" = Mean) %>% gt()`
-
-
+\
+\
+\
+\
 <h3> `r paste("Recruitment summary")` </h3>
 `r Rcrt_PBC %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>%  gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_rcrt %>% tab_caption(caption = "Monthly PBC recruitment rates")`
@@ -350,8 +357,10 @@ Recruitment Mid-range: `r PBC_Rcrt_temp %>% slice(n()-1) %>% pull(Value)` - `r P
 `r Rcrt_PBC %>% pivot_longer(names_to = "Station", cols = -RetDate) %>% mutate(Station = sub("_Mean", "", Station)) %>% filter(value == 0) %>% arrange(RetDate) %>% gt(groupname_col = "RetDate") %>% tab_caption(caption = "No recruitment")`
 Summary by reef type:
 `r Rcrt_PBC %>% gather(Info, Value, -RetDate) %>% mutate(Value = na_if(Value, -999), Site = substr(Info, 1, 4), Measure = substr(Info, 7, n())) %>% group_by(Site, Measure) %>% summarise(meanValue = round(mean(Value, na.rm = T),3)) %>% spread(Measure, meanValue) %>% gt()`
-
-
+\
+\
+\
+\
 <h3> `r paste("Sediment summary")` </h3>
 `r Rate_sta %>% gather(Station, RateMean, -AnalysisDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r Sta_Rates %>% tab_caption(caption = "Monthly sedimentation rate by station")`
@@ -361,7 +370,8 @@ LWL- `r Rate_sta %>% dplyr::select(contains("LW.L")) %>% unlist() %>% setdiff(.,
 -- -- LWR-  `r Rate_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Rate_sta %>% dplyr::select(contains("Lw.R")) %>% unlist() %>% setdiff(., NA) %>% max(na.rm = T)`\
 *Sedimentation rate mean: Overall-*`r Rate_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA)%>% mean(na.rm = T) %>% round(2)`\
 *by Site- *`r Rate_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value) %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
-
+\
+\
 `r Sta_Pcts %>% tab_caption(caption = "Monthly sedimentation percent organic by station")`
 *Percent organic range: Overall-*`r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`
 -- -- --*by Site-* 
@@ -369,7 +379,8 @@ LWL- `r Pct_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(.,
 -- -- LWR-  `r Pct_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Pct_sta %>% dplyr::select(contains("Lw.R")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`\
 *Percent organic mean: Overall-*`r Pct_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% mean(na.rm = T) %>% round(2)`\
 *by Site- *`r Pct_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value)  %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
-
+\
+\
 `r Sta_Wts %>% tab_caption(caption = "Monthly sedimentation organic weights by station")`
 *Organic weight range: Overall-*`r Wt_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Wt_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`
 -- -- --*by Site-* 
@@ -377,7 +388,9 @@ LWL- `r Wt_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(., 
 -- -- LWR-  `r Wt_sta %>% dplyr::select(contains("LW.R")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Wt_sta %>% dplyr::select(contains("Lw.R")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`\
 *Organic weight mean: Overall-*`r Wt_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% mean(na.rm = T) %>% round(2)`\
 *by Site- *`r Wt_sta %>% dplyr::select(contains("Mean")) %>% gather(Info, Value)  %>% mutate(Site = substr(Info,  1, 4)) %>% group_by(Site) %>% summarise(mean = round(mean(Value, na.rm = T), 2)) %>% gt()`
-
+\
+\
+\
 `r Pos_Rates %>% tab_caption(caption = "Monthly sedimentation rate by North v South stations")`
 *Sedimentation rate mean:* (North, South) `r Sedi_pos %>% subset(AnalysisDate >= Start_date & AnalysisDate < End_date) %>% dplyr::select(contains("RateMean")) %>% drop_na() %>% colMeans() %>% round(2)`
 `r Pos_Pcts %>% tab_caption(caption = "Monthly sedimentation percent organic by North v South stations")`
@@ -387,9 +400,14 @@ LWL- `r Wt_sta %>% dplyr::select(contains("LW.L")) %>% unlist()  %>% setdiff(., 
 Sediment trap summary tables:
 `r LWL_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate of natural reef stations. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
 `r LWR_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate of restoration reef stations. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
+\
+\
 `r North_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations North of C-51. Annual data includes samples from", End_date %m-% months(11) %>% format("%B %Y"), "through", End_date %>% format("%B %Y"), ".", sep = ""))`
 `r South_sum_tab %>% tab_caption(caption = paste("Mean quarterly sedimentation rate on reefs at stations South of C-51. Annual data includes samples from ", End_date %m-% months(11) %>% format("%B %Y"), " through ", End_date %>% format("%B %Y"), ".", sep = ""))`
-
+\
+\
+\
+\
 <h3> `r paste("Water Quality summary")` </h3>
 Salintiy and Secchi measurements observed during the quarter.
 `r PBC_Sal %>% tab_caption(caption = "Monthly PBC salinity measurements")`
