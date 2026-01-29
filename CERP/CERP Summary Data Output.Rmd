@@ -10,10 +10,10 @@ params:
     Dermo: TRUE
     Cage: TRUE
     Rcrt: TRUE
-    Repro: FALSE
+    Repro: TRUE
     Sedi: TRUE
     Srvy: TRUE
-    Raw_data: FALSE
+    Raw_data: TRUE
 ---
 
 ~~~{=comment}
@@ -25,7 +25,7 @@ If Raw_data = TRUE, raw data for updating grant manger data files will also be a
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine Williams") #Change to your name
-Database <- "Oysters_25-12-22"  #Set the local database to use
+Database <- "Oysters_26-01-28"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations sourced to repo Data folder.
 Start_date <- as.Date("2025-10-01")
