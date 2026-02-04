@@ -1,0 +1,152 @@
+---
+title: "Davis_ANERR Symposium_202602"
+output: html_document
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportYear <- "2025" # Sets Year of Report
+Database = "OysterLocalMD20251103"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+
+```
+
+```{r SetUp, echo = FALSE, warning = FALSE, message = FALSE}
+############
+# 01
+# Load necessary R packages
+library(tidyverse) # Loads a number of very useful packages
+library(odbc) # Necessary for loading data from SQL Server
+library(DBI) # Necessary for loading data from SQL Server
+library(dbplyr) # Necessary for loading data from SQL Server
+library(lubridate) # Makes dealing with dates easier
+library(knitr) # Allows Dynamic Report generation (knit)
+library(rmarkdown) # Necessary for working with RMarkdown files
+library(ggpubr) # Increases the flexibility of ggplot2 generated plots
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales) # Improves scales in plot labels
+library(plotrix) # needed for standard error calculations
+library(glmmTMB) # needed for modeled means
+library(DHARMa) # needed for model diagnostics
+library(performance) # needed for model diagnostics
+library(AICcmodavg) # needed for model selection
+library(emmeans) # needed to extract modeled means and CI
+
+# Set background variables
+ReportStart <- as.Date(paste0(ReportYear, "-01-01"))
+ReportEnd <- as.Date(paste0(ReportYear, "-12-31"))
+Estuaries <- c("AB")
+
+# Set data ranges
+Years_WQ <- seq(2015, ReportYear)
+Years_Survey <- seq(2015, ReportYear)
+Years_Recruitment <- seq(2015, ReportYear)
+Years_OyHealth <- seq(2016, ReportYear)
+
+# Set important lists
+lv3 <- c("West", "Central", "East")
+
+# Configure chunks
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE)
+
+############
+############
+
+############
+############
+# 02
+# Create all Functions necessary for Report
+
+### Filter Functions ###
+# Survey
+FilterFunction1 <- function(data) {
+  data %>% 
+    mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+           FixedLocationID = substring(QuadratID, 19, 22),
+           Year = year(TripDate)) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+    mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
+    mutate(ProjectGroup = case_when(
+      grepl("RESTORE", StationName) ~ "RESTORE-2017",
+      grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
+      grepl("SBM Hotel", StationName) | grepl("SBM Bulkhead", StationName) ~ "Historic Uncultched",
+      grepl("SBM", StationName) & Year >= 2021 & TimeSinceCultched > 0 ~ "NFWF-2021",
+      TRUE ~ "Historic Uncultched")) 
+}
+###
+
+### Survey Functions ###
+summarise_ALL <- function(data) {
+  summarised_data <- data %>%
+    summarise(NumLiveMean_raw = mean(NumLive, na.rm = TRUE),
+              NumLiveSD_raw = sd(NumLive, na.rm = TRUE),
+              NumDrillsMean_raw = mean(NumDrills, na.rm = TRUE),
+              NumDrillsSD_raw = sd(NumDrills, na.rm = TRUE),
+              TotalWeightMean_raw = mean(TotalWeight, na.rm = TRUE),
+              TotalWeightSD_raw = sd(TotalWeight, na.rm = TRUE)) %>%
+    mutate(NumLiveDensityMean_raw = NumLiveMean_raw * 4,
+           NumLiveDensitySD_raw = NumLiveSD_raw * 4,
+           NumDrillDensityMean_raw = NumDrillsMean_raw * 4,
+           NumDrillDensitySD_raw = NumDrillsSD_raw * 4,
+           TotalWeightDensityMean_raw = TotalWeightMean_raw * 4,
+           TotalWeightDensitySD_raw = TotalWeightSD_raw * 4)
+  return(summarised_data)
+}
+
+###
+
+# ----------------------------
+# Function to extract diagnostics
+# ----------------------------
+extract_diagnostics <- function(model, model_name = "Model") {
+
+  # 1. R-squared (handles NA for conditional R2)
+  r2_vals <- performance::r2(model)
+  r2_marg <- unname(r2_vals$R2_marginal)
+  r2_cond <- if ("R2_conditional" %in% names(r2_vals)) unname(r2_vals$R2_conditional) else NA
+  
+  # 2. Dispersion parameter
+  disp <- performance::check_overdispersion(model)$dispersion_ratio
+
+  # 3. Return a one-row dataframe
+  data.frame(
+    Model = model_name,
+    Num_Observations = nobs(model),
+    R2_Marginal = r2_marg,
+    R2_Conditional = r2_cond,
+    Dispersion_Ratio = disp
+  )
+}
+
+############
+############
+
+############
+############
+# 03
+# Set formatting for text and figures
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 12), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 12), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 10),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
+```
+
+``` {r SetUp Data Load}
+
+# Load data
+source("scripts/04ReportLoadData.R")
+# Apply basic filters to data
+source("scripts/05ReportBasicFilters.R")
+
+```
