@@ -6,7 +6,7 @@ output: html_document
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
 ReportYear <- "2025" # Sets Year of Report
-Database = "OysterLocalMD20251103"  # Set the local database to use
+Database = "OysterLocalMD20251120"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 
 ```
@@ -31,6 +31,7 @@ library(DHARMa) # needed for model diagnostics
 library(performance) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
 library(emmeans) # needed to extract modeled means and CI
+library(openxlsx) # needed to read and write to Excel
 
 # Set background variables
 ReportStart <- as.Date(paste0(ReportYear, "-01-01"))
@@ -143,10 +144,185 @@ BaseForm <- theme_classic() +
 ```
 
 ``` {r SetUp Data Load}
+############
+# 04
+# Load Data
 
-# Load data
-source("scripts/04ReportLoadData.R")
+# Load Database Data
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server", 
+                 Server = Server,
+                 Database = Database,
+                 Authentication = "ActiveDirectoryIntegrated")
+
+# Load Fixed location information
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+# Load Survey Data
+hsdbSurveyQuadrat <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+hsdbSurveySH <- tbl(con,in_schema("hsdb", "SurveySH")) %>%
+  collect() %>%
+  mutate(ShellHeight = as.integer(ShellHeight)) %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
+hsdbSBMQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+hsdbSBMSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
+  collect() %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
+# Disconnect from database
+DBI::dbDisconnect(con)
+
+# Load Excel Data
+excel_file_path <- "C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Survey_2025_temp.xlsx"
+xlSurveyQuadrat <- read.xlsx(excel_file_path, sheet = 1) 
+
+############
+############
+
+############
+############
+# 05
 # Apply basic filters to data
-source("scripts/05ReportBasicFilters.R")
+# Filter data frames so that only data collected for inclusion in the Report are present.
+
+### Location Data ###
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched),
+         SectionName = case_when(
+           SectionName == "W" ~ "West",
+           SectionName == "C" ~ "Central",
+           SectionName == "E" ~ "East",
+           TRUE ~ SectionName)) %>%
+  select(FixedLocationID,
+         Estuary,
+         SectionName,
+         StationName,
+         ParcelName,
+         StationNumber,
+         StationNameNumber,
+         DateLastCultched,
+         ParcelArea) %>% 
+  distinct()
+
+    ### Remove intermediate data frames
+rm(dboFixedLocations)
+###
+
+### Survey Data ###
+    ### QUADRATS ###  
+    # Survey QUADRATS #
+Survey_Quad1 <- hsdbSurveyQuadrat %>%
+  select(QuadratID,
+         NumLive,
+         TotalWeight)
+
+    # SBM QUADRATS # 
+SBM_Quad1 <- hsdbSBMQuadrat %>%
+  rename(TotalWeight = TotalSampleWeight, # Must rename the columns so we can union them together
+         NumLive = NumLiveOysters) %>%
+  select(QuadratID,
+         NumLive,
+         TotalWeight)
+
+    # Excel Quadrats #
+Quadrats_xl <- xlSurveyQuadrat %>%
+  mutate(
+    FixedLocationID = str_pad(FixedLocationID, width = 4, side =  c("left"), pad = c("0")),
+    TripDate = as.Date("2025-05-15"),
+    Year = 2025) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+  mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
+  mutate(ProjectGroup = case_when(
+    grepl("RESTORE", StationName) ~ "RESTORE-2017",
+    grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
+    grepl("SBM Hotel", StationName) | grepl("SBM Bulkhead", StationName) ~ "Historic Uncultched",
+    grepl("SBM", StationName) & Year >= 2021 & TimeSinceCultched > 0 ~ "NFWF-2021",
+    TRUE ~ "Historic Uncultched")) %>%
+  select(FixedLocationID,
+         TripDate,
+         Estuary,
+         SectionName,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         Year,
+         NumLive,
+         TotalWeight)
+
+    # ALL Quadrats # 
+Quadrats_SQL <- union(Survey_Quad1, SBM_Quad1) %>%
+  FilterFunction1() %>%
+  select(FixedLocationID,
+         TripDate,
+         Estuary,
+         SectionName,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         Year,
+         NumLive,
+         TotalWeight)
+    ###
+
+Quadrats_ALL <- union(Quadrats_SQL, Quadrats_xl) 
+
+    ### SHELL HEIGHTS ###
+    # Survey SHELL HEIGHTS #
+Survey_SH1 <- hsdbSurveySH %>%
+  select(ShellHeightID, 
+         QuadratID, 
+         ShellHeight,
+         Comments)
+
+    # SBM SHELL HEIGHTS #
+SBM_SH1 <- hsdbSBMSH %>%
+  filter(LiveOrDead != "Dead") %>% ### Remove measures of dead
+  select(ShellHeightID, 
+         QuadratID, 
+         ShellHeight,
+         Comments)
+
+    # ALL Shell Heights #
+ShellHeights_ALL <- union(Survey_SH1, SBM_SH1) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         SectionName,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         Year,
+         ShellHeight,
+         Comments)
+    ###
+
+    ### Remove intermediate data frames
+rm(hsdbSBMQuadrat, hsdbSBMSH, hsdbSurveyQuadrat, hsdbSurveySH)
+rm(SBM_Quad1, SBM_SH1, Survey_Quad1, Survey_SH1)
+rm(Quadrats_SQL, Quadrats_xl, xlSurveyQuadrat)
 
 ```
+
+
