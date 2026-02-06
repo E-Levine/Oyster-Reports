@@ -53,6 +53,8 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE)
 
+options(scipen = 999) # force outputs to not use scientific notation
+
 ############
 ############
 
@@ -322,18 +324,107 @@ TotalWeightStats_RAW <- QuadStats %>%
           ProjectGroup) %>%
   select(-matches("Num"))
 
- 
-
-#  # Create a complete grid for all years, sections, and projects
-# df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
-#     left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
-#     mutate(has_data = !is.na(RawOysterDensityMean), # Add a flag for missing data
-#            SectionName = factor(SectionName, levels = lv3))
-
 
 ```
 
+``` {r NumLiveStats}
+# Analysis indicates that Historic and Restoration data should be modeled separately
 
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$NumLive)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+# RESTORE-2017
+hist(subset(QuadStats, ProjectGroup == "RESTORE-2017")$NumLive)
+
+### Historic Model ###
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+# Adding in extra nested structure to the random effects improved AIC and ultimately DHARMa, but keeping Section as a fixed effect was best
+# Adding in dispformula = ~ SectionName improved fit, suggesting that variance is different between sections, but so are means. Preference for the simpler model meant leaving that out
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), 
+                       family = nbinom2,   
+                       data = QuadStats,
+                       subset = ProjectGroup == "Historic Uncultched")
+
+# Compare all models
+#aictab(list(NumLive_Historic,NumLive_Historic2))
+# Check goodness of fit
+simulateResiduals(NumLive_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was slightly detrimental to the model
+# Adding nested random effects did not improve AIC, thus simpler is chosen, but keeping Section as a fixed effect was best
+NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), # Best
+                       family = nbinom2,  
+                       data = QuadStats,
+                       subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF2021, n = 1000, plot = T)
+
+## RESTORE-2017 ##
+# Adapting NFWF code
+NumLive_RESTORE2017 <- glmmTMB(NumLive ~ (1 | FixedLocationID), # Best
+                       family = nbinom2,  
+                       data = QuadStats,
+                       subset = ProjectGroup == "RESTORE-2017")
+
+# Check goodness of fit
+simulateResiduals(NumLive_RESTORE2017, n = 1000, plot = T)
+
+# Look at summaries
+summary(NumLive_Historic)
+summary(NumLive_NFWF2021)
+summary(NumLive_RESTORE2017)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year * SectionName, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched") 
+
+NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year * SectionName, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021")
+
+NumLiveStats_restore2017 <- emmeans(NumLive_RESTORE2017, ~ 1, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "RESTORE-2017")
+
+NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021, NumLiveStats_restore2017) %>%
+  rename(NumLiveMean_modeled = response,
+         NumLiveLower_modeled = asymp.LCL,
+         NumLiveUpper_modeled = asymp.UCL) %>%
+  mutate(NumLiveMeanDensity_modeled = NumLiveMean_modeled * 4,
+         NumLiveLowerDensity_modeled = NumLiveLower_modeled * 4,
+         NumLiveUpperDensity_modeled = NumLiveUpper_modeled * 4) %>%
+  select(-SE, -df) %>%
+  mutate(NumLiveUpperDensity_modeled = case_when(
+    NumLiveMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLiveUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+NumLiveStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Weight"))
+
+# rm(NumLiveStats_historic, NumLiveStats_RAW, NumLiveStats_RAW, NumLiveStats_RAW)
+
+
+  
+```
 
 
 
