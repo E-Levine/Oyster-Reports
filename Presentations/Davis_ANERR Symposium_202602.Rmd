@@ -84,6 +84,18 @@ extract_diagnostics <- function(model, model_name = "Model") {
   )
 }
 
+summarise_ALL <- function(data) {
+  summarised_data <- data %>%
+    summarise(NumLiveMean_raw = mean(NumLive, na.rm = TRUE),
+              NumLiveSD_raw = sd(NumLive, na.rm = TRUE),
+              TotalWeightMean_raw = mean(TotalWeight, na.rm = TRUE),
+              TotalWeightSD_raw = sd(TotalWeight, na.rm = TRUE)) %>%
+    mutate(NumLiveDensityMean_raw = NumLiveMean_raw * 4,
+           NumLiveDensitySD_raw = NumLiveSD_raw * 4,
+           TotalWeightDensityMean_raw = TotalWeightMean_raw * 4,
+           TotalWeightDensitySD_raw = TotalWeightSD_raw * 4)
+  return(summarised_data)
+}
 ############
 ############
 
@@ -216,7 +228,115 @@ rm(QuadStats0, Quadrats_xl, xlSurveyQuadrat)
 
 
 
+``` {r SampleWeightStats}
+# Analysis indicates that Historic and Restoration data should be modeled separately
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$TotalWeight)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$TotalWeight) 
+# RESTORE-2017
+hist(subset(QuadStats, ProjectGroup == "RESTORE-2017")$TotalWeight)
+
+### Historic Model ###
+# Gamma out performed Gaussian
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = Gamma(link = "log"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "Historic Uncultched")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Gaussian out performed Gamma
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+
+TotalWeight_NFWF2021 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = gaussian(link = "identity"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF2021, n = 1000, plot = T)
+
+## RESTORE-2017 ##
+# Replicated NFWF code
+
+TotalWeight_RESTORE2017 <- glmmTMB(TotalWeight ~ (1 | FixedLocationID), # Best
+                      family = gaussian(link = "identity"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "RESTORE-2017")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_RESTORE2017, n = 1000, plot = T)
+
+
+# Look at summaries
+summary(TotalWeight_Historic)
+summary(TotalWeight_NFWF2021)
+summary(TotalWeight_RESTORE2017)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+TotalWeightStats_historic <- emmeans(TotalWeight_Historic, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched") 
+
+TotalWeightStats_nfwf2021 <- emmeans(TotalWeight_NFWF2021, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021") %>%
+  rename(response = emmean)
+
+TotalWeightStats_restore2017 <- emmeans(TotalWeight_RESTORE2017, ~ 1, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "RESTORE-2017") %>%
+  rename(response = emmean)
+
+
+
+TotalWeightStats_modeled <- bind_rows(TotalWeightStats_historic, TotalWeightStats_nfwf2021, TotalWeightStats_restore2017) %>%
+  rename(TotalWeightMean_modeled = response,
+         TotalWeightLower_modeled = asymp.LCL,
+         TotalWeightUpper_modeled = asymp.UCL) %>%
+  mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
+         TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
+         TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
+  select(-SE, -df) %>%
+  mutate(TotalWeightUpperDensity_modeled = case_when(
+    TotalWeightMean_modeled <= 0 ~ 0,
+    TRUE ~ TotalWeightUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+TotalWeightStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Num"))
+
+ 
+
+#  # Create a complete grid for all years, sections, and projects
+# df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
+#     left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
+#     mutate(has_data = !is.na(RawOysterDensityMean), # Add a flag for missing data
+#            SectionName = factor(SectionName, levels = lv3))
+
+
 ```
+
+
+
+
+
 
 
 
