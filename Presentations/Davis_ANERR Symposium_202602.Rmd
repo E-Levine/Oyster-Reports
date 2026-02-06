@@ -192,9 +192,7 @@ Quadrats_xl <- xlSurveyQuadrat %>%
   mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
   mutate(ProjectGroup = case_when(
     grepl("RESTORE", StationName) ~ "RESTORE-2017",
-    grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
-    grepl("SBM Hotel", StationName) | grepl("SBM Bulkhead", StationName) ~ "Historic Uncultched",
-    grepl("SBM", StationName) & Year >= 2021 & TimeSinceCultched > 0 ~ "NFWF-2021",
+    grepl("NFWF", StationName) ~ "NFWF-2021",
     TRUE ~ "Historic Uncultched")) %>%
   select(FixedLocationID,
          TripDate,
@@ -426,8 +424,208 @@ NumLiveStats_RAW <- QuadStats %>%
   
 ```
 
+``` {r NumLegalStats}
+# Determine which stations have enough legal oysters to merit inclusion in the modeling process
+# For this we will only include stations whose raw mean is greater than 1 legal oysters PER QUADRAT
+QuadStatsLegal_List <- QuadStats %>% # Determine raw mean per quadrat 
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  summarise(N = sum(!is.na(NumLegal)),
+              NumLegal_Mean = mean(NumLegal, na.rm = TRUE)) 
+QuadStatsLegal_NoModel <- QuadStatsLegal_List %>%
+  filter(NumLegal_Mean < 2)
+QuadStatsLegal_YesModel <- QuadStatsLegal_List %>%
+  filter(NumLegal_Mean >= 2)
+rm(QuadStatsLegal_List)
+
+# Round Legal Number to a whole number
+QuadStatsLegal <- QuadStats %>%
+  filter(Year == ReportYear) %>%
+  right_join(QuadStatsLegal_YesModel,
+            by = c("FixedLocationID")) %>%
+  mutate(NumLegal = round(NumLegal))
+
+# Analysis indicates ......
+
+# Figure out which data distribution to use
+# Historic
+#hist(subset(QuadStatsLegal, ProjectGroup == "Historic Uncultched")$NumLegal)
+# NFWF-2021
+hist(subset(QuadStatsLegal, ProjectGroup == "NFWF-2021")$NumLegal)
+# RESTORE-2017
+hist(subset(QuadStatsLegal, ProjectGroup == "RESTORE-2017")$NumLegal)
 
 
 
+### Testing pooled vs. reef-specific means
+# Model A (pooled)
+m_pooled <- glmmTMB(NumLegal ~ 1,
+                    family = nbinom2,
+                    data = QuadStatsLegal)
+# Model B (reef-specific means)
+m_Reef_Specific <- glmmTMB(NumLegal ~ FixedLocationID,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Model C (ProjectGroup-specific means)
+m_Project_Specific <- glmmTMB(NumLegal ~ ProjectGroup,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Compared
+anova(m_pooled, m_Reef_Specific, m_Project_Specific)
+#### Results indicate adding ProjectGroup slightly improved model fit (ΔAIC = 1.8, p < 0.52). Adding reef-specific means marginally improved model fit and was not statistically significant (ΔAIC = 0.3, p = 0.12) Thus models for all were pooled
+
+
+### Testing to see if each reef needs its own dispersion parameter
+## Model with shared dispersion:
+m1 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~1,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with reef-specific dispersion:
+m2 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with ProjectGroup-specific dispersion:
+m3 <- glmmTMB(NumLegal ~ ProjectGroup,
+              dispformula = ~ProjectGroup,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Compare:
+anova(m1, m2, m3)
+#### Results indicate adding ProjectGroup specific dispersion improved model fit (ΔAIC = 5.2, p = 0.0086). Thus, an extra dispersion parameter will be used.
+
+
+### Testing to see if zero inflation varies strongly among reef
+## Without zero inflation:
+m0 <- glmmTMB(NumLegal ~ FixedLocationID,
+              ziformula = ~0,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# With zero inflation:
+mzi <- glmmTMB(NumLegal ~ FixedLocationID,
+               ziformula = ~1,
+               family = nbinom2,
+               data = QuadStatsLegal)
+# Compare:
+anova(m0, mzi)
+#### Results indicate adding reef-specific zero inflation did not massively help fit (ΔAIC = 2.8,) but was not significant (p = 0.028). No zero inflation included
+
+### Pooled
+# Negative binomial out performed Poisson
+NumLegal_Pooled <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              dispformula = ~ ProjectGroup
+              )
+
+# Check goodness of fit
+simulateResiduals(NumLegal_Pooled, n = 1000, plot = T)
+
+### RESTORE-2017
+# Negative binomial out performed Poisson
+NumLegal_RESTORE2017 <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "RESTORE-2017")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_RESTORE2017, n = 1000, plot = T)
+
+
+
+### NFWF-2021
+# Negative binomial out performed Poisson
+NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
+
+
+
+
+
+
+# Look at summaries
+summary(NumLegal_Pooled)
+summary(NumLegal_RESTORE2017)
+summary(NumLegal_NFWF2021)
+
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+NumLegalStats_Pooled <- emmeans(NumLegal_Pooled, ~ FixedLocationID, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = case_when(
+    FixedLocationID == "0391" ~ "RESTORE-2017",
+    FixedLocationID == "0392" ~ "RESTORE-2017",
+    FixedLocationID == "0393" ~ "RESTORE-2017",
+    FixedLocationID == "0394" ~ "RESTORE-2017",
+    FixedLocationID == "0396" ~ "RESTORE-2017",
+    FixedLocationID == "0397" ~ "RESTORE-2017",
+    FixedLocationID == "0398" ~ "NFWF-2021",
+    FixedLocationID == "0399" ~ "NFWF-2021",
+    FixedLocationID == "0400" ~ "NFWF-2021",
+    TRUE ~ NA))
+
+
+NumLegalStats_modeled <- NumLegalStats_Pooled %>%
+  rename(NumLegalMean_modeled = response,
+         NumLegalLower_modeled = asymp.LCL,
+         NumLegalUpper_modeled = asymp.UCL) %>%
+  mutate(NumLegalMeanDensity_modeled = NumLegalMean_modeled * 4,
+         NumLegalLowerDensity_modeled = NumLegalLower_modeled * 4,
+         NumLegalUpperDensity_modeled = NumLegalUpper_modeled * 4) %>%
+  select(-SE, -df, -ProjectGroup) %>%
+  mutate(NumLegalUpperDensity_modeled = case_when(
+    NumLegalMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLegalUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+NumLegalStats_RAW <- QuadStats %>%
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  group_by(ProjectGroup, FixedLocationID) %>%
+    summarise(N = sum(!is.na(NumLegal)),
+              NumLegal_Mean_raw = mean(NumLegal, na.rm = TRUE),
+              NumLegal_SD_raw = sd(NumLegal, na.rm = TRUE)) %>%
+    mutate(NumLegal_DensityMean_raw = NumLegal_Mean_raw * 4,
+           NumLegal_DensitySD_raw = NumLegal_SD_raw * 4) %>%
+  arrange(FixedLocationID) %>%
+  select(-matches("Live|Weight|Drill"))
+
+NumLegalStats_ALL <- right_join(NumLegalStats_modeled, 
+                              NumLegalStats_RAW, 
+                              by = c("FixedLocationID")) %>%
+  left_join(FixedLocations1,
+            by = c("FixedLocationID")) %>%
+  mutate(ParcelArea = case_when( # For parcels with no Area (Historic bars) assign area as 1 acre
+    is.na(ParcelArea) ~ 1,
+    TRUE ~ ParcelArea),
+    LowerBagsPerAcre = (NumLegalLowerDensity_modeled * 4047) / 225,
+    HarvestableBags = case_when( # Only reefs with LowerBags perAcre is >= 400 are harvestable
+      LowerBagsPerAcre >= 400 ~ (LowerBagsPerAcre * ParcelArea) * 0.1,
+      TRUE ~ NA))
+
+
+```
+
+
+``` {r Export numbers}
+
+write.xlsx(list(
+    "WeightModeled" = TotalWeightStats_modeled,
+    "NumLiveModeled" = NumLiveStats_modeled,
+    "NumLegalAll" = NumLegalStats_ALL,
+    "WeightRaw" = TotalWeightStats_RAW,
+    "NumLiveRaw" = NumLiveStats_RAW),
+  file = "ouput.xlsx",
+  colNames = TRUE)
+
+```
 
 
