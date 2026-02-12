@@ -143,6 +143,7 @@ DBI::dbDisconnect(con)
 # Load Excel Data
 excel_file_path <- "C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Survey_2025_temp.xlsx"
 xlSurveyQuadrat <- read.xlsx(excel_file_path, sheet = 1) 
+xlSH <- read.xlsx(excel_file_path, sheet = 7)
 
 QuadStats0 <- read.xlsx("QuadStats1.xlsx") %>%
   mutate(TripDate = as.Date(as.numeric(TripDate), origin = "1900-01-01"))
@@ -342,7 +343,7 @@ hist(subset(QuadStats, ProjectGroup == "RESTORE-2017")$NumLive)
 # Leaving out Random effect of Location was very detrimental to the model
 # Adding in extra nested structure to the random effects improved AIC and ultimately DHARMa, but keeping Section as a fixed effect was best
 # Adding in dispformula = ~ SectionName improved fit, suggesting that variance is different between sections, but so are means. Preference for the simpler model meant leaving that out
-NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), 
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), 
                        family = nbinom2,   
                        data = QuadStats,
                        subset = ProjectGroup == "Historic Uncultched")
@@ -358,7 +359,7 @@ simulateResiduals(NumLive_Historic, n = 1000, plot = T)
 # Zero-inflation did not improve model fit
 # Leaving out Random effect of Location was slightly detrimental to the model
 # Adding nested random effects did not improve AIC, thus simpler is chosen, but keeping Section as a fixed effect was best
-NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), # Best
+NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
                        family = nbinom2,  
                        data = QuadStats,
                        subset = ProjectGroup == "NFWF-2021")
@@ -383,11 +384,11 @@ summary(NumLive_RESTORE2017)
 
 # Create dataframe to store 
 ####### Put the modeled means into a data frame for plotting
-NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year * SectionName, type = "response") %>%
+NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year, type = "response") %>%
   as.data.frame() %>%
   mutate(ProjectGroup = "Historic Uncultched") 
 
-NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year * SectionName, type = "response") %>%
+NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year, type = "response") %>%
   as.data.frame() %>%
   mutate(ProjectGroup = "NFWF-2021")
 
@@ -411,8 +412,7 @@ NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021, 
 # Generate raw mean and SD
 NumLiveStats_RAW <- QuadStats %>%
   group_by(Year, 
-           ProjectGroup,
-           SectionName) %>%
+           ProjectGroup) %>%
   summarise_ALL() %>%
   arrange(Year,
           ProjectGroup) %>%
@@ -628,4 +628,41 @@ write.xlsx(list(
 
 ```
 
+``` {r Size Distribution Figures}
+### Size Distributions
 
+# Prep data frame for creating SH distribution histogram for PROJECT YEAR
+ShellHeightsReportYrX <- xlSH %>%
+  mutate(ShellHeightBin = cut(SH, 
+                              breaks = seq(0, ceiling(max(SH, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(ProjectGroup) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(ProjectGroup, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
+
+
+
+maxSH <- 150
+
+# Report Year
+# Histograms
+
+histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+  geom_col() +
+  facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  BaseForm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+histogramY
+
+
+```
