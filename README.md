@@ -14,8 +14,9 @@ Updates to some monthly and quarterly reports to allow for in-network sharing an
 - /FLTIG - RMarkdown scripts for the Florida Trustees Implementation Group Data Gaps project  - Current versions: Annually.<br>
 - /Monthly - RMarkdown scripts for compilation of monthly reports by staff other than data manager. <br>
 - /NFWF2 - RMarkdown scripts for the National Fish and Wildlife Foundation 2.0 project - Current versions: Quarterly. <br>
-- /Presentations - RMarkdown scripts for Presentations given to other groups. As needed. <br>
 - /PBC - RMarkdown scripts for Plam Beach County project - Current versions: Monthly, Quarterly. Repository for files with access to the database. In-network versions can be found in their respective report-type folders.<br>
+- /Presentations - RMarkdown scripts for Presentations given to other groups. As needed. <br>
+- /Quarterly - RMarkdown scripts for compilation of quarterly reports by staff other than data manager. <br>
 
 
 ### FILE USE <br>
