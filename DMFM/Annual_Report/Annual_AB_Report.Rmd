@@ -35,16 +35,16 @@ source("scripts/05ReportBasicFilters.R")
 # Water Quality - Temp, Salinity, Dissolved oxygen
 #12
 
-# Survey portion of report
-render("scripts/13Surveyv2.Rmd", quiet = TRUE)
-# Recruitment portion of report
-render("scripts/14Recruitment.Rmd", quiet = TRUE)
-# Condition Index portion of report
-render("scripts/15ConditionIndex.Rmd", quiet = TRUE)
-# Dermo portion of report
-render("scripts/16Dermo.Rmd", quiet = TRUE)
-# Buceph portion of report
-render("scripts/17Buceph.Rmd", quiet = TRUE)
+# # Survey portion of report
+# render("scripts/13Surveyv2.Rmd", quiet = TRUE)
+# # Recruitment portion of report
+# render("scripts/14Recruitment.Rmd", quiet = TRUE)
+# # Condition Index portion of report
+# render("scripts/15ConditionIndex.Rmd", quiet = TRUE)
+# # Dermo portion of report
+# render("scripts/16Dermo.Rmd", quiet = TRUE)
+# # Buceph portion of report
+# render("scripts/17Buceph.Rmd", quiet = TRUE)
 # Repro portion of report
 render("scripts/18Repro.Rmd", quiet = TRUE)
 

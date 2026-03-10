@@ -9,8 +9,12 @@ output: html_document
 
 ### Stats for Repro 
 ReproStats <- Repro %>%
-  mutate(Month = month(TripDate),
-         Year = year(TripDate),
+  mutate(Year = year(TripDate)) %>%
+  filter(Year <= ReportYear) %>%
+  mutate(Month = as.factor(month(TripDate)),
+         Year = as.factor(Year),
+         SectionName = factor(SectionName,
+                              levels = lv3),
          LinearOy = ShellHeight + ShellLength + ShellWidth, # not used
          CubicOy = ShellHeight * ShellLength * ShellWidth, # not used
          SH_scaled = scale(ShellHeight)[, 1], # not used
@@ -18,8 +22,10 @@ ReproStats <- Repro %>%
          LO_scaled = scale(LinearOy)[, 1], # not used
          CO_scaled = scale(CubicOy)[, 1], # not used
          Sex = factor(Sex, 
-                      levels = c("M", "F", "M/F", "Z"))) %>%
-  filter(Year <= ReportYear) 
+                      levels = c("M", "F", "M/F", "Z")),
+         ReproStage = factor(ReproStage,
+                             levels = c("1", "2", "3", "4", "Z")))
+  
   
 # Remove Null values that can break the later models
 ReproStats2 <- ReproStats %>%
@@ -137,9 +143,9 @@ priors <- c( # Random effects (both grouping factors)
 # The interaction term creates many sparse cells. To fix that I used random interaction (1 | SectionName:Year).
 # Using preset priors to actively prevent separation. Why: log-odds of ±5 are already extreme biologically; prevents runaway coefficients; improves sampler geometry
 # The portion chains to control use HMC settings that are stable, but not excessive
+
 SexRatio <- brm(
-  Sex ~ factor(SectionName) + factor(Year) + factor(Month) + Wt_scaled +
-      (1 | FixedLocationID) + (1 | SectionName:Year),
+  Sex ~ SectionName + Year + Month + Wt_scaled + (1 | FixedLocationID) + (1 | SectionName:Year),
   data = ReproStats2,
   family = categorical(),
   prior = priors,
@@ -163,11 +169,43 @@ saveRDS(SexRatio,
 ### Loads model without having to rerun it
 SexRatio <- readRDS("models/sexratio_brm_final.rds")
 
+# Instead of simulateResiduals() using posterior predictive checks (PPCs)
+# These compare observed category frequencies to those generated from the fitted model.
+# Light bars (y) = observed counts in each category; Dark points (yrep) = mean of replicated datasets drawn from the posterior; Vertical uncertainty = variability across posterior draws
+
+# The posterior predictive distribution is centered very closely on the observed counts. No category is systematically over- or under-predicted. Even the rare category (Stage 3) is captured well.
+# This is strong evidence that: The multinomial/ordinal likelihood is appropriate and the model is not misallocating probability mass across categories. You can confidently say the model reproduces the observed marginal distribution.
+pp_check(SexRatio, type = "bars", ndraws = 100) +
+  labs(x = "Sex category",
+    y = "Count") +
+  theme_bw()
+
+loo(SexRatio)
 
 
 
+summary(SexRatio)   # R-hat, ESS
+plot(SexRatio)      # trace plots
 
 
+
+pp <- posterior_epred(SexRatio)
+
+pp_month <- pp |>
+  apply(3, mean) |>
+  as_tibble() |>
+  mutate(Month = levels(ReproStats2$Month))
+
+
+ce <- conditional_effects(
+  SexRatio,
+  effects = "SectionName",
+  categorical = TRUE
+)
+
+plot(ce, points = TRUE)
+
+```
 
 
 ``` {Repro Text}
