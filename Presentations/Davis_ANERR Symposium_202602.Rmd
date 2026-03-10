@@ -1,0 +1,668 @@
+---
+title: "Davis_ANERR Symposium_202602"
+output: html_document
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportYear <- "2025" # Sets Year of Report
+Database = "OysterLocalMD20251120"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+
+```
+
+```{r SetUp, echo = FALSE, warning = FALSE, message = FALSE}
+############
+# 01
+# Load necessary R packages
+library(tidyverse) # Loads a number of very useful packages
+library(odbc) # Necessary for loading data from SQL Server
+library(DBI) # Necessary for loading data from SQL Server
+library(dbplyr) # Necessary for loading data from SQL Server
+library(lubridate) # Makes dealing with dates easier
+library(knitr) # Allows Dynamic Report generation (knit)
+library(rmarkdown) # Necessary for working with RMarkdown files
+library(ggpubr) # Increases the flexibility of ggplot2 generated plots
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales) # Improves scales in plot labels
+library(plotrix) # needed for standard error calculations
+library(glmmTMB) # needed for modeled means
+library(DHARMa) # needed for model diagnostics
+library(performance) # needed for model diagnostics
+library(AICcmodavg) # needed for model selection
+library(emmeans) # needed to extract modeled means and CI
+library(openxlsx) # needed to read and write to Excel
+
+# Set background variables
+ReportStart <- as.Date(paste0(ReportYear, "-01-01"))
+ReportEnd <- as.Date(paste0(ReportYear, "-12-31"))
+Estuaries <- c("AB")
+
+# Set data ranges
+Years_WQ <- seq(2015, ReportYear)
+Years_Survey <- seq(2015, ReportYear)
+Years_Recruitment <- seq(2015, ReportYear)
+Years_OyHealth <- seq(2016, ReportYear)
+
+# Set important lists
+lv3 <- c("West", "Central", "East")
+
+# Configure chunks
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE)
+
+options(scipen = 999) # force outputs to not use scientific notation
+
+############
+############
+
+############
+############
+# 02
+# Create all Functions necessary for Report
+
+# ----------------------------
+# Function to extract diagnostics
+# ----------------------------
+extract_diagnostics <- function(model, model_name = "Model") {
+
+  # 1. R-squared (handles NA for conditional R2)
+  r2_vals <- performance::r2(model)
+  r2_marg <- unname(r2_vals$R2_marginal)
+  r2_cond <- if ("R2_conditional" %in% names(r2_vals)) unname(r2_vals$R2_conditional) else NA
+  
+  # 2. Dispersion parameter
+  disp <- performance::check_overdispersion(model)$dispersion_ratio
+
+  # 3. Return a one-row dataframe
+  data.frame(
+    Model = model_name,
+    Num_Observations = nobs(model),
+    R2_Marginal = r2_marg,
+    R2_Conditional = r2_cond,
+    Dispersion_Ratio = disp
+  )
+}
+
+summarise_ALL <- function(data) {
+  summarised_data <- data %>%
+    summarise(NumLiveMean_raw = mean(NumLive, na.rm = TRUE),
+              NumLiveSD_raw = sd(NumLive, na.rm = TRUE),
+              TotalWeightMean_raw = mean(TotalWeight, na.rm = TRUE),
+              TotalWeightSD_raw = sd(TotalWeight, na.rm = TRUE)) %>%
+    mutate(NumLiveDensityMean_raw = NumLiveMean_raw * 4,
+           NumLiveDensitySD_raw = NumLiveSD_raw * 4,
+           TotalWeightDensityMean_raw = TotalWeightMean_raw * 4,
+           TotalWeightDensitySD_raw = TotalWeightSD_raw * 4)
+  return(summarised_data)
+}
+############
+############
+
+############
+############
+# 03
+# Set formatting for text and figures
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 12), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 12), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 10),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
+```
+
+``` {r SetUp Data Load}
+############
+# 04
+# Load Data
+
+# Load Database Data
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server", 
+                 Server = Server,
+                 Database = Database,
+                 Authentication = "ActiveDirectoryIntegrated")
+
+# Load Fixed location information
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+# Disconnect from database
+DBI::dbDisconnect(con)
+
+# Load Excel Data
+excel_file_path <- "C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Survey_2025_temp.xlsx"
+xlSurveyQuadrat <- read.xlsx(excel_file_path, sheet = 1) 
+xlSH <- read.xlsx(excel_file_path, sheet = 7)
+
+QuadStats0 <- read.xlsx("QuadStats1.xlsx") %>%
+  mutate(TripDate = as.Date(as.numeric(TripDate), origin = "1900-01-01"))
+
+############
+############
+
+############
+############
+# 05
+# Apply basic filters to data
+# Filter data frames so that only data collected for inclusion in the Report are present.
+
+### Location Data ###
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched),
+         SectionName = case_when(
+           SectionName == "W" ~ "West",
+           SectionName == "C" ~ "Central",
+           SectionName == "E" ~ "East",
+           TRUE ~ SectionName)) %>%
+  select(FixedLocationID,
+         Estuary,
+         SectionName,
+         StationName,
+         ParcelName,
+         StationNumber,
+         StationNameNumber,
+         DateLastCultched,
+         ParcelArea) %>% 
+  distinct()
+
+    ### Remove intermediate data frames
+rm(dboFixedLocations)
+###
+
+### Survey Data ###
+    ### QUADRATS ###  
+    # Excel Quadrats #
+Quadrats_xl <- xlSurveyQuadrat %>%
+  mutate(
+    FixedLocationID = str_pad(FixedLocationID, width = 4, side =  c("left"), pad = c("0")),
+    TripDate = as.Date("2025-05-15"),
+    Year = 2025) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+  mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
+  mutate(ProjectGroup = case_when(
+    grepl("RESTORE", StationName) ~ "RESTORE-2017",
+    grepl("NFWF", StationName) ~ "NFWF-2021",
+    TRUE ~ "Historic Uncultched")) %>%
+  select(FixedLocationID,
+         TripDate,
+         Estuary,
+         SectionName,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         Year,
+         NumLive,
+         TotalWeight,
+         NumLegal)
+
+QuadStats <- union(QuadStats0, Quadrats_xl) 
+
+
+
+    ### SHELL HEIGHTS ###
+    # Survey SHELL HEIGHTS #
+
+    ###
+
+    ### Remove intermediate data frames
+
+rm(QuadStats0, Quadrats_xl, xlSurveyQuadrat)
+
+```
+
+# Perform basic analyses, output figures and tables for Survey data
+
+
+
+``` {r SampleWeightStats}
+# Analysis indicates that Historic and Restoration data should be modeled separately
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$TotalWeight)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$TotalWeight) 
+# RESTORE-2017
+hist(subset(QuadStats, ProjectGroup == "RESTORE-2017")$TotalWeight)
+
+### Historic Model ###
+# Gamma out performed Gaussian
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = Gamma(link = "log"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "Historic Uncultched")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Gaussian out performed Gamma
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+
+TotalWeight_NFWF2021 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = gaussian(link = "identity"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF2021, n = 1000, plot = T)
+
+## RESTORE-2017 ##
+# Replicated NFWF code
+
+TotalWeight_RESTORE2017 <- glmmTMB(TotalWeight ~ (1 | FixedLocationID), # Best
+                      family = gaussian(link = "identity"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "RESTORE-2017")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_RESTORE2017, n = 1000, plot = T)
+
+
+# Look at summaries
+summary(TotalWeight_Historic)
+summary(TotalWeight_NFWF2021)
+summary(TotalWeight_RESTORE2017)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+TotalWeightStats_historic <- emmeans(TotalWeight_Historic, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched") 
+
+TotalWeightStats_nfwf2021 <- emmeans(TotalWeight_NFWF2021, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021") %>%
+  rename(response = emmean)
+
+TotalWeightStats_restore2017 <- emmeans(TotalWeight_RESTORE2017, ~ 1, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "RESTORE-2017") %>%
+  rename(response = emmean)
+
+
+
+TotalWeightStats_modeled <- bind_rows(TotalWeightStats_historic, TotalWeightStats_nfwf2021, TotalWeightStats_restore2017) %>%
+  rename(TotalWeightMean_modeled = response,
+         TotalWeightLower_modeled = asymp.LCL,
+         TotalWeightUpper_modeled = asymp.UCL) %>%
+  mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
+         TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
+         TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
+  select(-SE, -df) %>%
+  mutate(TotalWeightUpperDensity_modeled = case_when(
+    TotalWeightMean_modeled <= 0 ~ 0,
+    TRUE ~ TotalWeightUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+TotalWeightStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Num"))
+
+
+```
+
+``` {r NumLiveStats}
+# Analysis indicates that Historic and Restoration data should be modeled separately
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$NumLive)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+# RESTORE-2017
+hist(subset(QuadStats, ProjectGroup == "RESTORE-2017")$NumLive)
+
+### Historic Model ###
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+# Adding in extra nested structure to the random effects improved AIC and ultimately DHARMa, but keeping Section as a fixed effect was best
+# Adding in dispformula = ~ SectionName improved fit, suggesting that variance is different between sections, but so are means. Preference for the simpler model meant leaving that out
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), 
+                       family = nbinom2,   
+                       data = QuadStats,
+                       subset = ProjectGroup == "Historic Uncultched")
+
+# Compare all models
+#aictab(list(NumLive_Historic,NumLive_Historic2))
+# Check goodness of fit
+simulateResiduals(NumLive_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was slightly detrimental to the model
+# Adding nested random effects did not improve AIC, thus simpler is chosen, but keeping Section as a fixed effect was best
+NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # Best
+                       family = nbinom2,  
+                       data = QuadStats,
+                       subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF2021, n = 1000, plot = T)
+
+## RESTORE-2017 ##
+# Adapting NFWF code
+NumLive_RESTORE2017 <- glmmTMB(NumLive ~ (1 | FixedLocationID), # Best
+                       family = nbinom2,  
+                       data = QuadStats,
+                       subset = ProjectGroup == "RESTORE-2017")
+
+# Check goodness of fit
+simulateResiduals(NumLive_RESTORE2017, n = 1000, plot = T)
+
+# Look at summaries
+summary(NumLive_Historic)
+summary(NumLive_NFWF2021)
+summary(NumLive_RESTORE2017)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched") 
+
+NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021")
+
+NumLiveStats_restore2017 <- emmeans(NumLive_RESTORE2017, ~ 1, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "RESTORE-2017")
+
+NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021, NumLiveStats_restore2017) %>%
+  rename(NumLiveMean_modeled = response,
+         NumLiveLower_modeled = asymp.LCL,
+         NumLiveUpper_modeled = asymp.UCL) %>%
+  mutate(NumLiveMeanDensity_modeled = NumLiveMean_modeled * 4,
+         NumLiveLowerDensity_modeled = NumLiveLower_modeled * 4,
+         NumLiveUpperDensity_modeled = NumLiveUpper_modeled * 4) %>%
+  select(-SE, -df) %>%
+  mutate(NumLiveUpperDensity_modeled = case_when(
+    NumLiveMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLiveUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+NumLiveStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Weight"))
+
+# rm(NumLiveStats_historic, NumLiveStats_RAW, NumLiveStats_RAW, NumLiveStats_RAW)
+
+
+  
+```
+
+``` {r NumLegalStats}
+# Determine which stations have enough legal oysters to merit inclusion in the modeling process
+# For this we will only include stations whose raw mean is greater than 1 legal oysters PER QUADRAT
+QuadStatsLegal_List <- QuadStats %>% # Determine raw mean per quadrat 
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  summarise(N = sum(!is.na(NumLegal)),
+              NumLegal_Mean = mean(NumLegal, na.rm = TRUE)) 
+QuadStatsLegal_NoModel <- QuadStatsLegal_List %>%
+  filter(NumLegal_Mean < 2)
+QuadStatsLegal_YesModel <- QuadStatsLegal_List %>%
+  filter(NumLegal_Mean >= 2)
+rm(QuadStatsLegal_List)
+
+# Round Legal Number to a whole number
+QuadStatsLegal <- QuadStats %>%
+  filter(Year == ReportYear) %>%
+  right_join(QuadStatsLegal_YesModel,
+            by = c("FixedLocationID")) %>%
+  mutate(NumLegal = round(NumLegal))
+
+# Analysis indicates ......
+
+# Figure out which data distribution to use
+# Historic
+#hist(subset(QuadStatsLegal, ProjectGroup == "Historic Uncultched")$NumLegal)
+# NFWF-2021
+hist(subset(QuadStatsLegal, ProjectGroup == "NFWF-2021")$NumLegal)
+# RESTORE-2017
+hist(subset(QuadStatsLegal, ProjectGroup == "RESTORE-2017")$NumLegal)
+
+
+
+### Testing pooled vs. reef-specific means
+# Model A (pooled)
+m_pooled <- glmmTMB(NumLegal ~ 1,
+                    family = nbinom2,
+                    data = QuadStatsLegal)
+# Model B (reef-specific means)
+m_Reef_Specific <- glmmTMB(NumLegal ~ FixedLocationID,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Model C (ProjectGroup-specific means)
+m_Project_Specific <- glmmTMB(NumLegal ~ ProjectGroup,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Compared
+anova(m_pooled, m_Reef_Specific, m_Project_Specific)
+#### Results indicate adding ProjectGroup slightly improved model fit (ΔAIC = 1.8, p < 0.52). Adding reef-specific means marginally improved model fit and was not statistically significant (ΔAIC = 0.3, p = 0.12) Thus models for all were pooled
+
+
+### Testing to see if each reef needs its own dispersion parameter
+## Model with shared dispersion:
+m1 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~1,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with reef-specific dispersion:
+m2 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with ProjectGroup-specific dispersion:
+m3 <- glmmTMB(NumLegal ~ ProjectGroup,
+              dispformula = ~ProjectGroup,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Compare:
+anova(m1, m2, m3)
+#### Results indicate adding ProjectGroup specific dispersion improved model fit (ΔAIC = 5.2, p = 0.0086). Thus, an extra dispersion parameter will be used.
+
+
+### Testing to see if zero inflation varies strongly among reef
+## Without zero inflation:
+m0 <- glmmTMB(NumLegal ~ FixedLocationID,
+              ziformula = ~0,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# With zero inflation:
+mzi <- glmmTMB(NumLegal ~ FixedLocationID,
+               ziformula = ~1,
+               family = nbinom2,
+               data = QuadStatsLegal)
+# Compare:
+anova(m0, mzi)
+#### Results indicate adding reef-specific zero inflation did not massively help fit (ΔAIC = 2.8,) but was not significant (p = 0.028). No zero inflation included
+
+### Pooled
+# Negative binomial out performed Poisson
+NumLegal_Pooled <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              dispformula = ~ ProjectGroup
+              )
+
+# Check goodness of fit
+simulateResiduals(NumLegal_Pooled, n = 1000, plot = T)
+
+### RESTORE-2017
+# Negative binomial out performed Poisson
+NumLegal_RESTORE2017 <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "RESTORE-2017")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_RESTORE2017, n = 1000, plot = T)
+
+
+
+### NFWF-2021
+# Negative binomial out performed Poisson
+NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
+
+
+
+
+
+
+# Look at summaries
+summary(NumLegal_Pooled)
+summary(NumLegal_RESTORE2017)
+summary(NumLegal_NFWF2021)
+
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+NumLegalStats_Pooled <- emmeans(NumLegal_Pooled, ~ FixedLocationID, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = case_when(
+    FixedLocationID == "0391" ~ "RESTORE-2017",
+    FixedLocationID == "0392" ~ "RESTORE-2017",
+    FixedLocationID == "0393" ~ "RESTORE-2017",
+    FixedLocationID == "0394" ~ "RESTORE-2017",
+    FixedLocationID == "0396" ~ "RESTORE-2017",
+    FixedLocationID == "0397" ~ "RESTORE-2017",
+    FixedLocationID == "0398" ~ "NFWF-2021",
+    FixedLocationID == "0399" ~ "NFWF-2021",
+    FixedLocationID == "0400" ~ "NFWF-2021",
+    TRUE ~ NA))
+
+
+NumLegalStats_modeled <- NumLegalStats_Pooled %>%
+  rename(NumLegalMean_modeled = response,
+         NumLegalLower_modeled = asymp.LCL,
+         NumLegalUpper_modeled = asymp.UCL) %>%
+  mutate(NumLegalMeanDensity_modeled = NumLegalMean_modeled * 4,
+         NumLegalLowerDensity_modeled = NumLegalLower_modeled * 4,
+         NumLegalUpperDensity_modeled = NumLegalUpper_modeled * 4) %>%
+  select(-SE, -df, -ProjectGroup) %>%
+  mutate(NumLegalUpperDensity_modeled = case_when(
+    NumLegalMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLegalUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+NumLegalStats_RAW <- QuadStats %>%
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  group_by(ProjectGroup, FixedLocationID) %>%
+    summarise(N = sum(!is.na(NumLegal)),
+              NumLegal_Mean_raw = mean(NumLegal, na.rm = TRUE),
+              NumLegal_SD_raw = sd(NumLegal, na.rm = TRUE)) %>%
+    mutate(NumLegal_DensityMean_raw = NumLegal_Mean_raw * 4,
+           NumLegal_DensitySD_raw = NumLegal_SD_raw * 4) %>%
+  arrange(FixedLocationID) %>%
+  select(-matches("Live|Weight|Drill"))
+
+NumLegalStats_ALL <- right_join(NumLegalStats_modeled, 
+                              NumLegalStats_RAW, 
+                              by = c("FixedLocationID")) %>%
+  left_join(FixedLocations1,
+            by = c("FixedLocationID")) %>%
+  mutate(ParcelArea = case_when( # For parcels with no Area (Historic bars) assign area as 1 acre
+    is.na(ParcelArea) ~ 1,
+    TRUE ~ ParcelArea),
+    LowerBagsPerAcre = (NumLegalLowerDensity_modeled * 4047) / 225,
+    HarvestableBags = case_when( # Only reefs with LowerBags perAcre is >= 400 are harvestable
+      LowerBagsPerAcre >= 400 ~ (LowerBagsPerAcre * ParcelArea) * 0.1,
+      TRUE ~ NA))
+
+
+```
+
+
+``` {r Export numbers}
+
+write.xlsx(list(
+    "WeightModeled" = TotalWeightStats_modeled,
+    "NumLiveModeled" = NumLiveStats_modeled,
+    "NumLegalAll" = NumLegalStats_ALL,
+    "WeightRaw" = TotalWeightStats_RAW,
+    "NumLiveRaw" = NumLiveStats_RAW),
+  file = "ouput.xlsx",
+  colNames = TRUE)
+
+```
+
+``` {r Size Distribution Figures}
+### Size Distributions
+
+# Prep data frame for creating SH distribution histogram for PROJECT YEAR
+ShellHeightsReportYrX <- xlSH %>%
+  mutate(ShellHeightBin = cut(SH, 
+                              breaks = seq(0, ceiling(max(SH, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(ProjectGroup) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(ProjectGroup, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
+
+
+
+maxSH <- 150
+
+# Report Year
+# Histograms
+
+histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+  geom_col() +
+  facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  BaseForm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+histogramY
+
+
+```
