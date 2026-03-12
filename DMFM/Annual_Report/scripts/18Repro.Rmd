@@ -29,7 +29,7 @@ ReproStats <- Repro %>%
   
 # Remove Null values that can break the later models
 ReproStats2 <- ReproStats %>%
-  filter(!is.na(Sex) & !is.na(ShellHeight))
+  filter(!is.na(Sex) & !is.na(ShellHeight) & !is.na(TotalWeight))
 
 ```
 
@@ -175,37 +175,138 @@ SexRatio <- readRDS("models/sexratio_brm_final.rds")
 
 # The posterior predictive distribution is centered very closely on the observed counts. No category is systematically over- or under-predicted. Even the rare category (Stage 3) is captured well.
 # This is strong evidence that: The multinomial/ordinal likelihood is appropriate and the model is not misallocating probability mass across categories. You can confidently say the model reproduces the observed marginal distribution.
+
+# Generates Posterio predictive check for SexRatio (Figure in Appendix, Residual Diagnostics)
 pp_check(SexRatio, type = "bars", ndraws = 100) +
   labs(x = "Sex category",
     y = "Count") +
   theme_bw()
 
+# Generates P_LOO for Model Summary Statistics. 
 loo(SexRatio)
 
+# provides the complete summary of the modeled data
+summary(SexRatio)   # R-hat & ESS in text are derived from this 
+# In categorical() models, each intercept is the log-odds of that category relative to the reference category, which is male in this case.
 
+# Multilevel Hyperparameters:
+# ~FixedLocationID (Number of levels: 17) 
+# These are random intercept standard deviations by category. This means that each category has its own location-level variability. For example, sd(muF_Intercept) = 0.25, means the log-odds of being F vs reference vary across locations with SD ≈ 0.25. 
+# F = 0.25 -> Moderate location heterogeneity; MF = 0.42 & Z = 0.60 -> Strong location heterogeneity.
+# Location matters, and it matters differently for each sex category. If these SDs were near zero, the random effect would be unnecessary — but they are not. Random effect fully justified ✔ Partial pooling is doing real work
+# ~SectionName:Year (Number of levels: 25)
+# Local year-to-year effects matter, but they are not exploding → the random effect did its job.
 
-summary(SexRatio)   # R-hat, ESS
-plot(SexRatio)      # trace plots
+# Regression Coefficients:
+# The way to interpret the results are to look at the Regression Coefficients: Estimate, l-95%, u-95%. Estimate gives you the log-odds of that category relative to the reference. Positive values are more likely, negative less likely. If 95% values overlap with zero the results are uncertain. 
+# Baseline categories muF_Intercept, etc. show that F=0.47 -> Female is more likely than male; MF=-3.76 -> MF is rare; Z=-0.09 -> Z is about the same likelihood as M
+# To convert that to odds: exp(0.47) = 1.5999. So F is 1.6 times more likely than Male
+# Fixed effects:
+##### WEIGHT
+# Strongest effect is weight. Larger individuals are much more likely to be female or Z relative to male. 
+# muF_Wt_scaled  0.80  [0.72, 0.88] # Credible interval does not cross 0 → strong effect.
+# MF 0.17 [-0.16 0.48] No clear evidence that weight affects M/F vs. reference.
+# Z 0.64 [0.55 0.74] Strong, positive pattern Z individuals increase with weight relative to the reference.
+##### MONTH
+# ex. muF_Month2 0.10 [-0.15 0.37]
+# Z: March thru Aug, strongly negative, doesn't cross zero. Z is suppressed mid-year, peaks late in the year. This is one of the clearest results in the entire model.
+# F: Month effects are small, centered near zero, overlapping zero. Female probability is stable through the year, once weight is accounted for.
+# M/F: Month effects are: noisy, weak, uncertain. MF remains rare and poorly predicted (as expected).
+##### SECTIONNAME
+# ex. muF_SectionNameCentral 0.45 [-0.04 0.88]
+# Most SectionName main effects have wide intervals, especially for M/F and Z. This is expected because:
+# location variation is now absorbed by the random effect; fixed SectionName effects represent systematic differences, not local quirks. The fact that many CIs overlap zero here is not a problem — it means the random effect is doing its job.
+# F: East has more females relative to males, Central possibly more females, but weaker evidence.
+##### YEAR
+# ex. muF_Year2017 0.08 [-0.29 0.45]
+# Across F, MF, and Z: Most Year coefficients overlap zero, No monotonic trend, No consistent direction.
+# Interpretation: There is no strong global temporal trend once seasonality, weight, and random effects are accounted for.
 
+# I'm choosing not to include this in the report, because it's big and busy. But it can be used to show the good match between the model and actual values
+# plot(SexRatio)      # trace plots
 
-
-pp <- posterior_epred(SexRatio)
-
-pp_month <- pp |>
-  apply(3, mean) |>
-  as_tibble() |>
-  mutate(Month = levels(ReproStats2$Month))
-
-
-ce <- conditional_effects(
-  SexRatio,
-  effects = "SectionName",
-  categorical = TRUE
+# Create prediction data by creating a grid of values we want predictions for
+newdata <- expand.grid(
+  Wt_scaled = seq(min(ReproStats2$Wt_scaled),
+                  max(ReproStats2$Wt_scaled),
+                  length.out = 80),
+  Month = levels(ReproStats2$Month),
+  Year = "2022", # holds year constant
+  SectionName = "Central" # holds section constant
 )
 
-plot(ce, points = TRUE)
+# Generate predicted probabilities and credible intervals
+pred <- fitted(
+  SexRatio,
+  newdata = newdata,
+  re_formula = NA # average across locations and section-year variation
+)
+# combine predictions with the new data to get predicted probabilities
+pred_df <- cbind(newdata, pred)
+# Convert to long format (for plotting)
+plot_data <- pred_df |>
+  pivot_longer(
+    cols = starts_with("Estimate"),
+    names_to = "Sex",
+    values_to = "Probability"
+  )
+plot_data$Sex <- gsub("Estimate.", "", plot_data$Sex) # Cleans up labels
+plot_data$Weight <- plot_data$Wt_scaled * sd(ReproStats2$TotalWeight) +
+                    mean(ReproStats2$TotalWeight) # Converts scaled data back to actual values
+
+# Generate Figure Repro.1
+ggplot(plot_data,
+       aes(Weight, Probability, color = Sex)) +
+  geom_line(size = 1.2) +
+  facet_wrap(~Month) +
+  labs(
+    x = "Total weight (g)",
+    y = "Predicted probability",
+    color = "Sex category",
+    title = "Predicted Sex Ratios by Body Size"
+  ) +
+  theme_classic()
+
+# Stacked transition plot
+# Decided not use, but leaving here
+# ggplot(plot_data,
+#        aes(Weight, Probability, fill = Sex)) +
+#   geom_area(position = "stack", alpha = 0.9) +
+#   labs(
+#     x = "Scaled body weight",
+#     y = "Predicted sex ratio",
+#     fill = "Sex category",
+#     title = "Predicted Sex Composition Across Body Size"
+#   ) +
+#   theme_classic()
+
+#Create Appendix table by Month
+SexRatio_Month_TABLE <- pred_df %>%
+  group_by(Month) %>%
+  summarise(`P(M)` = mean(`Estimate.P(Y = M)`, na.rm = TRUE),
+            `P(F)` = mean(`Estimate.P(Y = F)`, na.rm = TRUE),
+            `P(Z)` = mean(`Estimate.P(Y = Z)`, na.rm = TRUE),
+            `P(M/F)` = mean(`Estimate.P(Y = M/F)`, na.rm = TRUE),
+            .groups = "drop")
+kable(SexRatio_Month_TABLE, 
+      digits = 3)
 
 ```
+
+```{r SexRatio Model selection, eval = FALSE}
+#########
+### Leaving this chunk in to show my work, but it doesn't need to be run when knitted to save time
+# Figure out which effects to use
+library(nnet) # need for multinom()
+
+
+
+
+
+
+```
+
+
 
 
 ``` {Repro Text}
