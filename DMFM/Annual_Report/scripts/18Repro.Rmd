@@ -24,12 +24,31 @@ ReproStats <- Repro %>%
          Sex = factor(Sex, 
                       levels = c("M", "F", "M/F", "Z")),
          ReproStage = factor(ReproStage,
-                             levels = c("1", "2", "3", "4", "Z")))
+                             levels = c("1", "2", "3", "4", "Z"),
+                             ordered = TRUE),
+         Parasite = factor(Parasite))
   
   
 # Remove Null values that can break the later models
 ReproStats2 <- ReproStats %>%
   filter(!is.na(Sex) & !is.na(ShellHeight) & !is.na(TotalWeight))
+
+# Remove Null values and limits stages 1-4 for Repro Stage
+ReproStats3 <- ReproStats2 %>%
+  filter(!is.na(ReproStage) & ReproStage != "Z")
+# limit to stages 1-3
+ReproStats4 <- ReproStats3 %>%
+  filter(ReproStage != "4")
+# 
+ReproStats3_spent <- ReproStats3
+ReproStats3_spent$Spent <- ReproStats3_spent$ReproStage == "4"
+
+
+
+# Provides only the Z stage
+ReproStats_spent <- ReproStats2 %>%
+  filter(!is.na(ReproStage) & Parasite != "Buceph") 
+ReproStats_spent$Spent <- ReproStats_spent$ReproStage == "Z"
 
 ```
 
@@ -176,7 +195,7 @@ SexRatio <- readRDS("models/sexratio_brm_final.rds")
 # The posterior predictive distribution is centered very closely on the observed counts. No category is systematically over- or under-predicted. Even the rare category (Stage 3) is captured well.
 # This is strong evidence that: The multinomial/ordinal likelihood is appropriate and the model is not misallocating probability mass across categories. You can confidently say the model reproduces the observed marginal distribution.
 
-# Generates Posterio predictive check for SexRatio (Figure in Appendix, Residual Diagnostics)
+# Generates Posterior predictive check for SexRatio (Figure in Appendix, Residual Diagnostics)
 pp_check(SexRatio, type = "bars", ndraws = 100) +
   labs(x = "Sex category",
     y = "Count") +
@@ -293,13 +312,139 @@ kable(SexRatio_Month_TABLE,
 
 ```
 
-```{r SexRatio Model selection, eval = FALSE}
+```{r SexStage Model selection, eval = FALSE}
 #########
 ### Leaving this chunk in to show my work, but it doesn't need to be run when knitted to save time
 # Figure out which effects to use
-library(nnet) # need for multinom()
+library(ordinal)
+
+# Reproductive stages were categorized as developmental stages 1–3 and a spent/indeterminate category (4). Ordinal mixed models were used to evaluate seasonal progression of reproductive development using stages 1–3. The proportion of spent oysters (4) was analyzed separately using binomial mixed models.
+###### Stages 1 - 4 #########
+# clmm() requires a Random effect. To evaluate whether or not any random effect was needed, the variance of was examined for stage3 using summary(). Variance was 0.03, which is considered moderate. This shows that random effect is actually needed.
+
+stage1 <- clmm(ReproStage ~ 1 + (1 | FixedLocationID), # 5 @ 2500+
+               data = ReproStats4,
+               link = "logit")
+stage2 <- clmm(ReproStage ~ SectionName + (1 | FixedLocationID), # 4 @ 2500+
+               data = ReproStats4,
+               link = "logit")
+stage3 <- clmm(ReproStage ~ Month + (1 | FixedLocationID), # 1 @ 0
+               data = ReproStats4,
+               link = "logit")
+stage4 <- clmm(ReproStage ~ Year + (1 | FixedLocationID), # 2 @ 2500+
+               data = ReproStats4,
+               link = "logit")
+stage5 <- clmm(ReproStage ~ Wt_scaled + (1 | FixedLocationID), # 2 @ 2500+
+               data = ReproStats4,
+               link = "logit")
+model.sel(stage1, stage2, stage3, stage4, stage5)
+summary(stage3) # variance 0.0777
+nominal_test(stage3) # this test often fails with random effects
+stage_fixed <- clm(ReproStage ~ Month, # running it without a random effect
+               data = ReproStats4,
+               link = "logit")
+nominal_test(stage_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+stage_probs <- emmeans(stage3, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame()
+
+# adding more complexity
+stage30 <- clmm(ReproStage ~ Month + (1 | FixedLocationID), # 4 @ 46
+               data = ReproStats4,
+               link = "logit")
+stage31 <- clmm(ReproStage ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 45
+               data = ReproStats4,
+               link = "logit")
+stage32 <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), # 1 @ 0
+               data = ReproStats4,
+               link = "logit")
+stage33 <- clmm(ReproStage ~ Month + SectionName + (1 | FixedLocationID), # 2 @ 42
+               data = ReproStats4,
+               link = "logit")
+# stage34 <- clmm(ReproStage ~ Year * Month + (1 | FixedLocationID), # didn't converge
+#                data = ReproStats3,
+#                link = "logit")
+model.sel(stage30, stage31, stage32, stage33)
+
+summary(stage32) # Random effect variance is 0.0636, which is on the cusp of very small to moderate
+nominal_test(stage32) # this test often fails with random effects
+stage_fixed32 <- clm(ReproStage ~ Month + Year, # running it without a random effect
+               data = ReproStats4,
+               link = "logit")
+nominal_test(stage_fixed32) # test runs, but reveals that proportional odds assumption IS violated
+# however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+stage_probs32m <- emmeans(stage32, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame()
+stage_probs32y <- emmeans(stage32, ~ Year | ReproStage, mode = "prob") %>%
+  as.data.frame()
+kable(stage_probs32y)
+
+###### Stages Z only #########
+
+spent1 <- glmmTMB(Spent ~ 1 + (1|FixedLocationID), # 4 @ 1200+
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent2 <- glmmTMB(Spent ~ SectionName + (1 | FixedLocationID), # 5 @ 1200+
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent3 <- glmmTMB(Spent ~ Month + (1 | FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent4 <- glmmTMB(Spent ~ Year + (1 | FixedLocationID), # 2 @ 1200+ 
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent5 <- glmmTMB(Spent ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 1200+
+                       family = binomial,
+                       data = ReproStats3_spent)
+model.sel(spent1, spent2, spent3, spent4, spent5)
+summary(spent3) # variance 0.04962
+simulateResiduals(spent4, plot = TRUE)
+
+spent41 <- glmmTMB(Spent ~ Year + (1 | FixedLocationID), # 3 @ 46
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent42 <- glmmTMB(Spent ~ Year + SectionName + (1 | FixedLocationID), # 4 @ 48
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent43 <- glmmTMB(Spent ~ Year + Month + (1 | FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = ReproStats3_spent)
+spent44 <- glmmTMB(Spent ~ Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 45
+                       family = binomial,
+                       data = ReproStats3_spent)
+model.sel(spent41, spent42, spent43, spent44)
+simulateResiduals(spent43, plot = TRUE)
+summary(spent43) # variance 0.05211
 
 
+
+
+
+```
+
+``` {r ReproStages}
+
+# Stages 1–3 model
+stage_model <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), 
+                    data = ReproStats4,
+                    link = "logit")
+# Stage 4 (spent) model
+spent_model <- glmmTMB(Spent ~ Year + Month + (1 | FixedLocationID), 
+                       family = binomial,
+                       data = ReproStats3_spent)
+
+# Month probabilities
+# model-predicted probabilities for stages 1-3
+stage_probs <- emmeans(stage_model, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame() %>%
+  filter(ReproStage %in% c("1","2","3")) %>%
+  rename(Stage = ReproStage) %>%
+  select(Month, Stage, prob)  
+# predicted probability of being spent (Stage 4)
+spent_probs <- emmeans(spent_model, ~ Month, type = "response") %>%
+  as.data.frame() %>%
+  mutate(Stage = "4") %>%
+  select(Month, Stage, prob)
 
 
 

@@ -239,6 +239,7 @@ Repro <- hsdbRepro %>%
          TotalWeight,
          Sex,
          ReproStage,
+         Parasite,
          BadSlide,
          Comments.x) %>%
   rename(SampleEventID = SampleEventID.x,
