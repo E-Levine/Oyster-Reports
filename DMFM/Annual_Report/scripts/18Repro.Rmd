@@ -318,7 +318,7 @@ kable(SexRatio_Month_TABLE,
 # Figure out which effects to use
 library(ordinal)
 
-# Reproductive stages were categorized as developmental stages 1–3 and a spent/indeterminate category (4). Ordinal mixed models were used to evaluate seasonal progression of reproductive development using stages 1–3. The proportion of spent oysters (4) was analyzed separately using binomial mixed models.
+# Reproductive stages were categorized as developmental stages 1–3 and an spent/indeterminate category (4). Ordinal mixed models were used to evaluate seasonal progression of reproductive development using stages 1–3. The proportion of spent oysters (4) was analyzed separately using binomial mixed models.
 ###### Stages 1 - 4 #########
 # clmm() requires a Random effect. To evaluate whether or not any random effect was needed, the variance of was examined for stage3 using summary(). Variance was 0.03, which is considered moderate. This shows that random effect is actually needed.
 
@@ -446,12 +446,78 @@ spent_probs <- emmeans(spent_model, ~ Month, type = "response") %>%
   mutate(Stage = "4") %>%
   select(Month, Stage, prob)
 
+# Merge Stage 4 probability into Stage 1-3 table
+all_probs <- stage_probs %>%
+  left_join(spent_probs %>% select(Month, p4 = prob),
+            by = c("Month")) %>%
+  mutate(prob = prob * (1 - p4)) %>%   # scale Stage 1-3 probabilities
+  select(-p4)
 
+# Add Stage 4 back in
+all_probs <- bind_rows(all_probs, spent_probs %>%
+                         rename(prob = prob)) %>%
+  arrange(Month, Stage)
+all_probs$Stage <- factor(all_probs$Stage,
+                          levels = c("4","3","2","1"),
+                          labels = c("Indifferent",
+                                     "Spent/Recycling",
+                                     "Ripe/Spawning",
+                                     "Developing"))
+
+ggplot(all_probs, aes(x = Month, y = prob, fill = Stage)) +
+  geom_col() +
+  labs(title = "Predicted Reproductive Stage by Month",
+       x = "Month",
+       y = "Probability") + 
+  scale_y_continuous(limits = c(0,1)) +
+  theme_classic()
+
+
+
+#Create Appendix table by Month
+Stage_Month_TABLE <- all_probs %>%
+  pivot_wider(names_from = Stage,
+              values_from = prob)
+  
+  
+kable(Stage_Month_TABLE, 
+      digits = 3)
 
 
 ```
 
 
+``` {r Combined}
+# combining all the stage data to see if there's any point in treating them separately
+# general trends do seem to hold up, but the accuracy of stage 4 (indifferent) appears reduced. Stage 4 is underrepresented in the early months, likely because stage 4 is occurring in the "wrong", i.e., not expected, part of the year.
+combined_stage_model <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), 
+                    data = ReproStats3,
+                    link = "logit")
+
+summary(combined_stage_model)
+
+combined_stage_probs <- emmeans(combined_stage_model, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame() %>%
+  filter(ReproStage %in% c("1","2","3", "4")) %>%
+  rename(Stage = ReproStage) %>%
+  select(Month, Stage, prob) %>%
+  arrange(Month, Stage)
+combined_stage_probs$Stage <- factor(combined_stage_probs$Stage,
+                          levels = c("4","3","2","1"),
+                          labels = c("Indifferent",
+                                     "Spent/Recycling",
+                                     "Ripe/Spawning",
+                                     "Developing"))
+
+ggplot(combined_stage_probs, aes(x = Month, y = prob, fill = Stage)) +
+  geom_col() +
+  labs(title = "Combined Predicted Reproductive Stage by Month",
+       x = "Month",
+       y = "Probability") + 
+  scale_y_continuous(limits = c(0,1)) +
+  theme_classic()
+
+```
 
 
 ``` {Repro Text}
