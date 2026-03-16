@@ -488,7 +488,6 @@ ggplot(all_probs, aes(x = Month, y = prob, fill = Stage)) +
   scale_y_continuous(limits = c(0,1)) +
   theme_classic()
 
-
 # Create Appendix table by Month
 Stage_Month_TABLE <- all_probs %>%
   pivot_wider(names_from = Stage,
