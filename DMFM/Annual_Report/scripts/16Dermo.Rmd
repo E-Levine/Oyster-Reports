@@ -7,78 +7,225 @@ output: html_document
 
 ``` {r BasicStats}
 
-### Stats for Dermo Prevalence
+### Stats for Dermo 
 # Dermo prevalence by section
 DermoStats <- Dermo %>%
-  mutate(DermoInfected = ifelse(DermoMantle > 0 | DermoGill > 0, 1, 0),
-         DermoIntensity = (DermoMantle + DermoGill) / 2,
-         AnalysisDate = as.Date(floor_date(TripDate, unit = "month")),
-         Plot_Date = as.Date(AnalysisDate + 14)) %>%
-  filter(!is.na(DermoInfected)) %>% # Remove null records
-  group_by(AnalysisDate, Plot_Date, Estuary, SectionName) %>% 
-  summarise(n_DermoTotal = n(),
-    n_DermoInfected = sum(DermoInfected, na.rm = TRUE),
-    DermoInfected_mean = (n_DermoInfected / n_DermoTotal) * 100,
-    DermoInfected_se = sqrt((DermoInfected_mean / 100) * (1 - (DermoInfected_mean / 100)) / n_DermoTotal),
-    DermoInfected_ci_lower = (DermoInfected_mean / 100 - 1.96 * DermoInfected_se) * 100,
-    DermoInfected_ci_upper = (DermoInfected_mean / 100 + 1.96 * DermoInfected_se) * 100,
-   # #  
-    n_DermoIntensity = sum(DermoIntensity, na.rm = TRUE),
-    DermoIntensity_mean = (n_DermoIntensity / n_DermoInfected),
-    DermoIntensity_se = std.error(DermoIntensity),
-    DermoIntensity_ci_lower = (DermoIntensity_mean - DermoIntensity_se),
-    DermoIntensity_ci_upper = (DermoIntensity_mean + DermoIntensity_se),
-    .groups = "drop")
+  filter(!is.na(DermoMantle) & 
+           !is.na(DermoGill) & 
+           !is.na(ShellHeight) &
+           !is.na(ShellLength) &
+           !is.na(ShellWidth) &
+           !is.na(TotalWeight)) %>% # remove nulls
+  mutate(Infected = DermoMantle != 0 | DermoGill != 0, # mark those infected as True
+         Month = as.factor(month(TripDate)),
+         Year = as.factor(Year),
+         SectionName = factor(SectionName,
+                              levels = lv3),
+         LinearOy = ShellHeight + ShellLength + ShellWidth, # not used
+         CubicOy = ShellHeight * ShellLength * ShellWidth, # not used
+         SH_scaled = scale(ShellHeight)[, 1], # not used
+         Wt_scaled = scale(TotalWeight)[, 1],
+         LO_scaled = scale(LinearOy)[, 1], # not used
+         CO_scaled = scale(CubicOy)[, 1], # not used
+         DermoMean = (DermoMantle + DermoGill) / 2,
+         DermoMean = round(DermoMean),
+         DermoGill = factor(DermoGill,
+                            levels = c("0", "0.5", "1", "2", "3", "4", "5"),
+                            ordered = TRUE),
+         DermoMantle = factor(DermoMantle,
+                            levels = c("0", "0.5", "1", "2", "3", "4", "5"),
+                            ordered = TRUE),
+         DermoMean = factor(DermoMean,
+                            levels = c("0", "1", "2", "3", "4", "5"),
+                            ordered = TRUE),
+  )
   
+```
 
-# Median values
-DermoStatsMedian <- DermoStats %>%
-  filter(AnalysisDate < ReportStart) %>%
-  group_by(SectionName) %>%
-  summarise(DermoPMedian = median(DermoInfected_mean, na.rm = TRUE),
-            DermoPMax = max(DermoInfected_mean, na.rm = TRUE),
-            DermoIMedian = median(DermoIntensity_mean, na.rm = TRUE),
-            DermoIMax = max(DermoIntensity_mean, na.rm = TRUE))
+``` {r Dermo Prevalence Model Selection, eval = FALSE}
+# Selecting the best fit model
+###### ~~~~~~~ DO NOT RUN ~~~~~~~~~~
+infected1 <- glmmTMB(Infected ~ 1 + (1|FixedLocationID), # 7 @ 195
+                       family = binomial,
+                       data = DermoStats)
+infected2 <- glmmTMB(Infected ~ 1 + SectionName + (1|FixedLocationID), # 8 @ 197
+                       family = binomial,
+                       data = DermoStats)
+infected3 <- glmmTMB(Infected ~ 1 + Month + (1|FixedLocationID), # 6 @ 152
+                       family = binomial,
+                       data = DermoStats)
+infected4 <- glmmTMB(Infected ~ 1 + Year + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = DermoStats)
+infected5 <- glmmTMB(Infected ~ 1 + SH_scaled + (1|FixedLocationID), # 2 @ 66
+                       family = binomial,
+                       data = DermoStats)
+infected6 <- glmmTMB(Infected ~ 1 + Wt_scaled + (1|FixedLocationID), # 4 @ 95
+                       family = binomial,
+                       data = DermoStats)
+infected7 <- glmmTMB(Infected ~ 1 + LO_scaled + (1|FixedLocationID), # 3 @ 83
+                       family = binomial,
+                       data = DermoStats)
+infected8 <- glmmTMB(Infected ~ 1 + CO_scaled + (1|FixedLocationID), # 5 @ 109
+                       family = binomial,
+                       data = DermoStats)
+model.sel(infected1,infected2,infected3,infected4,infected5,infected6,infected7,infected8)
+simulateResiduals(infected4, plot = TRUE)
+
+infected41 <- glmmTMB(Infected ~ 1 + Year + (1|FixedLocationID), # 6 @ 99
+                       family = binomial,
+                       data = DermoStats)
+infected42 <- glmmTMB(Infected ~ 1 + Year + SH_scaled + (1|FixedLocationID), # 2 @ 3
+                       family = binomial,
+                       data = DermoStats)
+infected43 <- glmmTMB(Infected ~ 1 + Year + LO_scaled + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = DermoStats)
+infected44 <- glmmTMB(Infected ~ 1 + Year + CO_scaled + (1|FixedLocationID), # 4 @ 28
+                       family = binomial,
+                       data = DermoStats)
+infected45 <- glmmTMB(Infected ~ 1 + Year + Wt_scaled + (1|FixedLocationID), # 3 @ 20
+                       family = binomial,
+                       data = DermoStats)
+infected46 <- glmmTMB(Infected ~ 1 + Year + Month + (1|FixedLocationID), # 5 @ 45
+                       family = binomial,
+                       data = DermoStats)
+infected47 <- glmmTMB(Infected ~ 1 + Year + SectionName + (1|FixedLocationID), # 7 @ 99
+                       family = binomial,
+                       data = DermoStats)
+model.sel(infected41,infected42,infected43,infected44,infected45,infected46,infected47)
+simulateResiduals(infected43, plot = TRUE)
+
+infected431 <- glmmTMB(Infected ~ 1 + Year + LO_scaled + (1|FixedLocationID), # 3 @ 80
+                       family = binomial,
+                       data = DermoStats)
+infected432 <- glmmTMB(Infected ~ 1 + Year + LO_scaled + Month + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = DermoStats)
+infected433 <- glmmTMB(Infected ~ 1 + Year + SH_scaled + Month + (1|FixedLocationID), # 2 @ 11
+                       family = binomial,
+                       data = DermoStats)
+infected434 <- glmmTMB(Infected ~ 1 + Year + Month + (1|FixedLocationID), # 4 @ 125
+                       family = binomial,
+                       data = DermoStats)
+model.sel(infected431,infected432,infected433, infected434)
+simulateResiduals(infected432, plot = TRUE)
+summary(infected432)
+simulateResiduals(infected433, plot = TRUE)
+summary(infected433)
+
+# Takeaways include the fact that Section contributed very little to the variance
+# LO_scaled technically provided an improvement in AIC, but results with SH provided a similar story. Thus, it was decided to go with SH as the more widely accepted measure of oyster size.
 
 ```
 
-``` {r Dermo Prevalence Figures}
+``` {r Dermo Prevalence}
+# Dermo prevalence model
+DermoPrevalence <- glmmTMB(Infected ~ 1 + Year + SH_scaled + Month + (1|FixedLocationID), 
+                           family = binomial,
+                           data = DermoStats)
 
-### Function explanation
-# generate_plot(df, 
-#               x_variable, x_label, 
-#               y_variable, y_label, y_SD, 
-#               UseColor, UseFill, 
-#               title)
+simulateResiduals(DermoPrevalence, plot = TRUE)
+summary(DermoPrevalence)
 
-# Stats for Dermo Prevalence by Year and Section
-DermoPrevalenceStats_Section_fig <- generate_grouped_plot(DermoStats, 
-                                                "Plot_Date", "Date", 
-                                                "DermoInfected_mean", "Dermo Prevalence (%)", "DermoIntensity_se", 
-                                                "SectionName", "SectionName", 
-                                                "AB Oyster Dermo Prevalence by Year and Section")
-print(DermoPrevalenceStats_Section_fig)
+# Residuals look good. KS fails, but given the large number of observations, this is expected
+# summary interpretation (coefficients are on the log-odds scale)
+# SIZE effect is the strongest signal (estimate 0.3134) and is statistically significant. Larger oysters are more likely to be infected. Converted roughly to odds (exp(0.3134) = 1.37), so about a 37% increase in odds of infection per SD increase in size. Larger/older oysters have more exposure time and a greater cumulative infection risk
+# YEAR effects have strong interannual signals. Most years 2019-2023 are strongly negative and highly significant. Compared to 2016 infection probability was substantially lower in those years. However, infection probability in 2023 and 2024 have been increasing.
+# MONTH effect show a seasonal pattern. with March having a significantly lower probability than January, and an increase in probability in August through October. Classic seasonal signal for Dermo: Warmer temperatures → increased parasite activity; Accumulation through the growing season; Peak infection prevalence in late summer / fall
+# RANDOM effect (site variability) Variance: 0.696; SD: 0.83. There is substantial variability among locations even after accounting for: Year, Month, and Oyster size. This suggests: Local environmental conditions matter (e.g., salinity, flushing, habitat) and Some sites are consistently higher-risk than others
+
+
+############ predicted probability of infection
+### By Month
+DermoPrevalence_probs_Month <- emmeans(DermoPrevalence, ~ Month, 
+                                       at = list(SH_scaled = 0, Year = "2016"),
+                                       type = "response") %>%
+  as.data.frame() 
+plot(DermoPrevalence_probs_Month)
+# Generate Figure Dermo 1
+ggplot(DermoPrevalence_probs_Month,
+       aes(x = Month, y = prob, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  labs(
+    x = "Month",
+    y = "Predicted Probability of Infection",
+    title = "Predicted Dermo Prevalence by Month"
+  ) +
+  theme_classic()
+
+# Create Appendix table by Month
+DermoPrevalence_Month_TABLE <- DermoPrevalence_probs_Month %>%
+  rename(Probability = prob,
+         `LCL 95%` = asymp.LCL,
+         `UCL 95%` = asymp.UCL) %>%
+  select(Month,
+         Probability,
+         `LCL 95%`,
+         `UCL 95%`)
+
+kable(DermoPrevalence_Month_TABLE, 
+      digits = 3)
+
+### By Year
+DermoPrevalence_probs_Year <- emmeans(DermoPrevalence, ~ Year, 
+                                       at = list(SH_scaled = 0, Month = "10"),
+                                       type = "response") %>%
+  as.data.frame() 
+plot(DermoPrevalence_probs_Year)
+# Generate Figure Dermo 2
+ggplot(DermoPrevalence_probs_Year,
+       aes(x = Year, y = prob, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  labs(
+    x = "Year",
+    y = "Predicted Probability of Infection",
+    title = "Predicted Dermo Prevalence by Year"
+  ) +
+  theme_classic()
+
+# Create Appendix table by Year
+DermoPrevalence_Year_TABLE <- DermoPrevalence_probs_Year %>%
+  rename(Probability = prob,
+         `LCL 95%` = asymp.LCL,
+         `UCL 95%` = asymp.UCL) %>%
+  select(Year,
+         Probability,
+         `LCL 95%`,
+         `UCL 95%`)
+
+kable(DermoPrevalence_Year_TABLE, 
+      digits = 3)
 
 ```
 
-``` {r Dermo Intensity Figures}
+``` {r Dermo INTENSITY Model Selection, eval = FALSE}
+##### DermoMEAN
 
-### Function explanation
-# generate_plot(df, 
-#               x_variable, x_label, 
-#               y_variable, y_label, y_SD, 
-#               UseColor, UseFill, 
-#               title)
 
-# Stats for Dermo Intensity by Year and Section
-DermoIntensityStats_Section_fig <- generate_grouped_plot(DermoStats, 
-                                                "Plot_Date", "Date", 
-                                                "DermoIntensity_mean", "Mean Dermo Intensity (Mackin scale)", "DermoInfected_se", 
-                                                "SectionName", "SectionName", 
-                                                "AB Oyster Dermo Intensity by Year and Section")
-print(DermoIntensityStats_Section_fig)
+
+
+##### DermoGill
+
+
+
+##### DermoMantle
+
 
 ```
+
+``` {r Dermo INTENSITY}
+
+
+
+```
+
+
+
 
 ``` {Dermo Text}
 ### Placeholder for Dermo text for report
