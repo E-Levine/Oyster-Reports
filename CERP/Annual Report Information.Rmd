@@ -336,6 +336,68 @@ WQ_pH_Excel_Sitesumm <- WQ_pH_tab %>%
 #
 ```
 
+```{r DO data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+#pH
+WQ_DO <- WQ_DO_s %>% 
+  subset(SL.C_RetDate_DO > Start_date & SL.C_RetDate_DO < End_date) %>% 
+  rename(RetDate = SL.C_RetDate_DO) %>% 
+  mutate(RetDate = as.yearmon(RetDate)) %>% 
+  dplyr::select(RetDate, everything(), -contains("_RetDate_DO"))
+#
+#Data by station
+WQ_DO_tab <- WQ_DO %>% 
+  gather(Site_Station, DO, -RetDate) %>% 
+  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 4)) %>%
+  dplyr::select(-Site_Station)
+#
+#Data table output - for RMarkdown file
+WQ_DO_out <- WQ_DO_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, DO) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = WQ_DO %>% 
+                                        dplyr::select(contains("DO")) %>% 
+                                        unlist() %>% 
+                                        range(na.rm = T))) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+## Excel summary data
+WQ_DO_Excel <- WQ_DO_s %>% 
+  subset(SL.C_RetDate_DO > Start_date & SL.C_RetDate_DO < End_date) %>% 
+  dplyr::select(starts_with("LX"), starts_with("SL"), everything())
+#
+WQ_DO_Excel_summ <- WQ_DO_tab %>% 
+  group_by(Site) %>%
+  summarise(Min = round(min(DO, na.rm = T),2),
+            Max = round(max(DO, na.rm = T),2),
+            Mean = round(mean(DO, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+WQ_DO_Excel_Sitesumm <- WQ_DO_tab %>% 
+  mutate(Site = substr(Site, 1, 2)) %>%
+  group_by(Site) %>%
+  summarise(Min = round(min(DO, na.rm = T),2),
+            Max = round(max(DO, na.rm = T),2),
+            Mean = round(mean(DO, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+#
+```
+
 ```{r Excel file output}
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
 
@@ -403,6 +465,21 @@ writeData(wb, sheet = sheet_name, x = WQ_pH_Excel, startCol = 1, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_pH_Excel_summ, startCol = 18, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_pH_Excel_Sitesumm, startCol = 23, startRow = 2)
 #
+#
+## DO 
+sheet_name <- "DO_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = WQ_DO_Excel, startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = WQ_DO_Excel_summ, startCol = 18, startRow = 1)
+writeData(wb, sheet = sheet_name, x = WQ_DO_Excel_Sitesumm, startCol = 23, startRow = 2)
+#
+##
 #
 #
 #
@@ -544,5 +621,14 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r WQ_pH_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(pH, na.rm = T), Max = max(pH, na.rm = T), Mean = round(mean(pH, na.rm = T),3)) %>% gt()`
 <h3>`r paste("Summary by site")`</h3>
 `r WQ_pH_tab %>% group_by(Site) %>% summarise(Min = min(pH, na.rm = T), Max = max(pH, na.rm = T), Mean = round(mean(pH, na.rm = T),3)) %>% gt()`
-`r WQ_Tem_out %>% tab_caption(caption = "Monthly pH measurements")`\
+`r WQ_Tem_out %>% tab_caption(caption = "Monthly pH measurements")`
+\
+<h2>`r paste("DO")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r WQ_DO_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(DO, na.rm = T), Max = max(DO, na.rm = T), Mean = round(mean(DO, na.rm = T),3)) %>% gt()`
+<h3>`r paste("Summary by site")`</h3>
+`r WQ_DO_tab %>% group_by(Site) %>% summarise(Min = min(DO, na.rm = T), Max = max(DO, na.rm = T), Mean = round(mean(DO, na.rm = T),3)) %>% gt()`
+`r WQ_Tem_out %>% tab_caption(caption = "Monthly DO measurements")`
+\
+\
 \
