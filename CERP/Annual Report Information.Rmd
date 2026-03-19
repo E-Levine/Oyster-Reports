@@ -212,6 +212,130 @@ WQ_Sec_Excel_Sitesumm <- WQ_Sec_tab %>%
 #
 ```
 
+```{r Temperature data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+#Temp
+WQ_Tem <- WQ_Temp_s %>% 
+  subset(SL.C_RetDate_Temp > Start_date & SL.C_RetDate_Temp < End_date) %>% 
+  rename(RetDate = SL.C_RetDate_Temp) %>% 
+  mutate(RetDate = as.yearmon(RetDate)) %>% 
+  dplyr::select(RetDate, everything(), -contains("_RetDate_Temp"))
+#
+#Data by station
+WQ_Tem_tab <- WQ_Tem %>% 
+  gather(Site_Station, Temp, -RetDate) %>% 
+  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 4)) %>%
+  dplyr::select(-Site_Station)
+#
+#Data table output - for RMarkdown file
+WQ_Tem_out <- WQ_Tem_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, Temp) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = WQ_Tem %>% 
+                                        dplyr::select(contains("Temp")) %>% 
+                                        unlist() %>% 
+                                        range(na.rm = T))) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+## Excel summary data
+WQ_Tem_Excel <- WQ_Temp_s %>% 
+  subset(SL.C_RetDate_Temp > Start_date & SL.C_RetDate_Temp < End_date) %>% 
+  dplyr::select(starts_with("LX"), starts_with("SL"), everything())
+#
+WQ_Tem_Excel_summ <- WQ_Tem_tab %>% 
+  group_by(Site) %>%
+  summarise(Min = round(min(Temp, na.rm = T),2),
+            Max = round(max(Temp, na.rm = T),2),
+            Mean = round(mean(Temp, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+WQ_Tem_Excel_Sitesumm <- WQ_Tem_tab %>% 
+  mutate(Site = substr(Site, 1, 2)) %>%
+  group_by(Site) %>%
+  summarise(Min = round(min(Temp, na.rm = T),2),
+            Max = round(max(Temp, na.rm = T),2),
+            Mean = round(mean(Temp, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+#
+```
+
+```{r pH data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+#pH
+WQ_pH <- WQ_pH_s %>% 
+  subset(SL.C_RetDate_pH > Start_date & SL.C_RetDate_pH < End_date) %>% 
+  rename(RetDate = SL.C_RetDate_pH) %>% 
+  mutate(RetDate = as.yearmon(RetDate)) %>% 
+  dplyr::select(RetDate, everything(), -contains("_RetDate_pH"))
+#
+#Data by station
+WQ_pH_tab <- WQ_pH %>% 
+  gather(Site_Station, pH, -RetDate) %>% 
+  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 4)) %>%
+  dplyr::select(-Site_Station)
+#
+#Data table output - for RMarkdown file
+WQ_pH_out <- WQ_pH_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, pH) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = WQ_pH %>% 
+                                        dplyr::select(contains("pH")) %>% 
+                                        unlist() %>% 
+                                        range(na.rm = T))) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+## Excel summary data
+WQ_pH_Excel <- WQ_pH_s %>% 
+  subset(SL.C_RetDate_pH > Start_date & SL.C_RetDate_pH < End_date) %>% 
+  dplyr::select(starts_with("LX"), starts_with("SL"), everything())
+#
+WQ_pH_Excel_summ <- WQ_pH_tab %>% 
+  group_by(Site) %>%
+  summarise(Min = round(min(pH, na.rm = T),2),
+            Max = round(max(pH, na.rm = T),2),
+            Mean = round(mean(pH, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+WQ_pH_Excel_Sitesumm <- WQ_pH_tab %>% 
+  mutate(Site = substr(Site, 1, 2)) %>%
+  group_by(Site) %>%
+  summarise(Min = round(min(pH, na.rm = T),2),
+            Max = round(max(pH, na.rm = T),2),
+            Mean = round(mean(pH, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+#
+```
+
 ```{r Excel file output}
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
 
@@ -249,6 +373,36 @@ addWorksheet(wb, sheet_name)
 writeData(wb, sheet = sheet_name, x = WQ_Sec_Excel, startCol = 1, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_Sec_Excel_summ, startCol = 18, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_Sec_Excel_Sitesumm, startCol = 23, startRow = 2)
+#
+#
+#
+## Temp 
+sheet_name <- "Temp_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = WQ_Tem_Excel, startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = WQ_Tem_Excel_summ, startCol = 18, startRow = 1)
+writeData(wb, sheet = sheet_name, x = WQ_Tem_Excel_Sitesumm, startCol = 23, startRow = 2)
+#
+#
+## pH 
+sheet_name <- "pH_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = WQ_pH_Excel, startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = WQ_pH_Excel_summ, startCol = 18, startRow = 1)
+writeData(wb, sheet = sheet_name, x = WQ_pH_Excel_Sitesumm, startCol = 23, startRow = 2)
+#
 #
 #
 #
@@ -371,5 +525,24 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r WQ_Sal_tab %>% group_by(Site) %>% summarise(Min = min(Salinity, na.rm = T), Max = max(Salinity, na.rm = T), Mean = round(mean(Salinity, na.rm = T),3)) %>% gt()`
 `r WQ_Sal_out %>% tab_caption(caption = "Monthly salinity measurements")`
 \
+<h2>`r paste("Secchi")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r WQ_Sec_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(Secchi, na.rm = T), Max = max(Secchi, na.rm = T), Mean = round(mean(Secchi, na.rm = T),3)) %>% gt()`
+<h3>`r paste("Summary by site")`</h3>
+`r WQ_Sec_tab %>% group_by(Site) %>% summarise(Min = min(Secchi, na.rm = T), Max = max(Secchi, na.rm = T), Mean = round(mean(Secchi, na.rm = T),3)) %>% gt()`
+`r WQ_Sec_out %>% tab_caption(caption = "Monthly Secchi measurements")`
 \
+<h2>`r paste("Temp")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r WQ_Tem_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(Temp, na.rm = T), Max = max(Temp, na.rm = T), Mean = round(mean(Temp, na.rm = T),3)) %>% gt()`
+<h3>`r paste("Summary by site")`</h3>
+`r WQ_Tem_tab %>% group_by(Site) %>% summarise(Min = min(Temp, na.rm = T), Max = max(Temp, na.rm = T), Mean = round(mean(Temp, na.rm = T),3)) %>% gt()`
+`r WQ_Tem_out %>% tab_caption(caption = "Monthly Temp measurements")`
+\
+<h2>`r paste("pH")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r WQ_pH_tab %>% mutate(Site = substr(Site, 1, 2)) %>% group_by(Site) %>% summarise(Min = min(pH, na.rm = T), Max = max(pH, na.rm = T), Mean = round(mean(pH, na.rm = T),3)) %>% gt()`
+<h3>`r paste("Summary by site")`</h3>
+`r WQ_pH_tab %>% group_by(Site) %>% summarise(Min = min(pH, na.rm = T), Max = max(pH, na.rm = T), Mean = round(mean(pH, na.rm = T),3)) %>% gt()`
+`r WQ_Tem_out %>% tab_caption(caption = "Monthly pH measurements")`\
 \
