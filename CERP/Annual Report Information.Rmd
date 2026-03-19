@@ -126,7 +126,8 @@ WQ_Sal_Excel <- WQ_Sal_s %>%
   subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% 
   dplyr::select(starts_with("LX"), starts_with("SL"), everything())
 #
-WQ_Sal_Excel_summ <- WQ_Sal_tab %>% 
+WQ_Sal_Excel_summ <- WQ_Sal_tab %>%
+  filter(Salinity > 0) %>% 
   group_by(Site) %>%
   summarise(Min = round(min(Salinity, na.rm = T),2),
             Max = round(max(Salinity, na.rm = T),2),
@@ -136,7 +137,8 @@ WQ_Sal_Excel_summ <- WQ_Sal_tab %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
 #
-WQ_Sal_Excel_Sitesumm <- WQ_Sal_tab %>% 
+WQ_Sal_Excel_Sitesumm <- WQ_Sal_tab %>%
+  filter(Salinity > 0) %>% 
   mutate(Site = substr(Site, 1, 2)) %>%
   group_by(Site) %>%
   summarise(Min = round(min(Salinity, na.rm = T),2),
@@ -164,7 +166,7 @@ WQ_Sec <- WQ_Secchi_s %>%
 #Data by station
 WQ_Sec_tab <- WQ_Sec %>% 
   gather(Site_Station, Secchi, -RetDate) %>% 
-  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site_Station = gsub(("_SP|\\."), "", Site_Station)) %>% 
   mutate(Site = substr(Site_Station, 1, 3), 
          Station = substr(Site_Station, 4, 4)) %>%
   dplyr::select(-Site_Station)
@@ -188,7 +190,8 @@ WQ_Sec_Excel <- WQ_Secchi_s %>%
   subset(SL.C_RetDate_SP > Start_date & SL.C_RetDate_SP < End_date) %>% 
   dplyr::select(starts_with("LX"), starts_with("SL"), everything())
 #
-WQ_Sec_Excel_summ <- WQ_Sec_tab %>% 
+WQ_Sec_Excel_summ <- WQ_Sec_tab %>%
+  filter(Secchi > 0) %>% 
   group_by(Site) %>%
   summarise(Min = round(min(Secchi, na.rm = T),2),
             Max = round(max(Secchi, na.rm = T),2),
@@ -198,7 +201,8 @@ WQ_Sec_Excel_summ <- WQ_Sec_tab %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
 #
-WQ_Sec_Excel_Sitesumm <- WQ_Sec_tab %>% 
+WQ_Sec_Excel_Sitesumm <- WQ_Sec_tab %>%
+  filter(Secchi > 0) %>% 
   mutate(Site = substr(Site, 1, 2)) %>%
   group_by(Site) %>%
   summarise(Min = round(min(Secchi, na.rm = T),2),
@@ -226,7 +230,7 @@ WQ_Tem <- WQ_Temp_s %>%
 #Data by station
 WQ_Tem_tab <- WQ_Tem %>% 
   gather(Site_Station, Temp, -RetDate) %>% 
-  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site_Station = gsub(("_Temp|\\."), "", Site_Station)) %>% 
   mutate(Site = substr(Site_Station, 1, 3), 
          Station = substr(Site_Station, 4, 4)) %>%
   dplyr::select(-Site_Station)
@@ -250,7 +254,8 @@ WQ_Tem_Excel <- WQ_Temp_s %>%
   subset(SL.C_RetDate_Temp > Start_date & SL.C_RetDate_Temp < End_date) %>% 
   dplyr::select(starts_with("LX"), starts_with("SL"), everything())
 #
-WQ_Tem_Excel_summ <- WQ_Tem_tab %>% 
+WQ_Tem_Excel_summ <- WQ_Tem_tab %>%
+  filter(Temp > 0) %>% 
   group_by(Site) %>%
   summarise(Min = round(min(Temp, na.rm = T),2),
             Max = round(max(Temp, na.rm = T),2),
@@ -260,7 +265,8 @@ WQ_Tem_Excel_summ <- WQ_Tem_tab %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
 #
-WQ_Tem_Excel_Sitesumm <- WQ_Tem_tab %>% 
+WQ_Tem_Excel_Sitesumm <- WQ_Tem_tab %>%
+  filter(Temp > 0) %>% 
   mutate(Site = substr(Site, 1, 2)) %>%
   group_by(Site) %>%
   summarise(Min = round(min(Temp, na.rm = T),2),
@@ -288,7 +294,7 @@ WQ_pH <- WQ_pH_s %>%
 #Data by station
 WQ_pH_tab <- WQ_pH %>% 
   gather(Site_Station, pH, -RetDate) %>% 
-  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site_Station = gsub(("_pH|\\."), "", Site_Station)) %>% 
   mutate(Site = substr(Site_Station, 1, 3), 
          Station = substr(Site_Station, 4, 4)) %>%
   dplyr::select(-Site_Station)
@@ -312,7 +318,8 @@ WQ_pH_Excel <- WQ_pH_s %>%
   subset(SL.C_RetDate_pH > Start_date & SL.C_RetDate_pH < End_date) %>% 
   dplyr::select(starts_with("LX"), starts_with("SL"), everything())
 #
-WQ_pH_Excel_summ <- WQ_pH_tab %>% 
+WQ_pH_Excel_summ <- WQ_pH_tab %>%
+  filter(pH > 0) %>% 
   group_by(Site) %>%
   summarise(Min = round(min(pH, na.rm = T),2),
             Max = round(max(pH, na.rm = T),2),
@@ -322,7 +329,8 @@ WQ_pH_Excel_summ <- WQ_pH_tab %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
 #
-WQ_pH_Excel_Sitesumm <- WQ_pH_tab %>% 
+WQ_pH_Excel_Sitesumm <- WQ_pH_tab %>%
+  filter(pH > 0) %>% 
   mutate(Site = substr(Site, 1, 2)) %>%
   group_by(Site) %>%
   summarise(Min = round(min(pH, na.rm = T),2),
@@ -350,7 +358,7 @@ WQ_DO <- WQ_DO_s %>%
 #Data by station
 WQ_DO_tab <- WQ_DO %>% 
   gather(Site_Station, DO, -RetDate) %>% 
-  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site_Station = gsub(("_DOl|\\."), "", Site_Station)) %>% 
   mutate(Site = substr(Site_Station, 1, 3), 
          Station = substr(Site_Station, 4, 4)) %>%
   dplyr::select(-Site_Station)
@@ -374,7 +382,8 @@ WQ_DO_Excel <- WQ_DO_s %>%
   subset(SL.C_RetDate_DO > Start_date & SL.C_RetDate_DO < End_date) %>% 
   dplyr::select(starts_with("LX"), starts_with("SL"), everything())
 #
-WQ_DO_Excel_summ <- WQ_DO_tab %>% 
+WQ_DO_Excel_summ <- WQ_DO_tab %>%
+  filter(DO > 0) %>% 
   group_by(Site) %>%
   summarise(Min = round(min(DO, na.rm = T),2),
             Max = round(max(DO, na.rm = T),2),
@@ -384,7 +393,8 @@ WQ_DO_Excel_summ <- WQ_DO_tab %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
 #
-WQ_DO_Excel_Sitesumm <- WQ_DO_tab %>% 
+WQ_DO_Excel_Sitesumm <- WQ_DO_tab %>%
+  filter(DO > 0) %>% 
   mutate(Site = substr(Site, 1, 2)) %>%
   group_by(Site) %>%
   summarise(Min = round(min(DO, na.rm = T),2),
@@ -398,7 +408,180 @@ WQ_DO_Excel_Sitesumm <- WQ_DO_tab %>%
 #
 ```
 
-```{r Excel file output}
+```{r Survey data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+##Survey counts
+Counts <- Counts_df %>% 
+  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
+  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  replace(is.na(.), -999) %>%
+  dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
+#
+LiveOy <- Counts %>% dplyr::select(Survey, AnalysisDate, contains("LiveMean"))
+DeadOy <- Counts %>% dplyr::select(Survey, AnalysisDate, contains("DeadRatioMean"))
+#
+##Survey SHs
+SH <- SH_df %>% 
+  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
+  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  replace(is.na(.), -999) %>%
+  dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything()) %>%
+  dplyr::select(Survey, AnalysisDate, contains("Mean"))
+#
+#
+#
+#Data by station
+Live_tab <- LiveOy %>% 
+  gather(Site_Station, Count, -AnalysisDate, -Survey) %>% 
+  mutate(Site_Station = gsub(("_LiveMean|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 5)) %>%
+  dplyr::select(-Site_Station)
+#
+Dead_tab <- DeadOy %>% 
+  gather(Site_Station, Count, -AnalysisDate, -Survey) %>% 
+  mutate(Site_Station = gsub(("_DeadRatioMean|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 5)) %>%
+  dplyr::select(-Site_Station)
+#
+SH_tab <- SH %>% 
+  gather(Site_Station, SHs, -AnalysisDate, -Survey) %>% 
+  mutate(Site_Station = gsub(("_SHMean|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 5)) %>%
+  dplyr::select(-Site_Station)
+#
+#
+#
+#Data table output - for RMarkdown file
+Live_out <- Live_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, Count) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = Live_tab %>% 
+                                        filter(Survey != min(Survey)) %>%
+                                        dplyr::select(contains("Count")) %>% 
+                                        filter(Count > 0) %>%
+                                        unlist() %>% 
+                                        range(na.rm = T))) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+Dead_out <- Dead_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, Count) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = Dead_tab %>% 
+                                        filter(Survey != min(Survey)) %>%
+                                        dplyr::select(contains("Count")) %>% 
+                                        filter(Count > 0) %>%
+                                        unlist() %>% 
+                                        range(na.rm = T))) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+SH_out <- SH_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, SHs) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = SH_tab %>% 
+                                        filter(Survey != min(Survey)) %>%
+                                        dplyr::select(contains("SHs")) %>% 
+                                        filter(SHs > 0) %>%
+                                        unlist() %>% 
+                                        range(na.rm = T))) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+## Excel summary data
+Live_Excel <- LiveOy %>% 
+  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
+#
+Live_Excel_Sitesumm <- Live_tab %>%
+  filter(Count > -1, Survey != min(Survey)) %>% 
+  group_by(Site) %>%
+  summarise(Min = round(min(Count, na.rm = T),2),
+            Max = round(max(Count, na.rm = T),2),
+            Mean = round(mean(Count, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ) %>%
+  dplyr::select(Summ, starts_with("LX"), starts_with("SL"), everything())
+#
+Live_Excel_SeasonSitesumm <- Live_tab %>%
+  filter(Count > -1, Survey != min(Survey)) %>%
+  mutate(Season = gsub(" .*", "", Survey)) %>%
+  group_by(Season, Site) %>%
+  summarise(Mean = round(mean(Count, na.rm = T),2)) %>%
+  spread(key = "Site", value = "Mean") %>%
+  filter(Season %in% c("Spring", "Fall")) %>%
+  dplyr::select(Season, starts_with("LX"), starts_with("SL"), everything())
+#
+#
+Dead_Excel <- DeadOy %>% 
+  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
+#
+Dead_Excel_Sitesumm <- Dead_tab %>%
+  filter(Count > -1, Survey != min(Survey)) %>% 
+  group_by(Site) %>%
+  summarise(Min = round(min(Count, na.rm = T),2),
+            Max = round(max(Count, na.rm = T),2),
+            Mean = round(mean(Count, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ) %>%
+  dplyr::select(Summ, starts_with("LX"), starts_with("SL"), everything())
+#
+Dead_Excel_SeasonSitesumm <- Dead_tab %>%
+  filter(Count > -1, Survey != min(Survey)) %>%
+  mutate(Season = gsub(" .*", "", Survey)) %>%
+  group_by(Season, Site) %>%
+  summarise(Mean = round(mean(Count, na.rm = T),2)) %>%
+  spread(key = "Site", value = "Mean") %>%
+  filter(Season %in% c("Spring", "Fall")) %>%
+  dplyr::select(Season, starts_with("LX"), starts_with("SL"), everything())
+#
+#
+SH_Excel <- SH %>% 
+  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
+#
+SH_Excel_Sitesumm <- SH_tab %>%
+  filter(SHs > -1, Survey != min(Survey)) %>% 
+  group_by(Site) %>%
+  summarise(Min = round(min(SHs, na.rm = T),2),
+            Max = round(max(SHs, na.rm = T),2),
+            Mean = round(mean(SHs, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ) %>%
+  dplyr::select(Summ, starts_with("LX"), starts_with("SL"), everything())
+#
+SH_Excel_SeasonSitesumm <- SH_tab %>%
+  filter(SHs > -1, Survey != min(Survey)) %>%
+  mutate(Season = gsub(" .*", "", Survey)) %>%
+  group_by(Season, Site) %>%
+  summarise(Mean = round(mean(SHs, na.rm = T),2)) %>%
+  spread(key = "Site", value = "Mean") %>%
+  filter(Season %in% c("Spring", "Fall")) %>%
+  dplyr::select(Season, starts_with("LX"), starts_with("SL"), everything())
+#
+#
+```
+
+```{r Excel file output, include = FALSE}
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
 
 # If file exists, load it; otherwise create a new workbook
@@ -479,6 +662,35 @@ writeData(wb, sheet = sheet_name, x = WQ_DO_Excel, startCol = 1, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_DO_Excel_summ, startCol = 18, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_DO_Excel_Sitesumm, startCol = 23, startRow = 2)
 #
+#
+## Survey
+sheet_name <- "Density_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = Live_Excel, startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Live_Excel_Sitesumm, startCol = 10, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Live_Excel_SeasonSitesumm, startCol = 15, startRow = 2)
+writeData(wb, sheet = sheet_name, x = Dead_Excel, startCol = 21, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Dead_Excel_Sitesumm, startCol = 30, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Dead_Excel_SeasonSitesumm, startCol = 35, startRow = 2)
+#
+sheet_name <- "SH_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = SH_Excel, startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = SH_Excel_Sitesumm, startCol = 10, startRow = 1)
+writeData(wb, sheet = sheet_name, x = SH_Excel_SeasonSitesumm, startCol = 15, startRow = 2)
+#
 ##
 #
 #
@@ -503,13 +715,6 @@ Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!cont
 Repro_CERP <- Repro_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Repro_CRE <- Repro_df %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
-##Survey counts
-Counts_CERP <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
-Counts_CRE <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
-#
-##Survey SHs
-SH_CERP <- SH_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(6))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
-SH_CRE <- SH_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 #
 ##Cages
 Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
@@ -520,14 +725,6 @@ Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!cont
 
 ```{Previous code to be edited}
 ##WORKING BELOW
-#
-##Secchi
-CERP_Sec <- WQ_Sec_CERP %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_CERP %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13, 16), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
-#
-CRE_Sec <- WQ_Sec_CRE %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_CRE %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
-#
-PBC_Sec <- WQ_Sec_PBC %>% gt() %>% data_color(columns = contains("SP"), fn = scales::col_numeric(palette = "plasma", domain = WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% cols_label_with(fn = ~gsub("_SP","", .)) %>% cols_align(align = c("center"), columns = everything())
-#
 #
 ##Dermo
 CERP_dermo <- Dermo_CERP %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Dermo_CERP %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Mean","", .)) %>% cols_label_with(fn = ~gsub("_Pct","", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 2000)
@@ -630,5 +827,27 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r WQ_DO_tab %>% group_by(Site) %>% summarise(Min = min(DO, na.rm = T), Max = max(DO, na.rm = T), Mean = round(mean(DO, na.rm = T),3)) %>% gt()`
 `r WQ_Tem_out %>% tab_caption(caption = "Monthly DO measurements")`
 \
+\
+<h1>`r paste("Survey summary")`</h1>
+<h2>`r paste("Live Means")`</h2>
+<h3>`r paste("Summary by Site")`</h3>
+`r Live_Excel_Sitesumm %>% gt()`
+<h3>`r paste("Summary by Season")`</h3>
+`r Live_Excel_SeasonSitesumm %>% gt()`
+`r Live_out %>% tab_caption(caption = "Monthly mean live counts")`
+\
+<h2>`r paste("Dead Means")`</h2>
+<h3>`r paste("Summary by Site")`</h3>
+`r Dead_Excel_Sitesumm %>% gt()`
+<h3>`r paste("Summary by Season")`</h3>
+`r Dead_Excel_SeasonSitesumm %>% gt()`
+`r Dead_out %>% tab_caption(caption = "Monthly mean dead counts")`
+\
+<h2>`r paste("Mean Shell Heights")`</h2>
+<h3>`r paste("Summary by Site")`</h3>
+`r SH_Excel_Sitesumm %>% gt()`
+<h3>`r paste("Summary by Season")`</h3>
+`r SH_Excel_SeasonSitesumm %>% gt()`
+`r SH_out %>% tab_caption(caption = "Monthly mean shell heights")`
 \
 \
