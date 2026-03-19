@@ -3,9 +3,23 @@
 ####Data_cleaning####
 #
 ##Format raw data file
-load_raw_data <- function(file_name){
-  #Read the Excel file
-  t <- readWorkbook(file_name, sheet = 1, detectDates = TRUE)
+# file_name to load
+# ID of logger
+load_raw_data <- function(file_name, ID){
+  
+  if(file.exists(file_name)){
+    print("File found. Loading data from Excel file.")
+    #Read the Excel file
+    t <- readWorkbook(file_name, sheet = 1, detectDates = TRUE)
+  } else if(file.exists(sub(".xlsx", ".csv", file_name))){
+    print("File found. Loading data from CSV file.")
+    #If no Excel file check for CSV
+    t <- read.csv(sub(".xlsx", ".csv", file_name), 
+                  colClasses = c("TIMESERIESID" = "character"))
+  } else {
+    print("File not found. Check file name.")
+  }
+  
   #Determine where to start data based on empty row
   start_row <- which(t[[1]] == "Station")[1]
   if(!is.na(start_row)){
@@ -13,13 +27,24 @@ load_raw_data <- function(file_name){
   } else {
     Raw_data <- t
   }
-  #Promote first row to column names, remove columns of NAs, make sure data is only for desired DBKey
-  Raw_data_t <- Raw_data %>% slice(-1) %>% setNames(unlist(Raw_data[1,])) %>% 
-    dplyr::select(where(~ !all(is.na(.))), 'Data Value') %>% filter(DBKEY == ID) %>% 
-    rename(Date = 'Daily Date', Data_Value = 'Data Value', Revision_Date = 'Revision Date') %>%
-    mutate(Date = as.Date(paste(substr(Date, 6, 7), substr(Date, 9, 10), substr(Date,1,4), sep = "/"), format = "%m/%d/%Y"),
+  #Promote first row to column names if needed by checking first row, column value
+  first_cell <- t[1,1]
+  if(first_cell %in% c("DBKEY", "TIMESTAMPID")){
+    Raw_data <- Raw_data %>% slice(-1) %>% setNames(unlist(Raw_data[1,]))
+  } else {
+    Raw_data <- Raw_data
+  }
+  #Remove columns of NAs, make sure data is only for desired DBKey
+  Raw_data_t <- Raw_data %>% 
+    dplyr::select(where(~ !all(is.na(.))), any_of(c('Data Value', 'VALUE'))) %>% 
+    filter(if_any(any_of(c("DBKEY", "TIMESERIESID")), ~ . == ID)) %>% 
+    rename(Date = any_of(c("'Daily Date'", "TIMESTAMP")), 
+           Data_Value = any_of(c("Data Value", "VALUE")), 
+           Revision_Date = any_of(c("Revision Date", "REVISION_DATE"))) %>%
+    #Read dates and remove any timestamps, make sure measurements as numeric
+    mutate(Date = as.Date(parse_date_time(Date, orders = c("ymd", "mdy"))),
            Data_Value = as.numeric(Data_Value),
-           Revision_Date = as.Date(paste(substr(Revision_Date, 6, 7), substr(Revision_Date, 9, 10), substr(Revision_Date,1,4), sep = "/"), format = "%m/%d/%Y"))
+           Revision_Date = as.Date(parse_date_time(Revision_Date, orders = c("ymd HM", "mdy HM"))))
   #
   return(Raw_data_t)
 }
@@ -40,9 +65,21 @@ output_shared_data <- function(Shared_file, sheet_name){
       wb <- loadWorkbook(Shared_file)
       # Get the existing data from the specified sheet, add new data, keep only newest data if duplicates, and write back to same sheet
       existing_data <- read.xlsx(Shared_file, sheet = sheet_name) %>% 
-        mutate(Age = "Older", Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), Date = as.Date(Date, origin = "1899-12-30"))
-      combined_data <- rbind(existing_data, Cleaned_df %>% mutate(Age = "Newer")) %>% group_by(Date) %>% arrange(Date, Age) %>% slice(1)
-      combined_data <- combined_data %>% dplyr::select(-Age) %>% arrange(Date)
+        mutate(Age = "Older", 
+               Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), 
+               Date = as.Date(Date, origin = "1899-12-30"))
+      
+      combined_data <- rbind(existing_data, 
+                             Cleaned_df %>% 
+                               mutate(Age = "Newer")) %>% 
+        group_by(Date) %>% 
+        arrange(Date, Age) %>% 
+        slice(1)
+      
+      combined_data <- combined_data %>% 
+        dplyr::select(-Age) %>% 
+        arrange(Date)
+      
       writeData(wb, sheet = sheet_name, combined_data)
       # Save the workbook
       saveWorkbook(wb, Shared_file, overwrite = TRUE)
