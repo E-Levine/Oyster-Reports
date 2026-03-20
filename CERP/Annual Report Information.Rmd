@@ -416,7 +416,24 @@ WQ_DO_Excel_Sitesumm <- WQ_DO_tab %>%
 Counts <- Counts_df %>% 
   mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
   subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
-  replace(is.na(.), -999) %>%
+  #replace(is.na(.), -999) %>%
+  mutate(across(-Survey,
+      ~ if_else(
+        str_detect(Survey, "Spring|Fall"),
+        .x,
+        replace_na(.x, -999)))
+  ) %>%
+  mutate(
+    across(
+      c(CR.E1_LiveMean, CR.E1_LiveSD, CR.W4_LiveMean, CR.W4_LiveSD, 
+        CR.E1_DeadRatioMean, CR.E1_DeadRatioSD, CR.W4_DeadRatioMean, CR.W4_DeadRatioSD),
+      ~ if_else(
+        str_detect(Survey, "Summer|Winter"),
+        NA,
+        .x
+      )
+    )
+  ) %>%
   dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
 #
 LiveOy <- Counts %>% dplyr::select(Survey, AnalysisDate, contains("LiveMean"))
@@ -424,9 +441,26 @@ DeadOy <- Counts %>% dplyr::select(Survey, AnalysisDate, contains("DeadRatioMean
 #
 ##Survey SHs
 SH <- SH_df %>% 
+  #Remove CR 1,4 Summer Winter
   mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
   subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
-  replace(is.na(.), -999) %>%
+  #replace(is.na(.), -999) %>%
+   mutate(across(-Survey,
+      ~ if_else(
+        str_detect(Survey, "Spring|Fall"),
+        .x,
+        replace_na(.x, -999)))
+  ) %>%
+  mutate(
+    across(
+      c(CR.E1_SHMean, CR.E1_SHSD, CR.W4_SHMean, CR.W4_SHSD),
+      ~ if_else(
+        str_detect(Survey, "Summer|Winter"),
+        NA,
+        .x
+      )
+    )
+  ) %>%
   dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything()) %>%
   dplyr::select(Survey, AnalysisDate, contains("Mean"))
 #
@@ -488,6 +522,7 @@ Dead_out <- Dead_tab %>%
 SH_out <- SH_tab %>% 
   mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
   spread(Station, SHs) %>% 
+  arrange(Site, AnalysisDate) %>%
   gt(groupname_col = "Site") %>% 
   data_color(columns = contains(c("1","2","3","4")), 
              fn = scales::col_numeric(palette = "plasma", 
@@ -497,7 +532,7 @@ SH_out <- SH_tab %>%
                                         filter(SHs > 0) %>%
                                         unlist() %>% 
                                         range(na.rm = T))) %>% 
-  cols_align(align = c("center"), columns = everything())
+  cols_align(align = c("center"), columns = everything()) 
 #
 #
 ## Excel summary data
