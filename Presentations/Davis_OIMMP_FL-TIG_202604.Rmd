@@ -1,0 +1,134 @@
+---
+title: "Davis_OIMMP_FL-TIG_202604"
+output: html_document
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportYear <- "2025" # Sets Year of Report
+Database = "OysterLocalMD20260323"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+
+```
+
+```{r SetUp, echo = FALSE, warning = FALSE, message = FALSE}
+############
+# 01
+# Load necessary R packages
+library(tidyverse) # Loads a number of very useful packages
+library(odbc) # Necessary for loading data from SQL Server
+library(DBI) # Necessary for loading data from SQL Server
+library(dbplyr) # Necessary for loading data from SQL Server
+library(lubridate) # Makes dealing with dates easier
+library(knitr) # Allows Dynamic Report generation (knit)
+library(rmarkdown) # Necessary for working with RMarkdown files
+library(ggpubr) # Increases the flexibility of ggplot2 generated plots
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales) # Improves scales in plot labels
+library(plotrix) # needed for standard error calculations
+library(glmmTMB) # needed for modeled means
+library(DHARMa) # needed for model diagnostics
+library(performance) # needed for model diagnostics
+library(AICcmodavg) # needed for model selection
+library(emmeans) # needed to extract modeled means and CI
+library(openxlsx) # needed to read and write to Excel
+
+# Set background variables
+ReportStart <- as.Date(paste0(ReportYear, "-01-01"))
+ReportEnd <- as.Date(paste0(ReportYear, "-12-31"))
+Estuaries <- c("PE", "SA")
+
+# Set data ranges
+Years_WQ <- seq(2022, ReportYear)
+
+Years_Recruitment <- seq(2022, ReportYear)
+
+
+# Set important lists
+lv3 <- c("West", "North", "East")
+
+# Configure chunks
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE)
+
+options(scipen = 999) # force outputs to not use scientific notation
+
+############
+############
+
+############
+############
+# 02
+# Create all Functions necessary for Report
+############
+############
+# 03
+# Set formatting for text and figures
+#Base formatting for figure consistency
+
+```
+
+``` {r SetUp Data Load}
+############
+# 04
+# Load Data
+
+# Load Database Data
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server", 
+                 Server = Server,
+                 Database = Database,
+                 Authentication = "ActiveDirectoryIntegrated")
+
+# Load Fixed location information
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+# Load Water Quality Data
+hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+# Load Recruitment Data
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+# Disconnect from database
+DBI::dbDisconnect(con)
+
+############
+############
+
+############
+############
+# 05
+# Apply basic filters to data
+# Filter data frames so that only data collected for inclusion in the Report are present.
+
+### Location Data ###
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched),
+         SectionName = case_when(
+           SectionName == "W" ~ "West",
+           SectionName == "N" ~ "North",
+           SectionName == "E" ~ "East",
+           TRUE ~ SectionName)) %>%
+  select(FixedLocationID,
+         Estuary,
+         SectionName,
+         StationName,
+         ParcelName,
+         StationNumber,
+         StationNameNumber
+         ) %>% 
+  distinct()
+
+
+
+```
