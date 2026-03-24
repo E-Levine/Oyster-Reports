@@ -30,6 +30,7 @@ library(glmmTMB) # needed for modeled means
 library(DHARMa) # needed for model diagnostics
 library(performance) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
+library(MuMIn) # needed for model selection
 library(emmeans) # needed to extract modeled means and CI
 library(openxlsx) # needed to read and write to Excel
 
@@ -129,6 +130,62 @@ FixedLocations1 <- dboFixedLocations %>%
          ) %>% 
   distinct()
 
+### Recruitment Data ###
+# Recruitment
+Recruitment <- hsdbRecruitment %>%
+  filter(ShellPosition %in% c(2, 3, 4, 5, 8, 9, 10, 11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate - DeployedDate),
+         Year = year(RetDate),
+         Month = month(RetDate)
+         ) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+  mutate(Estuary = as.factor(Estuary),
+         SectionName = as.factor(SectionName),
+         Yearf = as.factor(Year),
+         Monthf = as.factor(Month)
+  )
+###
 
+### Remove intermediate data frames
+# rm(dboFixedLocations, hsdbRecruitment)
+###
 
 ```
+
+``` {r Model Selection}
+### View data distributions
+# By estuary
+hist(subset(Recruitment, Estuary == "PE")$NumBottom)
+hist(subset(Recruitment, Estuary == "SA")$NumBottom)
+### Both look to need nbinom2
+# Best treated separately
+
+pe2 <- glmmTMB(NumBottom ~ SectionName + Yearf + Monthf + (1 | FixedLocationID) +
+    offset(log(NumDays)),
+  family = nbinom2,
+  data = Recruitment,
+  subset = Estuary == "PE")
+
+summary(pe2)
+simulateResiduals(pe2, plot = TRUE)
+acf(residuals(pe2, type = "pearson"))
+r2(pe2)
+
+
+
+sa2 <- glmmTMB(NumBottom ~ SectionName + Yearf + Monthf + (1 | FixedLocationID) +
+    offset(log(NumDays)),
+  family = nbinom2,
+  data = Recruitment,
+  subset = Estuary == "SA")
+
+summary(sa2)
+simulateResiduals(sa2, plot = TRUE)
+acf(residuals(sa2, type = "pearson"))
+r2(sa2)
+
+```
+
