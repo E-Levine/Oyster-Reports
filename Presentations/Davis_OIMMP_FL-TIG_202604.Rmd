@@ -189,3 +189,48 @@ r2(sa2)
 
 ```
 
+``` {r Data extraction }
+# Predict standardized monthly settlement rates
+# Rate units are spat per shell per day
+#Use 28 days because that gives values comparable to your historic method:
+
+#1. Predicted Means + 95% CI for All Years (Section × Month)
+# Make sure Month, Year, SectionName are factors
+# PE
+emm_PE_ALL <- emmeans(
+  pe2,
+  specs = ~ Yearf * SectionName * Monthf,
+  at = list(
+    NumDays = 28
+  ),
+  type = "response"
+)
+emm_PE_ALL <- as.data.frame(emm_PE_ALL)
+emm_PE_ALL$asymp.UCL[is.infinite(emm_PE_ALL$asymp.UCL)] <- 0 # replace any overruns to 0
+
+# SA
+emm_SA_ALL <- emmeans(
+  sa2,
+  specs = ~ Yearf * SectionName * Monthf,
+  at = list(
+    NumDays = 28
+  ),
+  type = "response"
+)
+emm_SA_ALL <- as.data.frame(emm_SA_ALL)
+emm_SA_ALL$asymp.UCL[is.infinite(emm_SA_ALL$asymp.UCL)] <- 0 # replace any overruns to 0
+
+############# Raw means and SD (28-day standardized)
+RecRaw_ALL <- Recruitment %>%
+  mutate(RecRateRaw = NumBottom / (NumDays / 28),
+         YRMON = paste0(Year, Month)) %>%
+  group_by(Estuary,
+           SectionName,
+           YRMON = substring(SampleEventID, 8, 13)) %>%
+  summarise(RecRateMeanRAW = mean(RecRateRaw, na.rm = TRUE),
+            RecRateSDRAW = sd(RecRateRaw, na.rm = TRUE))
+
+
+
+```
+
