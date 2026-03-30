@@ -720,6 +720,59 @@ DermoP_Excel_Sitesumm <- DermoP_tab %>%
 #
 ```
 
+```{r Repro data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+Repro_t <- Repro_df %>% 
+  subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% 
+  rename(RetDate = SL.C_RetDate) %>% 
+  dplyr::select(RetDate, everything(), -contains("_RetDate")) %>% 
+  mutate(RetDate = as.yearmon(RetDate))
+#
+#Data by station
+Repro_tab <- Repro_t %>% 
+  gather(Site_Station, Pct, -RetDate) %>%
+  mutate(Site_Station = gsub(("_Sal|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Stage = substr(Site_Station, 5, 8)) %>% 
+  dplyr::select(-Site_Station)
+  
+  cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
+
+#
+#Data table output - for RMarkdown file
+Repro_out <- Repro_tab %>% 
+  spread(Stage, Pct) %>% 
+  gt(rowname_col = "RetDate", groupname_col = "Site") %>% 
+  cols_move(Dev, Ind) %>% 
+  data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+## Excel summary data
+Repro_Excel <- Repro_t %>% 
+  dplyr::select(
+    map(
+      unique(str_extract(names(.), "^[^_]+")),
+      function(grp) {
+        grp_cols <- names(.)[str_detect(names(.), paste0("^", grp))]
+        
+        c(
+          grp_cols[str_detect(grp_cols, regex("Ind", ignore_case = TRUE))],
+          grp_cols[str_detect(grp_cols, regex("Dev", ignore_case = TRUE))],
+          grp_cols[!str_detect(grp_cols, regex("Ind|Dev", ignore_case = TRUE))]
+        )
+      }
+    ) %>% flatten_chr()
+  ) %>%
+  dplyr::select(RetDate, starts_with("LX"), starts_with("SL"), everything())
+#
+#
+#
+#
+```
+
 ```{r Excel file output, include = FALSE}
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
 
@@ -788,6 +841,7 @@ writeData(wb, sheet = sheet_name, x = WQ_pH_Excel_summ, startCol = 1, startRow =
 writeData(wb, sheet = sheet_name, x = WQ_pH_Excel_Sitesumm, startCol = 1, startRow = 23)
 #
 #
+#
 ## DO 
 sheet_name <- "DO_data"
 # If the sheet already exists, remove it (optional but avoid duplicate sheets)
@@ -800,6 +854,7 @@ addWorksheet(wb, sheet_name)
 writeData(wb, sheet = sheet_name, x = WQ_DO_Excel, startCol = 1, startRow = 1)
 writeData(wb, sheet = sheet_name, x = WQ_DO_Excel_summ, startCol = 1, startRow = 18)
 writeData(wb, sheet = sheet_name, x = WQ_DO_Excel_Sitesumm, startCol = 1, startRow = 23)
+#
 #
 #
 ## Survey
@@ -850,6 +905,20 @@ writeData(wb, sheet = sheet_name, x = DermoP_Excel_Sitesumm, startCol = 2, start
 #
 #
 #
+## Repro 
+sheet_name <- "Repro_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = Repro_Excel, startCol = 1, startRow = 1)
+#
+#
+#
+#
 #
 # Save workbook (overwrite = TRUE ensures updates)
 saveWorkbook(wb, file_path, overwrite = TRUE)
@@ -862,10 +931,6 @@ saveWorkbook(wb, file_path, overwrite = TRUE)
 Rcrt_CERP <- Rcrt_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
-#Repro
-Repro_CERP <- Repro_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Repro_CRE <- Repro_df %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-#
 #
 ##Cages
 Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
@@ -877,11 +942,6 @@ Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!cont
 ```{Previous code to be edited}
 ##WORKING BELOW
 #
-CRE_dermo <- Dermo_CRE %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Dermo_CRE %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Mean","", .)) %>% cols_label_with(fn = ~gsub("_Pct","", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
-#
-PBC_dermo <- Dermo_PBC %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Dermo_PBC %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_Mean","", .)) %>% cols_label_with(fn = ~gsub("_Pct","", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
-#
-#
 ##Rcrt
 CERP_rcrt <- Rcrt_CERP %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1800)
 #
@@ -889,13 +949,6 @@ CRE_rcrt <- Rcrt_CRE %>% gt() %>% data_color(columns = contains("Mean"), fn = sc
 #
 PBC_rcrt <- Rcrt_PBC %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
 #
-#
-##Repro
-CERP_repro <- Repro_CERP %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
-#
-CRE_repro <- Repro_CRE %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
-#
-PBC_repro <- Repro_PBC %>% gather(Site, Pct, -RetDate) %>% mutate(Station = substr(Site, 1, 4), Stage = substr(Site, 6, 8)) %>% dplyr::select(-Site) %>% spread(Stage, Pct) %>% arrange(Station, RetDate) %>% gt(rowname_col = "RetDate", groupname_col = "Station") %>% cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
 #
 #
 ##Counts
@@ -1012,3 +1065,9 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r DermoP_Excel_Sitesumm %>% gt()`
 <h3>`r paste("Summary by site")`</h3>
 `r DermoP_Excel_summ %>% gt()`
+\
+\
+<h1>`r paste("Repro summary")`</h1>
+<h2>`r paste("Repro Stage Means")`</h2>
+<h3>`r paste("Summary by estuary")`</h3>
+`r Repro_Excel %>% gt()`
