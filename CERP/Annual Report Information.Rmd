@@ -773,6 +773,69 @@ Repro_Excel <- Repro_t %>%
 #
 ```
 
+```{r Recruitment data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+Rcrt_t <- Rcrt_df %>% 
+  subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% 
+  rename(RetDate = SL.C_RetDate) %>% 
+  dplyr::select(RetDate, everything(), -contains("_RetDate")) %>% 
+  mutate(RetDate = as.yearmon(RetDate))
+#
+#Data by station
+Rcrt_tab <- Rcrt_t %>% 
+  dplyr::select(-contains("SD")) %>%
+  gather(Site_Station, Mean, -RetDate) %>% 
+  mutate(Site_Station = gsub(("_Mean|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Station = substr(Site_Station, 4, 5)) %>%
+  dplyr::select(-Site_Station)
+#
+#Data table output - for RMarkdown file
+Rcrt_out <- Rcrt_tab %>% 
+  mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
+  spread(Station, Mean) %>% 
+  gt(groupname_col = "Site") %>% 
+  data_color(columns = contains(c("1","2","3","4")), 
+             fn = scales::col_numeric(palette = "plasma", 
+                                      domain = Rcrt_tab %>% 
+                                        dplyr::select(contains("Mean")) %>% 
+                                        filter(Mean > 0) %>%
+                                        unlist() %>% 
+                                        range(na.rm = T)),
+             na_color = "gray80") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+## Excel summary data
+Rcrt_Excel <- Rcrt_tab %>% 
+  dplyr::select(starts_with("LX"), starts_with("SL"), everything())
+#
+Rcrt_Excel_summ <- Rcrt_tab %>%
+  group_by(Site) %>%
+  summarise(Min = round(min(Mean, na.rm = T),2),
+            Max = round(max(Mean, na.rm = T),2),
+            Mean = round(mean(Mean, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+Repro_Excel_Sitesumm <- Rcrt_tab %>%
+  mutate(Site = substr(Site, 1, 2)) %>%
+  group_by(Site) %>%
+  summarise(Min = round(min(Mean, na.rm = T),2),
+            Max = round(max(Mean, na.rm = T),2),
+            Mean = round(mean(Mean, na.rm = T),2)) %>%
+  gather(-Site, key = "Summ", value= "Value") %>%
+  spread(key = "Site", value= "Value") %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  arrange(Summ)
+#
+#
+```
+
 ```{r Excel file output, include = FALSE}
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
 
@@ -918,6 +981,22 @@ writeData(wb, sheet = sheet_name, x = Repro_Excel, startCol = 1, startRow = 1)
 #
 #
 #
+## Recruitment 
+sheet_name <- "Rcrt_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = Rcrt_Excel, startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Rcrt_Excel_summ, startCol = 1, startRow = 18)
+writeData(wb, sheet = sheet_name, x = Rcrt_Excel_Sitesumm, startCol = 1, startRow = 23)
+#
+#
+#
+#
 #
 #
 # Save workbook (overwrite = TRUE ensures updates)
@@ -927,11 +1006,6 @@ saveWorkbook(wb, file_path, overwrite = TRUE)
 ```{r Previous code requiring editing}
 
 ####WORKING BELOW
-#Rcrt
-Rcrt_CERP <- Rcrt_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-#
-#
 ##Cages
 Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
@@ -941,15 +1015,6 @@ Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!cont
 
 ```{Previous code to be edited}
 ##WORKING BELOW
-#
-##Rcrt
-CERP_rcrt <- Rcrt_CERP %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CERP %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1800)
-#
-CRE_rcrt <- Rcrt_CRE %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_CRE %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
-#
-PBC_rcrt <- Rcrt_PBC %>% gt() %>% data_color(columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Rcrt_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% cols_align(align = c("center"), columns = everything())
-#
-#
 #
 ##Counts
 CERP_count <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_LiveSD") %>% grp_options(container.width = 2000)
@@ -1029,6 +1094,7 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r WQ_Tem_out %>% tab_caption(caption = "Monthly DO measurements")`
 \
 \
+\
 <h1>`r paste("Survey summary")`</h1>
 <h2>`r paste("Live Means")`</h2>
 <h3>`r paste("Summary by Site")`</h3>
@@ -1067,7 +1133,18 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r DermoP_Excel_summ %>% gt()`
 \
 \
+\
 <h1>`r paste("Repro summary")`</h1>
 <h2>`r paste("Repro Stage Means")`</h2>
 <h3>`r paste("Summary by estuary")`</h3>
 `r Repro_Excel %>% gt()`
+\
+\
+\
+<h1>`r paste("Recruitment summary")`</h1>
+<h2>`r paste("Recruitment Means")`</h2>
+<h3>`r paste("Summary by Site")`</h3>
+`r Rcrt_Excel_Sitesumm %>% gt()`
+<h3>`r paste("Summary by Season")`</h3>
+`r Rcrt_Excel_SeasonSitesumm %>% gt()`
+`r Rcrt_out %>% tab_caption(caption = "Monthly mean recruitment")`
