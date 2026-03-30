@@ -737,9 +737,6 @@ Repro_tab <- Repro_t %>%
   mutate(Site = substr(Site_Station, 1, 3), 
          Stage = substr(Site_Station, 5, 8)) %>% 
   dplyr::select(-Site_Station)
-  
-  cols_move(Dev, Ind) %>% data_color(direction = "row", method = "numeric", palette = c("plasma"), alpha = 0.8) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(row_group.border.top.color = "black", row_group.border.bottom.color = "black", row_group.font.weight = "bold")
-
 #
 #Data table output - for RMarkdown file
 Repro_out <- Repro_tab %>% 
@@ -832,6 +829,101 @@ Repro_Excel_Sitesumm <- Rcrt_tab %>%
   spread(key = "Site", value= "Value") %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
+#
+#
+```
+
+```{r Cage data, include = FALSE}
+#
+## Summary R Markdown file:
+##Data cleaning
+## Cage counts
+Cage_t <- Cage_df %>%
+  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
+  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>%
+  dplyr::select(AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
+#
+CageSH <- Cage_t %>% dplyr::select(AnalysisDate, contains("SHMean"))
+CageCounts <- Cage_t %>% dplyr::select(AnalysisDate, contains("PctMean"))
+#
+#
+#Data by station
+CageSH_tab <- CageSH %>% 
+  gather(Site_Station, SH, -AnalysisDate) %>% 
+  mutate(Site_Station = gsub(("_SHMean|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3), 
+         Type = substr(Site_Station, 6, 8)) %>%
+  dplyr::select(-Site_Station) %>%
+  group_by(AnalysisDate, Site, Type) %>%
+  summarise(MeanSH = mean(SH, na.rm = T))
+#
+CageCounts_tab <- CageCounts %>% 
+  gather(Site_Station, DeadPct, -AnalysisDate) %>% 
+  mutate(Site_Station = gsub(("_PctMean|\\."), "", Site_Station)) %>% 
+  mutate(Site = substr(Site_Station, 1, 3)) %>%
+  dplyr::select(-Site_Station) %>%
+  group_by(AnalysisDate, Site) %>%
+  summarise(MeanPct = mean(DeadPct, na.rm = T))
+#
+#
+#
+#Data table output - for RMarkdown file
+CageSHs_out <- CageSH_tab %>% 
+  spread(Type, MeanSH) %>% 
+  mutate(Dep = round(Dep, 2),
+         Ret = round(Ret, 2),
+         Growth = round(Ret - Dep, 2)) %>%
+  gt(groupname_col = "Site") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+CageCounts_out <- CageCounts_tab %>% 
+  mutate(MeanPct = round(MeanPct, 2)) %>%
+  spread(Site, MeanPct) %>% 
+  gt(groupname_col = "Site") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+## Excel summary data
+Cage_Excel <- left_join(CageSH_tab %>% spread(Type, MeanSH) %>% 
+                          mutate(Dep = round(Dep, 2),
+                                 Ret = round(Ret, 2),
+                                 Growth = round(Ret - Dep, 2)), 
+                        CageCounts_tab)
+#
+Cage_Excel_SiteSumm <- Cage_Excel %>%
+  group_by(Site) %>%
+  summarise(
+    across(c(Dep, Ret, Growth, MeanPct),
+           list(
+             Min  = ~ round(min(.x, na.rm = TRUE), 2),
+             Max  = ~ round(max(.x, na.rm = TRUE), 2),
+             Mean = ~ round(mean(.x, na.rm = TRUE), 2)),
+           .names = "{.col}_{.fn}"),
+    .groups = "drop") %>%
+  pivot_longer(
+    cols = -Site,
+    names_to = c("Type", "Summ"),
+    names_sep = "_",
+    values_to = "Value"
+  ) %>%
+  mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
+  pivot_wider(
+    names_from = Type,
+    values_from = Value
+  ) %>%
+  arrange(Site, Summ)
+#
+#
+#
+Cage_AveGrowth <- Cage_Excel %>%
+  group_by(Site) %>%
+  summarise(MeanGrowth = mean(Growth, na.rm = T)) %>%
+  pivot_wider(
+    names_from = Site,
+    values_from = MeanGrowth
+  )
+#
 #
 #
 ```
@@ -996,62 +1088,35 @@ writeData(wb, sheet = sheet_name, x = Rcrt_Excel_Sitesumm, startCol = 1, startRo
 #
 #
 #
+## Cage 
+sheet_name <- "Cage_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "CRE"), startCol = 1, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "CRW"), startCol = 6, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "LXN"), startCol = 12, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "SLC"), startCol = 18, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "CRE"), 
+          startCol = 1, startRow = 18)
+writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "CRW"), 
+          startCol = 6, startRow = 18)
+writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "LXN"), 
+          startCol = 12, startRow = 18)
+writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "SLC"), 
+          startCol = 18, startRow = 18)
+writeData(wb, sheet = sheet_name, x = Cage_AveGrowth, startCol = 1, startRow = 23)
+#
+#
 #
 #
 #
 # Save workbook (overwrite = TRUE ensures updates)
 saveWorkbook(wb, file_path, overwrite = TRUE)
-```
-
-```{r Previous code requiring editing}
-
-####WORKING BELOW
-##Cages
-Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-#
-#
-```
-
-```{Previous code to be edited}
-##WORKING BELOW
-#
-##Counts
-CERP_count <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_LiveSD") %>% grp_options(container.width = 2000)
-#
-CRE_count <- Counts_CRE %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black")
-#
-PBC_count <- Counts_PBC %>% dplyr::select(AnalysisDate, contains("Live")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("LiveMean","Mean", .)) %>% cols_label_with(fn = ~gsub("LiveSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") %>% tab_options(container.width = 1500)
-#
-#
-##Dead Ratios
-CERP_dead <- Counts_CERP %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_DeadRatioSD") %>% grp_options(container.width = 1500)
-#
-CRE_dead <- Counts_CRE %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7), sides = "right", color = "black")
-#
-PBC_dead <- Counts_PBC %>% dplyr::select(AnalysisDate, contains("Dead")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = Counts_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% cols_label_with(fn = ~gsub("DeadRatioMean","Mean", .)) %>% cols_label_with(fn = ~gsub("DeadRatioSD","SD", .)) %>% gt_add_divider(columns = c(1, 3, 5, 7, 9, 11, 13), sides = "right", color = "black") %>% tab_options(container.width = 1500)
-#
-#
-##SHs
-CERP_SH <- SH_CERP %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CERP %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4, 7, 10, 13), sides = "right", color = "black") %>% gt_split(col_slice_at = "SL.S3_SHMean") %>% grp_options(container.width = 1500)
-#
-CRE_SH <- SH_CRE %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_CRE %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 3), sides = "right", color = "black")
-#
-PBC_SH <- SH_PBC %>% dplyr::select(AnalysisDate, contains("Mean")) %>% gt() %>% data_color(rows = (AnalysisDate > as.yearmon(Start_date) & AnalysisDate < as.yearmon(End_date %m+% months(1))), columns = contains("Mean"), fn = scales::col_numeric(palette = "plasma", domain = SH_PBC %>% filter(AnalysisDate > as.yearmon(Start_date)) %>% dplyr::select(contains("Mean")) %>% unlist() %>% range(na.rm = T))) %>% cols_align(align = c("center"), columns = everything()) %>% gt_add_divider(columns = c(1, 4), sides = "right", color = "black") %>% tab_options(container.width = 1500)
-#
-#
-#
-#
-##Cages
-SL_Cage <- Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CERP %>% dplyr::select(RetDate, contains("SL")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
-#
-LX_Cage <- Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CERP %>% dplyr::select(RetDate, contains("LX")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
-#
-CRE_Cage <- Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CRE %>% dplyr::select(RetDate, contains("CR.E")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
-#
-CRW_Cage <- Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% gt() %>% data_color(columns = contains("Pct"), fn = scales::col_numeric(palette = "plasma", domain = Cage_CRE %>% dplyr::select(RetDate, contains("CR.W")) %>% dplyr::select(contains("Pct")) %>% unlist() %>% range(na.rm = T))) %>% cols_label_with(fn = ~gsub("_SHMean","", .)) %>% cols_align(align = c("center"), columns = everything()) %>% tab_options(container.width = 1500)
-#
-#
 ```
 
 ## Report summary
@@ -1148,3 +1213,9 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 <h3>`r paste("Summary by Season")`</h3>
 `r Rcrt_Excel_SeasonSitesumm %>% gt()`
 `r Rcrt_out %>% tab_caption(caption = "Monthly mean recruitment")`
+\
+\
+\
+<h1>`r paste("Cage summary")`</h1>
+`r CageSHs_out %>% tab_caption(caption = "Monthly mean shell heights")`
+`r CageCounts_out %>% tab_caption(caption = "Monthly mean percent mortatlity")`
