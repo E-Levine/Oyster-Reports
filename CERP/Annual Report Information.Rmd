@@ -1,6 +1,6 @@
 ---
 title: "CERP Annual Report Information"
-author: "ELevine"
+author: "ELWilliams"
 date: "`r Sys.Date()`"
 output: 
   html_document: default
@@ -23,6 +23,8 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 Estuary_code <- c("CR", "SL", "LX")
 Start_date <- as.Date(params$Start_date)
 End_date <- as.Date(params$End_date)
+Flow_sites <- c("SL", "LX", "CR")
+sheet_lookup <- c(SL = "SLESum", LX = "LOXSum", CR = "S79")
 Summary_Excel_file_name <- "CERP_2026"
 #
 #Packages
@@ -30,7 +32,7 @@ if (!require("pacman")) {install.packages("pacman")}
 #p_unlock()
 pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
-  DT, openxlsx,         #Excel
+  DT, openxlsx, readxl,        #Excel
   lubridate, zoo,         #Dates
   knitr, kableExtra, scales, gt, gtExtras,
   install = TRUE)
@@ -494,6 +496,7 @@ SH_tab <- SH %>%
 Live_out <- Live_tab %>% 
   mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
   spread(Station, Count) %>% 
+  arrange(AnalysisDate) %>%
   gt(groupname_col = "Site") %>% 
   data_color(columns = contains(c("1","2","3","4")), 
              fn = scales::col_numeric(palette = "plasma", 
@@ -508,6 +511,7 @@ Live_out <- Live_tab %>%
 Dead_out <- Dead_tab %>% 
   mutate(Site = case_when(Site == "CRE" | Site == "CRW" ~ "CR", TRUE ~ Site))  %>% 
   spread(Station, Count) %>% 
+  arrange(AnalysisDate) %>%
   gt(groupname_col = "Site") %>% 
   data_color(columns = contains(c("1","2","3","4")), 
              fn = scales::col_numeric(palette = "plasma", 
@@ -806,7 +810,8 @@ Rcrt_out <- Rcrt_tab %>%
 #
 #
 ## Excel summary data
-Rcrt_Excel <- Rcrt_tab %>% 
+Rcrt_Excel <- Rcrt_df %>% 
+    subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>%
   dplyr::select(starts_with("LX"), starts_with("SL"), everything())
 #
 Rcrt_Excel_summ <- Rcrt_tab %>%
@@ -819,7 +824,7 @@ Rcrt_Excel_summ <- Rcrt_tab %>%
   mutate(Summ = factor(Summ, levels = c("Min", "Max", "Mean"))) %>%
   arrange(Summ)
 #
-Repro_Excel_Sitesumm <- Rcrt_tab %>%
+Rcrt_Excel_Sitesumm <- Rcrt_tab %>%
   mutate(Site = substr(Site, 1, 2)) %>%
   group_by(Site) %>%
   summarise(Min = round(min(Mean, na.rm = T),2),
@@ -928,6 +933,68 @@ Cage_AveGrowth <- Cage_Excel %>%
 #
 ```
 
+```{r Flow data, include = FALSE}
+#
+# Compile file names and load into one df
+files <- file.path("../DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
+flow_list <- map2(
+  files,
+  sheet_lookup[Flow_sites],
+  ~ read_excel(.x, sheet = .y)
+)
+flow_list_long <- imap(flow_list, ~
+  .x %>%
+    select(-any_of(c("DBKEY", "Site", "Data_Station"))) %>%   # safely remove if present
+    pivot_longer(
+      cols = -c(Analysis_Date, Date, Estuary),
+      names_to = "Station",
+      values_to = "Flow"
+    )
+)
+flow_df <- bind_rows(flow_list_long) %>%
+  mutate(Year = format(Analysis_Date, format = "%Y"))
+#
+# Flow summaries
+SL_flow <- flow_df %>% 
+  filter(Estuary == "SL" & str_ends(Station, "Sum")) %>%
+  group_by(Estuary, Year) %>%
+  summarise(Min = min(Flow, na.rm = T),
+            Max = max(Flow, na.rm = T),
+            Mean = mean(Flow, na.rm = T))
+#
+LX_flow <- flow_df %>% 
+  filter(Estuary == "LX" & str_ends(Station, "Sum")) %>%
+  group_by(Estuary, Year) %>%
+  summarise(Min = min(Flow, na.rm = T),
+            Max = max(Flow, na.rm = T),
+            Mean = mean(Flow, na.rm = T))
+#
+LXN_flow <- flow_df %>% 
+  filter(Estuary == "LX" & Station == "LOX_Flow") %>%
+  group_by(Estuary, Year) %>%
+  mutate(Estuary = "LXN") %>%
+  summarise(Min = min(Flow, na.rm = T),
+            Max = max(Flow, na.rm = T),
+            Mean = mean(Flow, na.rm = T))
+LXS_flow <- flow_df %>% 
+  filter(Estuary == "LX" & Station == "S46_Flow") %>%
+  group_by(Estuary, Year) %>%
+  mutate(Estuary = "LXS") %>%
+  summarise(Min = min(Flow, na.rm = T),
+            Max = max(Flow, na.rm = T),
+            Mean = mean(Flow, na.rm = T))
+#
+CR_flow <- flow_df %>% 
+  filter(Estuary == "CR") %>%
+  group_by(Estuary, Year) %>%
+  summarise(Min = min(Flow, na.rm = T),
+            Max = max(Flow, na.rm = T),
+            Mean = mean(Flow, na.rm = T))
+#
+#
+#
+```
+
 ```{r Excel file output, include = FALSE}
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
 
@@ -937,6 +1004,22 @@ if (file.exists(file_path)) {
 } else {
   wb <- createWorkbook()
 }
+#
+#
+## Flow 
+sheet_name <- "Flow_data"
+# If the sheet already exists, remove it (optional but avoid duplicate sheets)
+if (sheet_name %in% names(wb)) {
+  removeWorksheet(wb, sheet_name)
+}
+# Add the sheet
+addWorksheet(wb, sheet_name)
+# Write data starting at cell A1
+writeData(wb, sheet = sheet_name, x = SL_flow, startCol = 1, startRow = 2)
+writeData(wb, sheet = sheet_name, x = LX_flow, startCol = 7, startRow = 2)
+writeData(wb, sheet = sheet_name, x = CR_flow, startCol = 14, startRow = 2)
+writeData(wb, sheet = sheet_name, x = LXN_flow, startCol = 5, startRow = 33)
+writeData(wb, sheet = sheet_name, x = LXS_flow, startCol = 12, startRow = 33)
 #
 #
 ## Salinity 
@@ -1120,7 +1203,7 @@ saveWorkbook(wb, file_path, overwrite = TRUE)
 ```
 
 ## Report summary
-This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** annual report from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")` .\
+This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** annual report from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")`.\
 
 <h1>`r paste("Water quality summary")`</h1>
 <h2>`r paste("Salinity")`</h2>
@@ -1190,12 +1273,14 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 `r DermoI_Excel_Sitesumm %>% gt()`
 <h3>`r paste("Summary by site")`</h3>
 `r DermoI_Excel_summ %>% gt()`
+`r DermoI_out %>% tab_caption(caption = "Monthly mean dermo intensity")`
 \
 <h2>`r paste("Dermo Prevalence Means")`</h2>
 <h3>`r paste("Summary by estuary")`</h3>
 `r DermoP_Excel_Sitesumm %>% gt()`
 <h3>`r paste("Summary by site")`</h3>
 `r DermoP_Excel_summ %>% gt()`
+`r DermoP_out %>% tab_caption(caption = "Monthly mean dermo prevalence")`
 \
 \
 \
@@ -1203,6 +1288,7 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 <h2>`r paste("Repro Stage Means")`</h2>
 <h3>`r paste("Summary by estuary")`</h3>
 `r Repro_Excel %>% gt()`
+`r Repro_out %>% tab_caption(caption = "Monthly mean repro stage")`
 \
 \
 \
@@ -1210,8 +1296,8 @@ This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summari
 <h2>`r paste("Recruitment Means")`</h2>
 <h3>`r paste("Summary by Site")`</h3>
 `r Rcrt_Excel_Sitesumm %>% gt()`
-<h3>`r paste("Summary by Season")`</h3>
-`r Rcrt_Excel_SeasonSitesumm %>% gt()`
+<h3>`r paste("Summary by Estuary")`</h3>
+`r Rcrt_Excel_summ %>% gt()`
 `r Rcrt_out %>% tab_caption(caption = "Monthly mean recruitment")`
 \
 \
