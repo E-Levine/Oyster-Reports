@@ -36,6 +36,13 @@ dists <- list(
   poi = poisson,
   norm = gaussian
 )
+dists_Sal <- list(
+  nb  = nbinom2,
+  poi = poisson,
+  norm = gaussian,
+  Gamma = gamma,
+  Logn = lognormal
+)
 #
 #
 ```
@@ -74,14 +81,19 @@ fit_model <- function(model_formula, dist_name, dist_family, rand_name, rand_for
     )
 
     # Convergence Check (Crucial for Mixed Models) - Checks if the Hessian is positive definite
-    if (!is.null(model$sdr) && model$sdr$pdHess) {
-      conv_status <- TRUE
-      
+    if (rand_name == "none") {
+      conv_status <- TRUE  # no random effects → treat as converged
+      } else if (!is.null(model$sdr) && model$sdr$pdHess) {
+        conv_status <- TRUE 
+      } else {
+      message(paste("NON-CONVERGENCE:", dist_name, rand_name))
+      }
+    
     # SAS-Style Extraction (KR for Gaussian, Wald for others)
-    if (dist_name == "gaussian") {
+    if (conv_status) {
+      if (dist_name == "gaussian") {
         tests3 <- car::Anova(model, type = 3, test.statistic = "F")
         chisq_val <- tests3[nrow(tests3), "F"]
-        # Try to get KR DFs, fallback to standard Df if it fails
         kr_ddf <- tryCatch(glmmTMB::dof_KR(model), error = function(e) NULL)
         df_val   <- if(!is.null(kr_ddf)) kr_ddf[length(kr_ddf)] else tests3[nrow(tests3), "Df"]
         p_val    <- tests3[nrow(tests3), "Pr(>F)"]
@@ -91,13 +103,7 @@ fit_model <- function(model_formula, dist_name, dist_family, rand_name, rand_for
         df_val   <- tests3[nrow(tests3), "Df"]
         p_val    <- tests3[nrow(tests3), "Pr(>Chisq)"]
       }
-    } else {
-      message(paste("NON-CONVERGENCE:", dist_name, rand_name))
-    }
-    #tests3 <- tryCatch(car::Anova(model, type = 3), error = function(e) NULL)
-    #chisq_val <- if(!is.null(tests3)) tests3[nrow(tests3), "Chisq"] else NA_real_
-    #df_val   <- if(!is.null(tests3)) tests3[nrow(tests3), "Df"] else NA_real_
-    #p_val <- if(!is.null(tests3)) tests3[nrow(tests3), "Pr(>Chisq)"] else NA_real_
+    } 
     
     lsmeans <- tryCatch(
       emmeans::emmeans(model, ~ Site * SurvCode, type = "response"),
@@ -192,15 +198,7 @@ h4 {
 ```
 
 ```{r Data gather from raw data file, include = FALSE}
-#WQ_Sal_s <-  readWorkbook("../Quarterly/Summary data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code)) %>%   subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date)
-#WQ_Secchi_s <-  readWorkbook("../Quarterly/Summary data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Secchi Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code)) %>%   subset(SL.C_RetDate_SP > Start_date & SL.C_RetDate_SP < End_date)
-#WQ_Temp_s <-  readWorkbook("../Quarterly/Summary data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code)) %>%   subset(SL.C_RetDate_Temp > Start_date & SL.C_RetDate_Temp < End_date)
-#WQ_pH_s <-  readWorkbook("../Quarterly/Summary data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code)) %>%   subset(SL.C_RetDate_pH > Start_date & SL.C_RetDate_pH < End_date)
-#WQ_DO_s <-  readWorkbook("../Quarterly/Summary data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))  %>%   subset(SL.C_RetDate_DO > Start_date & SL.C_RetDate_DO < End_date)
-
-#Rcrt_df <- readWorkbook("../Quarterly/Summary data/CERP_PBC_Summary_Data.xlsx", sheet = 'Rcrt Station', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code))  %>%   subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date)
-#Repro_df <- readWorkbook("../Quarterly/Summary data/CERP_PBC_Summary_Data.xlsx", sheet = 'Repro', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(starts_with(Estuary_code)) %>%   subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date)
-
+#
 # Survey data set up:
 Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE, check.names = TRUE) %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
   subset(RetDate > (Start_date %m-% months(2)) & RetDate < (End_date %m+% months(1))) %>%
@@ -230,9 +228,12 @@ Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts'
     arrange(Site, Station, SurvCode)
 #
 #
+## Srvy SHs
 SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
   subset(RetDate > (Start_date %m-% months(2)) & RetDate < (End_date %m+% months(1))) %>%
   mutate(across(ShellHeight, ~ replace_na(.x, -999))) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
   # Remove TIG samples in Winter/Summer
   filter(!(
       str_detect(Survey %||% "", "Winter|Summer") &
@@ -249,9 +250,12 @@ SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detec
   mutate(across(c(Site, Station), as.factor))
 #
 #
+## Dermo
 Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
   # Determine mean dermo and deamo presence
   mutate(MeanDermo = rowMeans(across(c(DermoMantle, DermoGill)), na.rm = T),
          DermoSum = rowSums(across(c(DermoMantle, DermoGill)), na.rm = T)) %>%
@@ -259,8 +263,32 @@ Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', dete
                               DermoSum == 0 ~ 0, 
                               TRUE ~ NA)) %>%
   mutate(across(c(Site, Station), as.factor))
-
-#Cage_df <- readWorkbook("../Quarterly/Summary data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE) %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>%   subset(RetDate > (Start_date %m-% months(2)) & RetDate < (End_date %m+% months(1)))
+#
+#
+## Rcrt
+Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Remove spat for top and bottom shells
+  mutate(Bottom = case_when(grepl("SL|LX", Site) & Shell %in% c(1, 6, 7, 12) ~ NA_real_, 
+                            Site %in% c("CR-E", "CR-W") & Shell %in% c(1, 12) ~ NA_real_, 
+                            TRUE ~ NumBottom)) %>%
+  mutate(BottomMonth = Bottom/(DaysDeployed/28)) %>%
+  mutate(across(c(Site, Station, Rep, Shell), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## Salinity
+Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
+  dplyr::select(Year:Station, Sal) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  mutate(across(c(Site, Station), as.factor)) %>%
+  arrange(RetDate)
 #
 ## FLOW
 # Compile file names and load into one df
@@ -636,6 +664,149 @@ DPre_comparison_table %>% gt() %>%
 #
 ```
 
+```{r Recruitment analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+Rcrt2 <- Rcrt_df %>% 
+  # Calculate mean per rep for each station 
+  group_by(RetDate, Site, Station, Rep) %>%
+  # Calculate mean monthly recruitment
+  summarise(BottomMonth_mean = mean(BottomMonth, na.rm = T), .groups = "drop") %>%
+  mutate(time = as.numeric(as.factor(RetDate))) %>%
+  arrange(Site, Station, RetDate)
+#
+# random structure formulas
+rand_structs_D
+#
+## Run all combinations to test
+Rcrt_results <- cross_df(list(
+  dist_name = names(dists),
+  rand_name = names(rand_structs_D)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists[[.x]]),
+    rand_string = rand_structs_D[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("BottomMonth_mean ~ Site * time", ..1, ..2, ..3, ..4, Rcrt2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Rcrt_model_summary <- Rcrt_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Rcrt_best_aic <- min(Rcrt_model_summary$ChiSq_df, na.rm = TRUE)
+Rcrt_comparison_table <- Rcrt_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Rcrt_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Rcrt_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Rcrt_comparison_table %>% gt() %>% 
+  tab_header(title = "Recruitment") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Salinity analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+Sal2 <- Sal_df %>% 
+  mutate(time = as.numeric(as.factor(RetDate))) %>%
+  arrange(Site, Station, RetDate)
+#
+# random structure formulas
+rand_structs_S <- list(
+  none = ~ 0)
+#
+## Run all combinations to test
+Sal_results <- cross_df(list(
+  dist_name = names(dists_Sal),
+  rand_name = names(rand_structs_S)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists_Sal[[.x]]),
+    rand_string = rand_structs_S[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("Sal ~ Site * time", ..1, ..2, ..3, ..4, Sal2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Sal_model_summary <- Sal_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Sal_best_aic <- min(Sal_model_summary$ChiSq_df, na.rm = TRUE)
+Sal_comparison_table <- Sal_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Sal_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Sal_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Sal_comparison_table %>% gt() %>% 
+  tab_header(title = "Recruitment") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
 ```{r Excel output, include = FALSE}
 #
 #
@@ -697,6 +868,28 @@ if (!(sheet_name %in% names(wb))) {
 } 
 #
 writeData(wb, sheet = sheet_name, x = DPre_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Recruitment
+sheet_name <- "Rcrt"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Rcrt_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+#
+#
+## Salinity
+sheet_name <- "Salinity"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Sal_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
 #
 #
 # Save workbook (overwrite = TRUE ensures updates)
