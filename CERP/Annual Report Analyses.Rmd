@@ -149,7 +149,7 @@ SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detec
 ## Dermo
 Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
-         AnalysisDate = update(RetDate, mday = 15),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
          time = as.numeric(as.factor(AnalysisDate))) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
   # Filter to CERP sites
@@ -166,7 +166,7 @@ Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', dete
 ## Rcrt
 Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
-         AnalysisDate = update(RetDate, mday = 15),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
          time = as.numeric(as.factor(AnalysisDate))) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
   # Filter to CERP sites
@@ -184,7 +184,7 @@ Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detect
 Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
   dplyr::select(Year:Station, Sal) %>% 
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
-         AnalysisDate = update(RetDate, mday = 15),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
          time = as.numeric(as.factor(AnalysisDate))) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
   # Filter to CERP sites
@@ -212,7 +212,7 @@ flow_list_long <- imap(flow_list, ~
 )
 flow_df <- bind_rows(flow_list_long) %>%
   mutate(Year = format(Analysis_Date, format = "%Y"),
-         AnalysisDate = update(Analysis_Date, mday = 15),
+         AnalysisDate = as.factor(update(Analysis_Date, mday = 15)),
          time = as.numeric(as.factor(AnalysisDate))) %>%
   filter(Station %in% c("SLESum", "LOXSum", "Flow")) %>%
   rename("Site" = Estuary) %>%
@@ -521,7 +521,7 @@ Dermo2 <- Dermo_df %>%
 #
 ### Intensity:
 # Fit best model: No random, NB
-DInt_model <- MASS::glm.nb(MeanDermo ~ Site * time, data = Dermo_df)
+DInt_model <- MASS::glm.nb(MeanDermo ~ Site * AnalysisDate, data = Dermo_df)
 #
 #
 DInt_anova <- Anova(DInt_model, type = 3, test.statistic = "F") %>% #best_model$model
@@ -550,25 +550,25 @@ DInt_site_table <- left_join(
 DInt_site_table
 #
 DInt_surv_table <- left_join(
-  summary(emmeans(DInt_model, ~ time), infer = TRUE) %>% 
+  summary(emmeans(DInt_model, ~ AnalysisDate), infer = TRUE) %>% 
     as.data.frame() %>% 
-    dplyr::select(time, emmean, SE, z.ratio, p.value) %>%
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
     rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
-  summary(emmeans(DInt_model, ~ time, type = "response")) %>% 
+  summary(emmeans(DInt_model, ~ AnalysisDate, type = "response")) %>% 
     as.data.frame() %>% 
-    dplyr::select(time, response, SE) %>%
+    dplyr::select(AnalysisDate, response, SE) %>%
     rename("Mean" = response, "SE Mean" = SE))
 # 
 DInt_surv_table
 #
 DInt_int_table <- left_join(
-  summary(emmeans(DInt_model, ~ Site * time), infer = TRUE) %>% 
+  summary(emmeans(DInt_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
     as.data.frame() %>% 
-    dplyr::select(Site, time, emmean, SE, z.ratio, p.value) %>%
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
     rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
-  summary(emmeans(DInt_model, ~ Site * time, type = "response")) %>% 
+  summary(emmeans(DInt_model, ~ Site * AnalysisDate, type = "response")) %>% 
     as.data.frame() %>% 
-    dplyr::select(Site, time, response, SE) %>%
+    dplyr::select(Site, AnalysisDate, response, SE) %>%
     rename("Mean" = response, "SE Mean" = SE))
 #
 DInt_int_table
@@ -590,12 +590,12 @@ DInt_cld_site_table <- as.data.frame(DInt_cld_site) %>%
 DInt_cld_site_table
 #
 DInt_cld_int <- multcomp::cld(
-  emmeans(DInt_model, ~ Site * time),
+  emmeans(DInt_model, ~ Site * AnalysisDate),
   Letters = letters,
   adjust = "sidak"
 )
 DInt_cld_int_table <- as.data.frame(DInt_cld_int) %>%
-  dplyr::select(Site, time, emmean, .group) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
   arrange(desc(emmean)) %>%
   rename(
     Estimate = emmean,
@@ -609,7 +609,7 @@ DInt_cld_int_table
 #
 ### Prevalence:
 # Fit best model: Site Random
-DPre_model <- glmmTMB(DermoPrev ~ Site * time, 
+DPre_model <- glmmTMB(DermoPrev ~ Site * AnalysisDate, 
                       family = "binomial", data = Dermo2)
 #
 #
@@ -636,25 +636,25 @@ DPre_site_table <- left_join(
 DPre_site_table
 #
 DPre_surv_table <- left_join(
-  summary(emmeans(DPre_model, ~ time), infer = TRUE) %>% 
+  summary(emmeans(DPre_model, ~ AnalysisDate), infer = TRUE) %>% 
     as.data.frame() %>% 
-    dplyr::select(time, emmean, SE, z.ratio, p.value) %>%
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
     rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
-  summary(emmeans(DPre_model, ~ time, type = "response")) %>% 
+  summary(emmeans(DPre_model, ~ AnalysisDate, type = "response")) %>% 
     as.data.frame() %>% 
-    dplyr::select(time, prob, SE) %>%
+    dplyr::select(AnalysisDate, prob, SE) %>%
     rename("Mean" = prob, "SE Mean" = SE))
 # 
 DPre_surv_table
 #
 DPre_int_table <- left_join(
-  summary(emmeans(DPre_model, ~ Site * time), infer = TRUE) %>% 
+  summary(emmeans(DPre_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
     as.data.frame() %>% 
-    dplyr::select(Site, time, emmean, SE, z.ratio, p.value) %>%
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
     rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
-  summary(emmeans(DPre_model, ~ Site * time, type = "response")) %>% 
+  summary(emmeans(DPre_model, ~ Site * AnalysisDate, type = "response")) %>% 
     as.data.frame() %>% 
-    dplyr::select(Site, time, prob, SE) %>%
+    dplyr::select(Site, AnalysisDate, prob, SE) %>%
     rename("Mean" = prob, "SE Mean" = SE))
 #
 DPre_int_table
@@ -676,12 +676,12 @@ DPre_cld_site_table <- as.data.frame(DPre_cld_site) %>%
 DPre_cld_site_table
 #
 DPre_cld_int <- multcomp::cld(
-  emmeans(DPre_model, ~ Site * time),
+  emmeans(DPre_model, ~ Site * AnalysisDate),
   Letters = letters,
   adjust = "sidak"
 )
 DPre_cld_int_table <- as.data.frame(DPre_cld_int) %>%
-  dplyr::select(Site, time, emmean, .group) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
   arrange(desc(emmean)) %>%
   rename(
     Estimate = emmean,
@@ -689,6 +689,107 @@ DPre_cld_int_table <- as.data.frame(DPre_cld_int) %>%
   )
 #
 DPre_cld_int_table
+#
+#
+#
+```
+
+```{r Recruitment analyses}
+#
+#
+Rcrt2 <- Rcrt_df %>% 
+  # Calculate mean per rep for each station 
+  group_by(AnalysisDate, time, Site, Station, Rep) %>%
+  mutate(AnalysisDate = as.factor(AnalysisDate)) %>%
+  # Calculate mean monthly recruitment
+  summarise(BottomMonth_mean = mean(BottomMonth, na.rm = T), .groups = "drop") %>%
+  arrange(Site, Station, AnalysisDate, time)
+#
+### Intensity:
+# Fit best model: No random, NB
+Rcrt_model <- glm(BottomMonth_mean ~ Site * AnalysisDate, family = "poisson", data = Rcrt2)
+#
+#
+Rcrt_anova <- Anova(Rcrt_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(Rcrt_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+Rcrt_anova
+#
+# LSMeans
+Rcrt_site_table <- left_join(
+  summary(emmeans(Rcrt_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Rcrt_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, rate, SE) %>%
+    rename("Mean" = rate, "SE Mean" = SE))
+#
+Rcrt_site_table
+#
+Rcrt_surv_table <- left_join(
+  summary(emmeans(Rcrt_model, ~ AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Rcrt_model, ~ AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, rate, SE) %>%
+    rename("Mean" = rate, "SE Mean" = SE))
+# 
+Rcrt_surv_table
+#
+Rcrt_int_table <- left_join(
+  summary(emmeans(Rcrt_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Rcrt_model, ~ Site * AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, rate, SE) %>%
+    rename("Mean" = rate, "SE Mean" = SE))
+#
+Rcrt_int_table
+#
+# Letters
+Rcrt_cld_site <- multcomp::cld(
+  emmeans(Rcrt_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Rcrt_cld_site_table <- as.data.frame(Rcrt_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+Rcrt_cld_site_table
+#
+Rcrt_cld_int <- multcomp::cld(
+  emmeans(Rcrt_model, ~ Site * AnalysisDate),
+  Letters = letters,
+  adjust = "sidak"
+)
+Rcrt_cld_int_table <- as.data.frame(Rcrt_cld_int) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+Rcrt_cld_int_table
+#
 #
 #
 #
@@ -779,6 +880,23 @@ writeData(wb, sheet = sheet_name, x = DPre_surv_table, startCol = 1, startRow = 
 writeData(wb, sheet = sheet_name, x = DPre_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
 writeData(wb, sheet = sheet_name, x = DPre_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
 writeData(wb, sheet = sheet_name, x = DPre_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
+#
+#
+## Recruitment
+sheet_name <- "SH"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Rcrt_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_site_table, startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_surv_table, startCol = 1, startRow = 22, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
+#
+#
+#
 #
 #
 # Save workbook (overwrite = TRUE ensures updates)
