@@ -6,8 +6,17 @@ output:
   html_document: default
   word_document: default
 params:
-  Start_date: "2024-10-01"
-  End_date: "2025-09-30"
+  Start_date: "2023-10-01"
+  End_date: "2024-09-30"
+  Excel_name: "CERP_2025"
+
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, 
+    encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Excel_name)), '.html')
+    ) 
+      })
 ---
 <style>
 .main-container {
@@ -25,7 +34,7 @@ Start_date <- as.Date(params$Start_date)
 End_date <- as.Date(params$End_date)
 Flow_sites <- c("SL", "LX", "CR")
 sheet_lookup <- c(SL = "SLESum", LX = "LOXSum", CR = "S79")
-Summary_Excel_file_name <- "CERP_2026"
+Summary_Excel_file_name <- params$Excel_name
 #
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -418,7 +427,7 @@ WQ_DO_Excel_Sitesumm <- WQ_DO_tab %>%
 Counts <- Counts_df %>% 
   mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
   subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
-  #replace(is.na(.), -999) %>%
+  replace(is.na(.), -999) %>%
   mutate(across(-Survey,
       ~ if_else(
         str_detect(Survey, "Spring|Fall"),
@@ -541,7 +550,7 @@ SH_out <- SH_tab %>%
 #
 ## Excel summary data
 Live_Excel <- LiveOy %>% 
-  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  subset(AnalysisDate >= as.yearmon(Start_date) & AnalysisDate <= as.yearmon(End_date)) %>% 
   dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
 #
 Live_Excel_Sitesumm <- Live_tab %>%
@@ -567,7 +576,7 @@ Live_Excel_SeasonSitesumm <- Live_tab %>%
 #
 #
 Dead_Excel <- DeadOy %>% 
-  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  subset(AnalysisDate >= as.yearmon(Start_date) & AnalysisDate <= as.yearmon(End_date)) %>% 
   dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
 #
 Dead_Excel_Sitesumm <- Dead_tab %>%
@@ -593,7 +602,7 @@ Dead_Excel_SeasonSitesumm <- Dead_tab %>%
 #
 #
 SH_Excel <- SH %>% 
-  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
+  subset(AnalysisDate >= as.yearmon(Start_date) & AnalysisDate <= as.yearmon(End_date)) %>% 
   dplyr::select(Survey, AnalysisDate, starts_with("LX"), starts_with("SL"), everything())
 #
 SH_Excel_Sitesumm <- SH_tab %>%

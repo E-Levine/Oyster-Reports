@@ -4,14 +4,23 @@ author: "EWilliams"
 date: "`r Sys.Date()`"
 output: html_document
 params:
-  Start_date: "2023-10-01"
-  End_date: "2024-09-30"
+  Start_date: "2024-10-01"
+  End_date: "2025-09-30"
+  Excel_name: "CERP_2026"
+
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, 
+    encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Excel_name)), '.html')
+    ) 
+      })
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 #
-Summary_Excel_file_name <- "CERP_2026"
+Summary_Excel_file_name <- params$Excel_name
 Estuary_code <- c("CR", "SL", "LX")
 Start_date <- as.Date(params$Start_date)
 End_date <- as.Date(params$End_date)
@@ -216,15 +225,17 @@ Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts'
     Dead = NumDead * 4,
     Total = Live+Dead,
     SurvCode_n = case_when(
-      Survey == "Winter 2023" ~ 0.5,
-      Survey == "Spring 2024" ~ 1,
-      Survey == "Summer 2024"   ~ 1.5,
-      Survey == "Fall 2024" ~ 2,
+      Survey == "Winter 2024" ~ 0.5,
+      Survey == "Spring 2025" ~ 1,
+      Survey == "Summer 2025"   ~ 1.5,
+      Survey == "Fall 2025" ~ 2,
       TRUE ~ NA_real_)) %>%
   # Make sure columns are factors
   mutate(across(c(Site, Station), as.factor)) %>%
   mutate(SurvCode = as.factor(SurvCode_n),
          DeadRatio = Dead/Total) %>%
+  mutate(Live = ifelse(Live < 0, NA, Live),
+         Dead = ifelse(Dead < 0, NA, Dead)) %>% 
     arrange(Site, Station, SurvCode)
 #
 #
@@ -241,13 +252,14 @@ SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detec
       Station %in% c(1, 4)
     )) %>%
   mutate(SurvCode = as.factor(case_when(
-    Survey == "Winter 2023" ~ 0.5,
-    Survey == "Spring 2024" ~ 1,
-    Survey == "Summer 2024"   ~ 1.5,
-    Survey == "Fall 2024" ~ 2,
+    Survey == "Winter 2024" ~ 0.5,
+    Survey == "Spring 2025" ~ 1,
+    Survey == "Summer 2025"   ~ 1.5,
+    Survey == "Fall 2025" ~ 2,
     TRUE ~ NA_real_))) %>%
   # Make sure columns are factors
-  mutate(across(c(Site, Station), as.factor))
+  mutate(across(c(Site, Station), as.factor)) %>%
+  mutate(ShellHeight = ifelse(ShellHeight < 0, NA, ShellHeight))
 #
 #
 ## Dermo
@@ -290,6 +302,7 @@ Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality',
   mutate(across(c(Site, Station), as.factor)) %>%
   arrange(RetDate)
 #
+#
 ## FLOW
 # Compile file names and load into one df
 files <- file.path("../DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
@@ -300,7 +313,7 @@ flow_list <- map2(
 )
 flow_list_long <- imap(flow_list, ~
   .x %>%
-    select(-any_of(c("DBKEY", "Site", "Data_Station"))) %>%   # safely remove if present
+    dplyr::select(-any_of(c("DBKEY", "Site", "Data_Station"))) %>%   # safely remove if present
     pivot_longer(
       cols = -c(Analysis_Date, Date, Estuary),
       names_to = "Station",
@@ -308,7 +321,11 @@ flow_list_long <- imap(flow_list, ~
     )
 )
 flow_df <- bind_rows(flow_list_long) %>%
-  mutate(Year = format(Analysis_Date, format = "%Y"))
+  mutate(Year = format(Analysis_Date, format = "%Y")) %>%
+  filter(Station %in% c("SLESum", "LOXSum", "Flow")) %>%
+  rename("Site" = Estuary) %>%
+  mutate(across(c(Site, Station, Year), as.factor)) 
+
 #
 rm(files, flow_list, flow_list_long)
 #Data selection and cleaning follows below by type of data being assessed.
@@ -330,7 +347,8 @@ rand_structs <- list(
   none = ~ 0,
   station = ~ (1 | Site/Station),
   ar1 = ~ ar1(SurvCode + 0 | Site:Station),
-  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station)
+  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station),
+  extra = ~ Site * SurvCode + (1 + SurvCode | Site/Station) #Allows effect of SrvyCode to vary bt station
 )
 #
 ## Run all combinations to test
@@ -362,6 +380,7 @@ Live_model_summary <- Live_results %>%
   ) %>%
   mutate(
     Factors = case_when(
+      rand_name == "extra" ~ "2 Random, w/o AR(1)",
       rand_name == "both" ~ "2 Random",
       rand_name == "station" ~ "Site Random",
       rand_name == "ar1" ~ "Repeated",
@@ -459,13 +478,13 @@ SH2 <- SH_df %>%
   summarise(MeanSH = mean(ShellHeight, na.rm = T), .groups = "drop") %>%
   arrange(Site, SurvCode, Station)
 #
-### Live counts:
 # random structure formulas
 rand_structs <- list(
   none = ~ 0,
   station = ~ (1 | Site/Station),
   ar1 = ~ ar1(SurvCode + 0 | Site:Station),
-  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station)
+  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station),
+  extra = ~ Site * SurvCode + (1|Site/Station)
 )
 #
 ## Run all combinations to test
@@ -678,7 +697,7 @@ Rcrt2 <- Rcrt_df %>%
   arrange(Site, Station, RetDate)
 #
 # random structure formulas
-rand_structs_D
+#rand_structs_D
 #
 ## Run all combinations to test
 Rcrt_results <- cross_df(list(
@@ -799,7 +818,77 @@ Sal_comparison_table <- Sal_model_summary %>%
   arrange(Factors, Dist)
 #
 Sal_comparison_table %>% gt() %>% 
-  tab_header(title = "Recruitment") %>% 
+  tab_header(title = "Salinity") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Flow analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+Flow2 <- flow_df %>% 
+  mutate(time = as.numeric(as.factor(Analysis_Date))) %>%
+  arrange(Year, Site, Analysis_Date)
+#
+# random structure formulas
+rand_structs_S <- list(
+  none = ~ 0)
+#
+## Run all combinations to test
+Flow_results <- cross_df(list(
+  dist_name = names(dists_Sal),
+  rand_name = names(rand_structs_S)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists_Sal[[.x]]),
+    rand_string = rand_structs_S[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("Flow ~ Site * Year", ..1, ..2, ..3, ..4, Flow2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Flow_model_summary <- Flow_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Flow_best_aic <- min(Flow_model_summary$ChiSq_df, na.rm = TRUE)
+Flow_comparison_table <- Flow_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Flow_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Flow_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Flow_comparison_table %>% gt() %>% 
+  tab_header(title = "Flow") %>% 
   cols_align(align = c("center"), columns = everything())
 #
 #
@@ -880,8 +969,6 @@ if (!(sheet_name %in% names(wb))) {
 writeData(wb, sheet = sheet_name, x = Rcrt_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
 #
 #
-#
-#
 ## Salinity
 sheet_name <- "Salinity"
 # Check if the sheet already exists
@@ -890,6 +977,16 @@ if (!(sheet_name %in% names(wb))) {
 } 
 #
 writeData(wb, sheet = sheet_name, x = Sal_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Flow
+sheet_name <- "Flow"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Flow_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
 #
 #
 # Save workbook (overwrite = TRUE ensures updates)

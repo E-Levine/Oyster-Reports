@@ -6,16 +6,35 @@ output: html_document
 params:
   Start_date: "2023-10-01"
   End_date: "2024-09-30"
+  Excel_name: "CERP_2025"
+
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, 
+    encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Excel_name)), '.html')
+    ) 
+      })
 ---
 
-<!-- This file applies the best models and outputs report anlayses. Models of best fit need to be updated in the following lines:
-  Survey: 153 and 
+<!-- This file applies the best models and outputs report analyses. Models of best fit need to be updated in the following lines:
+  Survey: 231 and 319
+  Dermo:
+  Rcrt:
+  Sal:
+  Flow:
+
+## Work flow: 
+ Use fit_model to chose best distribution
+ Fit best model using lmer to get SAS style output
+   If NB but no random - lme4::glm.nb
+   If NB with random - MASS::glmer.nb
 -->
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 #
-Summary_Excel_file_name <- "CERP_2026"
+Summary_Excel_file_name <- params$Excelname
 Estuary_code <- c("CR", "SL", "LX")
 Start_date <- as.Date(params$Start_date)
 End_date <- as.Date(params$End_date)
@@ -29,17 +48,9 @@ pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
   DT, openxlsx, readxl,        #Excel
   lubridate, zoo,         #Dates
-  glmmTMB, purrr, emmeans, car, broom, multcomp, #Analyses
+  glmmTMB, purrr, emmeans, car, broom, multcomp, lmerTest,#Analyses
   knitr, kableExtra, scales, gt, gtExtras,
   install = TRUE)
-#
-#
-# Distributions to test:
-dists <- list(
-  nb  = nbinom2,
-  poi = poisson,
-  norm = gaussian
-)
 #
 #
 ```
@@ -106,35 +117,102 @@ Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts'
   # Make sure columns are factors
   mutate(across(c(Site, Station), as.factor)) %>%
   mutate(SurvCode = as.factor(SurvCode_n),
-         DeadRatio = Dead/Total) %>%
+         DeadRatio = Dead/Total) %>% 
+  mutate(Live = ifelse(Live < 0, NA, Live),
+         Dead = ifelse(Dead < 0, NA, Dead)) %>% 
     arrange(Site, Station, SurvCode)
 #
 #
-SH_df <- readWorkbook("../Quarterly/Summary data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Station', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(Survey, AnalysisDate, starts_with(Estuary_code)) %>% 
-  #Remove CR 1,4 Summer Winter
-  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
-  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% 
-  #replace(is.na(.), -999) %>%
-   mutate(across(-Survey,
-      ~ if_else(
-        str_detect(Survey, "Spring|Fall"),
-        .x,
-        replace_na(.x, -999)))
-  ) %>%
-  mutate(
-    across(
-      c(CR.E1_SHMean, CR.E1_SHSD, CR.W4_SHMean, CR.W4_SHSD),
-      ~ if_else(
-        str_detect(Survey, "Summer|Winter"),
-        NA,
-        .x
-      )
+SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > (Start_date %m-% months(2)) & RetDate < (End_date %m+% months(1))) %>%
+  mutate(across(ShellHeight, ~ replace_na(.x, -999))) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Remove TIG samples in Winter/Summer
+  filter(!(
+      str_detect(Survey %||% "", "Winter|Summer") &
+      Site %in% c("CR-E", "CR-W") &
+      Station %in% c(1, 4)
+    )) %>%
+  mutate(SurvCode = as.factor(case_when(
+    Survey == "Winter 2034" ~ 0.5,
+    Survey == "Spring 2024" ~ 1,
+    Survey == "Summer 2024"   ~ 1.5,
+    Survey == "Fall 2024" ~ 2,
+    TRUE ~ NA_real_))) %>%
+  # Make sure columns are factors
+  mutate(across(c(Site, Station), as.factor)) %>%
+  mutate(ShellHeight = ifelse(ShellHeight < 0, NA, ShellHeight))
+#
+#
+#
+## Dermo
+Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Determine mean dermo and deamo presence
+  mutate(MeanDermo = rowMeans(across(c(DermoMantle, DermoGill)), na.rm = T),
+         DermoSum = rowSums(across(c(DermoMantle, DermoGill)), na.rm = T)) %>%
+  mutate(DermoSum = case_when(DermoSum > 0 ~ 1, 
+                              DermoSum == 0 ~ 0, 
+                              TRUE ~ NA)) %>%
+  mutate(across(c(Site, Station), as.factor))
+#
+#
+## Rcrt
+Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Remove spat for top and bottom shells
+  mutate(Bottom = case_when(grepl("SL|LX", Site) & Shell %in% c(1, 6, 7, 12) ~ NA_real_, 
+                            Site %in% c("CR-E", "CR-W") & Shell %in% c(1, 12) ~ NA_real_, 
+                            TRUE ~ NumBottom)) %>%
+  mutate(BottomMonth = Bottom/(DaysDeployed/28)) %>%
+  mutate(across(c(Site, Station, Rep, Shell), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## Salinity
+Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
+  dplyr::select(Year:Station, Sal) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  mutate(across(c(Site, Station), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## FLOW
+# Compile file names and load into one df
+files <- file.path("../DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
+flow_list <- map2(
+  files,
+  sheet_lookup[Flow_sites],
+  ~ read_excel(.x, sheet = .y)
+)
+flow_list_long <- imap(flow_list, ~
+  .x %>%
+    dplyr::select(-any_of(c("DBKEY", "Site", "Data_Station"))) %>%   # safely remove if present
+    pivot_longer(
+      cols = -c(Analysis_Date, Date, Estuary),
+      names_to = "Station",
+      values_to = "Flow"
     )
-  )
+)
+flow_df <- bind_rows(flow_list_long) %>%
+  mutate(Year = format(Analysis_Date, format = "%Y")) %>%
+  filter(Station %in% c("SLESum", "LOXSum", "Flow")) %>%
+  rename("Site" = Estuary) %>%
+  mutate(across(c(Site, Station, Year), as.factor)) 
 
-Cage_df <- readWorkbook("../Quarterly/Summary data/CERP_PBC_Summary_Data.xlsx", sheet = 'SH Mort Cage', detectDates = TRUE, check.names = TRUE)  %>% dplyr::select(AnalysisDate, starts_with(Estuary_code)) %>%
-  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% 
-  subset(AnalysisDate > as.yearmon(Start_date %m-% months(2)) & AnalysisDate < as.yearmon(End_date %m+% months(1)))
+#
+rm(files, flow_list, flow_list_long)
+
 #
 #
 #
@@ -150,7 +228,7 @@ Counts2 <- Counts_df %>%
   arrange(Site, Station, SurvCode)
 #
 ### Live counts:
-# Fit best model:
+# Fit best model: No random, NB
 Live_model <- MASS::glm.nb(Live ~ Site * SurvCode, data = Counts2)
 #
 #
@@ -236,11 +314,194 @@ Live_cld_int_table
 #
 #
 #
+#
+### Dead Ratio:
+# Fit best model: Site Random
+Dead_model <- glmmTMB(DeadRatio ~ Site * SurvCode + (1 | Site/Station), 
+                      family = "binomial", data = Counts2)
+#
+#
+Dead_anova <- joint_tests(Dead_model) %>% 
+  as.data.frame() %>%
+  rename(
+    "Effect" = `model term`
+  ) %>%
+  mutate(df2 = nobs(Dead_model) - length(fixef(Dead_model)$cond))#For glmmTMB
+#
+Dead_anova
+#
+# LSMeans
+Dead_site_table <- left_join(
+  summary(emmeans(Dead_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Dead_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+Dead_site_table
+#
+Dead_surv_table <- left_join(
+  summary(emmeans(Dead_model, ~ SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Dead_model, ~ SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+# 
+Dead_surv_table
+#
+Dead_int_table <- left_join(
+  summary(emmeans(Dead_model, ~ Site * SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Dead_model, ~ Site * SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+Dead_int_table
+#
+# Letters
+Dead_cld_site <- multcomp::cld(
+  emmeans(Dead_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Dead_cld_site_table <- as.data.frame(Dead_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+Dead_cld_site_table
+#
+Dead_cld_int <- multcomp::cld(
+  emmeans(Dead_model, ~ Site * SurvCode),
+  Letters = letters,
+  adjust = "sidak"
+)
+Dead_cld_int_table <- as.data.frame(Dead_cld_int) %>%
+  dplyr::select(Site, SurvCode, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+Dead_cld_int_table
+#
+#
+#
+### Shell Heights
+SH2 <- SH_df %>% 
+  filter(SurvCode == 1 | SurvCode == 2) %>% droplevels() %>%
+  group_by(Site, SurvCode, Station, Quadrat) %>%
+  # Calculate mean SH per quadrat 
+  summarise(MeanSH = mean(ShellHeight, na.rm = T), .groups = "drop") %>%
+  
+  arrange(Site, SurvCode, Station)
+#
+# Fit best model: No random, NB
+Shel_model <- MASS::glm.nb(MeanSH ~ Site * SurvCode, data = SH2)
+#
+#
+Shel_anova <- Anova(Shel_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(Live_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+Shel_anova
+#
+# LSMeans
+Shel_site_table <- left_join(
+  summary(emmeans(Shel_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Shel_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+Shel_site_table
+#
+Shel_surv_table <- left_join(
+  summary(emmeans(Shel_model, ~ SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Shel_model, ~ SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+Shel_surv_table
+#
+Shel_int_table <- left_join(
+  summary(emmeans(Shel_model, ~ Site * SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Shel_model, ~ Site * SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+Shel_int_table
+#
+# Letters
+Shel_cld_site <- multcomp::cld(
+  emmeans(Shel_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Shel_cld_site_table <- as.data.frame(Shel_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+Shel_cld_site_table
+#
+Shel_cld_int <- multcomp::cld(
+  emmeans(Shel_model, ~ Site * SurvCode),
+  Letters = letters,
+  adjust = "sidak"
+)
+Shel_cld_int_table <- as.data.frame(Shel_cld_int) %>%
+  dplyr::select(Site, SurvCode, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+Shel_cld_int_table
+#
+#
+#
+#
 ```
 
 ```{r Excel output, inlcude = FALSE}
 #
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
+bold_header_style <- createStyle(textDecoration = "Bold")
 
 # If file exists, load it; otherwise create a new workbook
 if (file.exists(file_path)) {
@@ -256,14 +517,56 @@ if (!(sheet_name %in% names(wb))) {
     addWorksheet(wb, sheet_name)
 } 
 #
-writeData(wb, sheet = sheet_name, x = Live_anova, startCol = 1, startRow = 4)
-writeData(wb, sheet = sheet_name, x = Live_site_table, startCol = 1, startRow = 10)
-writeData(wb, sheet = sheet_name, x = Live_surv_table, startCol = 1, startRow = 22)
-writeData(wb, sheet = sheet_name, x = Live_int_table, startCol = 1, startRow = 27)
-writeData(wb, sheet = sheet_name, x = Live_cld_site_table, startCol = 1, startRow = 44)
-writeData(wb, sheet = sheet_name, x = Live_cld_int_table, startCol = 1, startRow = 53)
+writeData(wb, sheet = sheet_name, x = Live_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_site_table, startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_surv_table, startCol = 1, startRow = 22, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
+#
+#
+## Survey Dead
+sheet_name <- "Dead Ratio"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Dead_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_site_table, startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_surv_table, startCol = 1, startRow = 22, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
+#
+#
+## Survey Shell heights
+sheet_name <- "SH"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Shel_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_site_table, startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_surv_table, startCol = 1, startRow = 22, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
 #
 # Save workbook (overwrite = TRUE ensures updates)
 saveWorkbook(wb, file_path, overwrite = TRUE)
 #
+```
+
+```{r model reference, include = FALSE}
+#
+## Survey: base_formula <- Live ~ Site * SurvCode
+rand_structs <- list(
+  none = ~ 0, #model_none <- glmmTMB(Live ~ Site * SurvCode, family = nbinom2, data = Counts2)
+  station = ~ (1 | Site/Station), #model_station <- glmmTMB(Live ~ Site * SurvCode + (1 | Site/Station), family = nbinom2, data = Counts2)
+  ar1 = ~ ar1(SurvCode + 0 | Site:Station), #model_ar1 <- glmmTMB(Live ~ Site * SurvCode + ar1(SurvCode + 0 |Site:Station), family = nbinom2, data = Counts2)
+  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station), #model_both <- glmmTMB(Live ~ Site * SurvCode + (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station), family = nbinom2, data = Counts2)
+  extra = ~ Site * SurvCode + (1 + SurvCode|Site/Station) #model_extra <- glmmTMB(Live ~ Site * SurvCode +    (1 + SurvCode | Site/Station), family = nbinom2, data = Counts2)
+)
+
+
 ```
