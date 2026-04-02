@@ -18,7 +18,7 @@ knit: (function(inputFile, encoding) {
 ---
 
 <!-- This file applies the best models and outputs report analyses. Models of best fit need to be updated in the following lines:
-  Survey: 231 and 319
+  Survey: 240, 328, and 421
   Dermo:
   Rcrt:
   Sal:
@@ -148,7 +148,9 @@ SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detec
 #
 ## Dermo
 Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
-  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = update(RetDate, mday = 15),
+         time = as.numeric(as.factor(AnalysisDate))) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
   # Filter to CERP sites
   filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
@@ -163,7 +165,9 @@ Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', dete
 #
 ## Rcrt
 Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
-  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = update(RetDate, mday = 15),
+         time = as.numeric(as.factor(AnalysisDate))) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
   # Filter to CERP sites
   filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
@@ -179,7 +183,9 @@ Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detect
 ## Salinity
 Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
   dplyr::select(Year:Station, Sal) %>% 
-  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = update(RetDate, mday = 15),
+         time = as.numeric(as.factor(AnalysisDate))) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
   # Filter to CERP sites
   filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
@@ -205,7 +211,9 @@ flow_list_long <- imap(flow_list, ~
     )
 )
 flow_df <- bind_rows(flow_list_long) %>%
-  mutate(Year = format(Analysis_Date, format = "%Y")) %>%
+  mutate(Year = format(Analysis_Date, format = "%Y"),
+         AnalysisDate = update(Analysis_Date, mday = 15),
+         time = as.numeric(as.factor(AnalysisDate))) %>%
   filter(Station %in% c("SLESum", "LOXSum", "Flow")) %>%
   rename("Site" = Estuary) %>%
   mutate(across(c(Site, Station, Year), as.factor)) 
@@ -420,7 +428,7 @@ Shel_anova <- Anova(Shel_model, type = 3, test.statistic = "F") %>% #best_model$
     `Num DF` = Df
   ) %>%
   filter(Effect != "Residuals") %>%
-  mutate(`Den Df` = df.residual(Live_model)) %>%
+  mutate(`Den Df` = df.residual(Shel_model)) %>%
   dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
 #
 Shel_anova
@@ -498,6 +506,194 @@ Shel_cld_int_table
 #
 ```
 
+```{r Dermo analyses}
+#
+#
+Dermo2 <- Dermo_df %>% 
+  # Calculate mean dermo per month per station
+  group_by(AnalysisDate, time, Site, Station) %>%
+  summarise(MeanDermo = mean(MeanDermo, na.rm = T),
+            Infected = sum(DermoSum),
+            N = n(),
+            .groups = "drop") %>%
+  mutate(DermoPrev = Infected/N) %>%
+  arrange(Site, Station, AnalysisDate, time) 
+#
+### Intensity:
+# Fit best model: No random, NB
+DInt_model <- MASS::glm.nb(MeanDermo ~ Site * time, data = Dermo_df)
+#
+#
+DInt_anova <- Anova(DInt_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(DInt_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+DInt_anova
+#
+# LSMeans
+DInt_site_table <- left_join(
+  summary(emmeans(DInt_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DInt_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+DInt_site_table
+#
+DInt_surv_table <- left_join(
+  summary(emmeans(DInt_model, ~ time), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(time, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DInt_model, ~ time, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(time, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+DInt_surv_table
+#
+DInt_int_table <- left_join(
+  summary(emmeans(DInt_model, ~ Site * time), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, time, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DInt_model, ~ Site * time, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, time, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+DInt_int_table
+#
+# Letters
+DInt_cld_site <- multcomp::cld(
+  emmeans(DInt_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+DInt_cld_site_table <- as.data.frame(DInt_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+DInt_cld_site_table
+#
+DInt_cld_int <- multcomp::cld(
+  emmeans(DInt_model, ~ Site * time),
+  Letters = letters,
+  adjust = "sidak"
+)
+DInt_cld_int_table <- as.data.frame(DInt_cld_int) %>%
+  dplyr::select(Site, time, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+DInt_cld_int_table
+#
+#
+#
+#
+### Prevalence:
+# Fit best model: Site Random
+DPre_model <- glmmTMB(DermoPrev ~ Site * time, 
+                      family = "binomial", data = Dermo2)
+#
+#
+DPre_anova <- joint_tests(DPre_model) %>% 
+  as.data.frame() %>%
+  rename(
+    "Effect" = `model term`
+  ) %>%
+  mutate(df2 = nobs(DPre_model) - length(fixef(DPre_model)$cond))#For glmmTMB
+#
+DPre_anova
+#
+# LSMeans
+DPre_site_table <- left_join(
+  summary(emmeans(DPre_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DPre_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+DPre_site_table
+#
+DPre_surv_table <- left_join(
+  summary(emmeans(DPre_model, ~ time), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(time, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DPre_model, ~ time, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(time, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+# 
+DPre_surv_table
+#
+DPre_int_table <- left_join(
+  summary(emmeans(DPre_model, ~ Site * time), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, time, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DPre_model, ~ Site * time, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, time, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+DPre_int_table
+#
+# Letters
+DPre_cld_site <- multcomp::cld(
+  emmeans(DPre_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+DPre_cld_site_table <- as.data.frame(DPre_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+DPre_cld_site_table
+#
+DPre_cld_int <- multcomp::cld(
+  emmeans(DPre_model, ~ Site * time),
+  Letters = letters,
+  adjust = "sidak"
+)
+DPre_cld_int_table <- as.data.frame(DPre_cld_int) %>%
+  dplyr::select(Site, time, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+DPre_cld_int_table
+#
+#
+#
+```
+
 ```{r Excel output, inlcude = FALSE}
 #
 file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
@@ -552,6 +748,39 @@ writeData(wb, sheet = sheet_name, x = Shel_int_table, startCol = 1, startRow = 2
 writeData(wb, sheet = sheet_name, x = Shel_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
 writeData(wb, sheet = sheet_name, x = Shel_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
 #
+#
+#
+## Dermo Intensity
+sheet_name <- "DermoInt"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = DInt_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_site_table, startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_surv_table, startCol = 1, startRow = 22, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
+#
+#
+#
+## Dermo Prevalence
+sheet_name <- "DermoPrev"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = DPre_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_site_table, startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_surv_table, startCol = 1, startRow = 22, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_int_table, startCol = 1, startRow = 27, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_cld_site_table, startCol = 1, startRow = 44, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_cld_int_table, startCol = 1, startRow = 53, headerStyle = bold_header_style)
+#
+#
 # Save workbook (overwrite = TRUE ensures updates)
 saveWorkbook(wb, file_path, overwrite = TRUE)
 #
@@ -567,6 +796,18 @@ rand_structs <- list(
   both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station), #model_both <- glmmTMB(Live ~ Site * SurvCode + (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station), family = nbinom2, data = Counts2)
   extra = ~ Site * SurvCode + (1 + SurvCode|Site/Station) #model_extra <- glmmTMB(Live ~ Site * SurvCode +    (1 + SurvCode | Site/Station), family = nbinom2, data = Counts2)
 )
-
+#
+#
+#
+### Dermo Intensity
+# random structure formulas
+rand_structs_D <- list(
+  none = ~ 0,
+  station = ~ (1 | Site/Station),
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station)
+)
+#
+#
 
 ```
