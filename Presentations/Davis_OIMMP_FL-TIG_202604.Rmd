@@ -234,3 +234,17 @@ RecRaw_ALL <- Recruitment %>%
 
 ```
 
+``` {r Data Export }
+# Export data to Excel
+mydatasets <- list('Raw Means' = RecRaw_ALL, 
+                   'PE Means' = emm_PE_ALL,
+                   'SA Means' = emm_SA_ALL
+                   )
+write.xlsx(mydatasets, "Davis_OIMMP_FL-TIG_202604_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
+
+
+
+
+
+
+```
