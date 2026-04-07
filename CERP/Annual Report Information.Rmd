@@ -6,9 +6,9 @@ output:
   html_document: default
   word_document: default
 params:
-  Start_date: "2023-10-01"
-  End_date: "2024-09-30"
-  Excel_name: "CERP_2025"
+  Start_date: "2024-10-01"
+  End_date:   "2025-09-30"
+  Excel_name: "CERP_2026"
 
 knit: (function(inputFile, encoding) {
   rmarkdown::render(
@@ -1000,6 +1000,38 @@ CR_flow <- flow_df %>%
             Max = max(Flow, na.rm = T),
             Mean = mean(Flow, na.rm = T))
 #
+# Monthly within annual year:
+SL_month_flow <- flow_df %>% 
+  filter(Estuary == "SL" & str_ends(Station, "Sum")) %>%
+  subset(Analysis_Date > Start_date & Analysis_Date < End_date) %>%
+  group_by(Estuary, Analysis_Date) %>%
+  summarise(Mean = round(mean(Flow, na.rm = T), 2))
+#
+LX_month_flow <- flow_df %>% 
+  filter(Estuary == "LX" & str_ends(Station, "Sum")) %>%
+  subset(Analysis_Date > Start_date & Analysis_Date < End_date) %>%
+  group_by(Estuary, Analysis_Date) %>%
+  summarise(Mean = round(mean(Flow, na.rm = T), 2))
+#
+LXN_month_flow <- flow_df %>% 
+  filter(Estuary == "LX" & Station == "LOX_Flow") %>%
+  subset(Analysis_Date > Start_date & Analysis_Date < End_date) %>%
+  group_by(Estuary, Analysis_Date) %>%
+  mutate(Estuary = "LXN") %>%
+  summarise(Mean = round(mean(Flow, na.rm = T), 2))
+LXS_month_flow <- flow_df %>% 
+  filter(Estuary == "LX" & Station == "S46_Flow") %>%
+  subset(Analysis_Date > Start_date & Analysis_Date < End_date) %>%
+  group_by(Estuary, Analysis_Date) %>%
+  mutate(Estuary = "LXS") %>%
+  summarise(Mean = round(mean(Flow, na.rm = T), 2))
+#
+CR_month_flow <- flow_df %>% 
+  filter(Estuary == "CR") %>%
+  subset(Analysis_Date > Start_date & Analysis_Date < End_date) %>%
+  group_by(Estuary, Analysis_Date) %>%
+  summarise(Mean = round(mean(Flow, na.rm = T), 2))
+#
 #
 #
 ```
@@ -1027,8 +1059,13 @@ addWorksheet(wb, sheet_name)
 writeData(wb, sheet = sheet_name, x = SL_flow, startCol = 1, startRow = 2)
 writeData(wb, sheet = sheet_name, x = LX_flow, startCol = 7, startRow = 2)
 writeData(wb, sheet = sheet_name, x = CR_flow, startCol = 14, startRow = 2)
-writeData(wb, sheet = sheet_name, x = LXN_flow, startCol = 5, startRow = 33)
-writeData(wb, sheet = sheet_name, x = LXS_flow, startCol = 12, startRow = 33)
+writeData(wb, sheet = sheet_name, x = LXN_flow, startCol = 5, startRow = 28)
+writeData(wb, sheet = sheet_name, x = LXS_flow, startCol = 12, startRow = 28)
+writeData(wb, sheet = sheet_name, x = SL_month_flow, startCol = 1, startRow = 53)
+writeData(wb, sheet = sheet_name, x = LX_month_flow, startCol = 7, startRow = 53)
+writeData(wb, sheet = sheet_name, x = CR_month_flow, startCol = 14, startRow = 53)
+writeData(wb, sheet = sheet_name, x = LXN_month_flow, startCol = 5, startRow = 68)
+writeData(wb, sheet = sheet_name, x = LXS_month_flow, startCol = 9, startRow = 68)
 #
 #
 ## Salinity 
@@ -1190,17 +1227,17 @@ if (sheet_name %in% names(wb)) {
 addWorksheet(wb, sheet_name)
 # Write data starting at cell A1
 writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "CRE"), startCol = 1, startRow = 1)
-writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "CRW"), startCol = 6, startRow = 1)
-writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "LXN"), startCol = 12, startRow = 1)
-writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "SLC"), startCol = 18, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "CRW"), startCol = 8, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "LXN"), startCol = 15, startRow = 1)
+writeData(wb, sheet = sheet_name, x = Cage_Excel %>% filter(Site == "SLC"), startCol = 22, startRow = 1)
 writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "CRE"), 
           startCol = 1, startRow = 18)
 writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "CRW"), 
-          startCol = 6, startRow = 18)
+          startCol = 8, startRow = 18)
 writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "LXN"), 
-          startCol = 12, startRow = 18)
+          startCol = 15, startRow = 18)
 writeData(wb, sheet = sheet_name, x = Cage_Excel_SiteSumm %>% filter(Site == "SLC"), 
-          startCol = 18, startRow = 18)
+          startCol = 22, startRow = 18)
 writeData(wb, sheet = sheet_name, x = Cage_AveGrowth, startCol = 1, startRow = 23)
 #
 #

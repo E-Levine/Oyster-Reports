@@ -4,9 +4,9 @@ author: "EWilliams"
 date: "`r Sys.Date()`"
 output: html_document
 params:
-  Start_date: "2023-10-01"
-  End_date:   "2024-09-30"
-  Excel_name: "CERP_2025"
+  Start_date: "2024-10-01"
+  End_date:   "2025-09-30"
+  Excel_name: "CERP_2026"
 
 knit: (function(inputFile, encoding) {
   rmarkdown::render(
@@ -210,7 +210,7 @@ h4 {
 #
 # Survey data set up:
 Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE, check.names = TRUE) %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
-  subset(RetDate > (Start_date %m-% months(2)) & RetDate < (End_date %m+% months(1))) %>%
+  subset(RetDate >= (Start_date) & RetDate <= (End_date)) %>%
   # Filter to CERP sites
   filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
   # Remove TIG samples in Winter/Summer
@@ -223,17 +223,19 @@ Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts'
   mutate(
     Live = NumLive * 4,
     Dead = NumDead * 4,
-    Total = Live+Dead,
-    SurvCode_n = case_when(
-      Survey == "Winter 2023" ~ 0.5,
-      Survey == "Spring 2024" ~ 1,
-      Survey == "Summer 2024" ~ 1.5,
-      Survey ==   "Fall 2024" ~ 2,
-      TRUE ~ NA_real_)) %>%
+    Total = case_when(grepl("Spring|Fall", Survey) ~ Live+Dead, TRUE ~ NA),
+    SurvCode = as.factor(case_when(
+      Survey == "Winter 2024" ~ 0.5,
+      Survey == "Spring 2025" ~ 1,
+      Survey == "Summer 2025" ~ 1.5,
+      Survey ==   "Fall 2025" ~ 2,
+      TRUE ~ NA))) %>%
   # Make sure columns are factors
   mutate(across(c(Site, Station), as.factor)) %>%
-  mutate(SurvCode = as.factor(SurvCode_n),
-         DeadRatio = Dead/Total) %>%
+  mutate(time = as.numeric(as.factor(SurvCode)),
+         DeadRatio = case_when(Total == 0 & Dead == 0 ~ 0, 
+                               Total == 0 ~ NA, 
+                               TRUE ~ Dead/Total)) %>%
   mutate(Live = ifelse(Live < 0, NA, Live),
          Dead = ifelse(Dead < 0, NA, Dead)) %>% 
     arrange(Site, Station, SurvCode)
@@ -241,7 +243,7 @@ Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts'
 #
 ## Srvy SHs
 SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
-  subset(RetDate > (Start_date %m-% months(2)) & RetDate < (End_date %m+% months(1))) %>%
+  subset(RetDate > (Start_date) & RetDate < (End_date)) %>%
   mutate(across(ShellHeight, ~ replace_na(.x, -999))) %>%
   # Filter to CERP sites
   filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
@@ -252,14 +254,15 @@ SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detec
       Station %in% c(1, 4)
     )) %>%
   mutate(SurvCode = as.factor(case_when(
-    Survey == "Winter 2023" ~ 0.5,
-    Survey == "Spring 2024" ~ 1,
-    Survey == "Summer 2024" ~ 1.5,
-    Survey ==   "Fall 2024" ~ 2,
+    Survey == "Winter 2024" ~ 0.5,
+    Survey == "Spring 2025" ~ 1,
+    Survey == "Summer 2025" ~ 1.5,
+    Survey ==   "Fall 2025" ~ 2,
     TRUE ~ NA_real_))) %>%
   # Make sure columns are factors
   mutate(across(c(Site, Station), as.factor)) %>%
-  mutate(ShellHeight = ifelse(ShellHeight < 0, NA, ShellHeight))
+  mutate(ShellHeight = ifelse(ShellHeight < 0, NA, ShellHeight),
+         time = as.numeric(as.factor(SurvCode)))
 #
 #
 ## Dermo
@@ -346,7 +349,7 @@ rm(files, flow_list, flow_list_long)
 #
 # Limit to spring and fall
 Counts2 <- Counts_df %>% 
-  filter(SurvCode == 1 | SurvCode == 2) %>% droplevels() %>%
+  filter(!is.na(Total)) %>%
   arrange(Site, Station, SurvCode)
 #
 ### Live counts:
@@ -354,9 +357,9 @@ Counts2 <- Counts_df %>%
 rand_structs <- list(
   none = ~ 0,
   station = ~ (1 | Site/Station),
-  ar1 = ~ ar1(SurvCode + 0 | Site:Station),
-  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station),
-  extra = ~ Site * SurvCode + (1 + SurvCode | Site/Station) #Allows effect of SrvyCode to vary bt station
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station),
+  extra = ~ Site * time + (1 + time | Site/Station) #Allows effect of SrvyCode to vary by station
 )
 #
 ## Run all combinations to test
@@ -481,18 +484,18 @@ Dead_comparison_table %>% gt() %>%
 # Limit to spring and fall
 SH2 <- SH_df %>% 
   filter(SurvCode == 1 | SurvCode == 2) %>% droplevels() %>%
-  group_by(Site, SurvCode, Station, Quadrat) %>%
+  group_by(Site, time, SurvCode, Station, Quadrat) %>%
   # Calculate mean SH per quadrat 
   summarise(MeanSH = mean(ShellHeight, na.rm = T), .groups = "drop") %>%
-  arrange(Site, SurvCode, Station)
+  arrange(Site, SurvCode, time, Station)
 #
 # random structure formulas
 rand_structs <- list(
   none = ~ 0,
   station = ~ (1 | Site/Station),
-  ar1 = ~ ar1(SurvCode + 0 | Site:Station),
-  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station),
-  extra = ~ Site * SurvCode + (1|Site/Station)
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station),
+  extra = ~ Site * time + (1|Site/Station)
 )
 #
 ## Run all combinations to test

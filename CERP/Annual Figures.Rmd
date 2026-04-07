@@ -7,13 +7,22 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2023-10-01" #Start date of reporting quarter
-  End_date: "2024-09-30"   #End date of reporting quarter
+  Start_date: "2024-10-01" #Start date of reporting quarter
+  End_date: "2025-09-30"   #End date of reporting quarter
+  Excel_name: "CERP_2026"
+
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, 
+    encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Excel_name)), '.docx')
+    ) 
+      })
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-#
+# make sure to check flow scale ranges when plotting Sal/Flow plots
 Estuary_code <- c("CR", "SL", "LX")
 Start_date <- as.Date(params$Start_date)
 End_date <- as.Date(params$End_date)
@@ -135,13 +144,15 @@ Sal_CRE_2 <- Sal_CRE_1 %>% gather(SiteStation, Salinity, -CR_RetDate) %>% rename
 SLC_Flow_2 <- rbind(SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLN"), 
                     SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLS")) %>%
   rbind(SLC_Flow %>% dplyr::select(Date, SLESum) %>% mutate(Site = "SLC")) %>% 
-  mutate(Rescale = (SLESum - min(SLESum))/(max(SLESum) - min(SLESum))*(40-0)+0) #Rescale flow to salinity axis limits for plotting
+  mutate(Rescale = (SLESum - min(SLESum, na.rm = T))/(max(SLESum, na.rm = T) - min(SLESum, na.rm = T))*(40-0)+0) #Rescale flow to salinity axis limits for plotting
 #
-LRE_Flow_2 <- LRE_Flow %>% dplyr::select(-Analysis_Date, -LOXSum) %>% gather(Site, Flow, -Estuary, -Date) %>% mutate(Site = case_when(Site == "LOX_Flow" ~ "LXN", TRUE ~ "LXS")) %>% mutate(Rescale = (Flow - min(Flow))/(max(Flow) - min(Flow))*(40-0)+0) #Rescale flow to salinity axis limits for plotting
+LRE_Flow_1.5 <- LRE_Flow %>% dplyr::select(-Analysis_Date, -LOXSum) %>% gather(Site, Flow, -Estuary, -Date) %>% mutate(Site = case_when(Site == "LOX_Flow" ~ "LXN", TRUE ~ "LXS"))
+LRE_Flow_2 <- rbind(LRE_Flow_1.5 %>% filter(Site == "LXN") %>% mutate(Rescale = (Flow - min(Flow, na.rm = T))/(max(Flow, na.rm = T) - min(Flow, na.rm = T))*(40-0)+0), #Rescale flow to salinity axis limits for plotting
+                    LRE_Flow_1.5 %>% filter(Site == "LXS") %>% mutate(Rescale = (Flow - min(Flow, na.rm = T))/(max(Flow, na.rm = T) - min(Flow, na.rm = T))*(40-0)+0))
 #
-CRE_Flow_2 <-  rbind(CRE_Flow %>% dplyr::select(Date, Flow) %>% mutate(Site = "CRE"), 
+CRE_Flow_2 <- rbind(CRE_Flow %>% dplyr::select(Date, Flow) %>% mutate(Site = "CRE"), 
                     CRE_Flow %>% dplyr::select(Date, Flow) %>% mutate(Site = "CRW")) %>% 
-  mutate(Rescale = (Flow - min(Flow))/(max(Flow) - min(Flow))*(38-0)+0) #Rescale flow to salinity axis limits for plotting
+  mutate(Rescale = (Flow - min(Flow, na.rm = T))/(max(Flow, na.rm = T) - min(Flow, na.rm = T))*(38-0)+0) #Rescale flow to salinity axis limits for plotting
 #
 #
 ##Temperature
@@ -305,7 +316,7 @@ Any samples listed below were missing during the monitoring period:
 \
 *Water quality*
 \
-`r if(nrow(WQ_check) > 0) {flextable(WQ_checks) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
+`r if(nrow(WQ_check) > 0) {flextable(WQ_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
 \
 \
 *Survey*
@@ -348,7 +359,7 @@ ggarrange(
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-North") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfs)", breaks = seq(0,4800, 1200))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4600/40), name = "Flow (cfs)", breaks = seq(0,4600, 1150))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -388,11 +399,11 @@ ggarrange(
 
 ```{r LRE Salinity Figure, fig.cap = "**Figure 3.**  Monthly salinity recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites and the sum of the mean daily flow rate at the Lainhart Dam and S46 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #max((LRE_Flow_2 %>% filter(Site == "LXN"))$Flow) - round to nearest divisible by 4 -1200, 300; 500
-#Change Rescale*n to correct flow pattern as needed
+#Change Rescale*n to correct flow pattern as needed LXN 1.64, LXS 1.25
 ggarrange(
   #LNX
   ggplot() +
-    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXN"), aes(Date, Rescale*1.64), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXN"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_line(data = Sal_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_LRE_2 %>% filter(Site == "LXN"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Loxahatchee-North") +
@@ -406,12 +417,12 @@ ggarrange(
   NULL,
   #LXS
   ggplot() +
-    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXS"), aes(Date, Rescale*1.25), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LRE_Flow_2 %>% filter(Site == "LXS"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_line(data = Sal_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = Sal_LRE_2 %>% filter(Site == "LXS"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Loxahatchee-South") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(480/40), name = "Flow (cfs)", breaks = seq(0,480, 120))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(1200/40), name = "Flow (cfs)", breaks = seq(0,1200, 300))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: S46"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow: S46"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -423,7 +434,7 @@ ggarrange(
 ```
 
 ```{r CRE Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites and the mean daily flow rate at the S79 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
-#max(CRE_Flow_2$Flow) - round to nearest divisible by 4 - 12569 > 13000, 3250
+#max(CRE_Flow_2$Flow, na.rm = T) - round to nearest divisible by 4 - 12569 > 13000, 3250
 ggarrange(
   #CRE plot
   ggplot() +
@@ -432,7 +443,7 @@ ggarrange(
     geom_point(data = Sal_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Caloosahatchee-East") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfs)", breaks = seq(0,13000, 3250))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(12000/40), name = "Flow (cfs)", breaks = seq(0,12000, 3000))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -626,12 +637,12 @@ ggarrange(
 ```{r SLC pH Figure, fig.cap = "**Figure 11.**  Monthly pH recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 #
 #Check pH range:
-if (min(pH_SLC_2$pH) < 7 & max(pH_SLC_2$pH) < 9) {
-  SLE_pH_limits <- c(round(min(pH_SLC_2$pH),1), 9)  # Scale min to 9
-} else if (min(pH_SLC_2$pH) > 7 & max(pH_SLC_2$pH) > 9) {
-  SLE_pH_limits <- c(7, round(max(pH_SLC_2$pH),1))  # Scale 7 to max
-} else if (min(pH_SLC_2$pH) < 7 & max(pH_SLC_2$pH) > 9) {
-  SLE_pH_limits <- c(round(min(pH_SLC_2$pH),1), round(max(pH_SLC_2$pH),1))  # Scale 7 to max
+if (min(pH_SLC_2$pH, na.rm = T) < 7 & max(pH_SLC_2$pH, na.rm = T) < 9) {
+  SLE_pH_limits <- c(round(min(pH_SLC_2$pH, na.rm = T),1), 9)  # Scale min to 9
+} else if (min(pH_SLC_2$pH, na.rm = T) > 7 & max(pH_SLC_2$pH, na.rm = T) > 9) {
+  SLE_pH_limits <- c(7, round(max(pH_SLC_2$pH, na.rm = T),1))  # Scale 7 to max
+} else if (min(pH_SLC_2$pH, na.rm = T) < 7 & max(pH_SLC_2$pH, na.rm = T) > 9) {
+  SLE_pH_limits <- c(round(min(pH_SLC_2$pH, na.rm = T),1), round(max(pH_SLC_2$pH, na.rm = T),1))  # Scale 7 to max
 } else {
   SLE_pH_limits <- c(7, 9)  # Use the default limits
 }
@@ -671,12 +682,12 @@ ggarrange(
 ```{r LRE pH Figure, fig.cap = "**Figure 12.**  Monthly pH recorded in 2024 at stations in the Loxahatchee-North (top) and Loxahatchee-South (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #
 #Check pH range:
-if (min(pH_LRE_2$pH) < 7 & max(pH_LRE_2$pH) < 9) {
-  LRE_pH_limits <- c(round(min(pH_LRE_2$pH),1), 9)  # Scale min to 9
-} else if (min(pH_LRE_2$pH) > 7 & max(pH_LRE_2$pH) > 9) {
-  LRE_pH_limits <- c(7, round(max(pH_LRE_2$pH),1))  # Scale 7 to max
-} else if (min(pH_LRE_2$pH) < 7 & max(pH_LRE_2$pH) > 9) {
-  LRE_pH_limits <- c(round(min(pH_LRE_2$pH),1), round(max(pH_LRE_2$pH),1))  # Scale 7 to max
+if (min(pH_LRE_2$pH, na.rm = T) < 7 & max(pH_LRE_2$pH, na.rm = T) < 9) {
+  LRE_pH_limits <- c(round(min(pH_LRE_2$pH, na.rm = T),1), 9)  # Scale min to 9
+} else if (min(pH_LRE_2$pH, na.rm = T) > 7 & max(pH_LRE_2$pH, na.rm = T) > 9) {
+  LRE_pH_limits <- c(7, round(max(pH_LRE_2$pH, na.rm = T),1))  # Scale 7 to max
+} else if (min(pH_LRE_2$pH, na.rm = T) < 7 & max(pH_LRE_2$pH, na.rm = T) > 9) {
+  LRE_pH_limits <- c(round(min(pH_LRE_2$pH, na.rm = T),1), round(max(pH_LRE_2$pH, na.rm = T),1))  # Scale 7 to max
 } else {
   LRE_pH_limits <- c(7, 9)  # Use the default limits
 }
@@ -707,12 +718,12 @@ ggarrange(
 ```{r CRE pH Figure, fig.cap = "**Figure 13.**  Monthly pH recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #
 #Check pH range:
-if (min(pH_CRE_2$pH) < 7 & max(pH_CRE_2$pH) < 9) {
-  CRE_pH_limits <- c(round(min(pH_CRE_2$pH),1), 9)  # Scale min to 9
-} else if (min(pH_CRE_2$pH) > 7 & max(pH_CRE_2$pH) > 9) {
-  CRE_pH_limits <- c(7, round(max(pH_CRE_2$pH),1))  # Scale 7 to max
-} else if (min(pH_CRE_2$pH) < 7 & max(pH_CRE_2$pH) > 9) {
-  CRE_pH_limits <- c(round(min(pH_CRE_2$pH),1), round(max(pH_CRE_2$pH),1))  # Scale 7 to max
+if (min(pH_CRE_2$pH, na.rm = T) < 7 & max(pH_CRE_2$pH, na.rm = T) < 9) {
+  CRE_pH_limits <- c(round(min(pH_CRE_2$pH, na.rm = T),1), 9)  # Scale min to 9
+} else if (min(pH_CRE_2$pH, na.rm = T) > 7 & max(pH_CRE_2$pH, na.rm = T) > 9) {
+  CRE_pH_limits <- c(7, round(max(pH_CRE_2$pH, na.rm = T),1))  # Scale 7 to max
+} else if (min(pH_CRE_2$pH, na.rm = T) < 7 & max(pH_CRE_2$pH, na.rm = T) > 9) {
+  CRE_pH_limits <- c(round(min(pH_CRE_2$pH, na.rm = T),1), round(max(pH_CRE_2$pH, na.rm = T),1))  # Scale 7 to max
 } else {
   CRE_pH_limits <- c(7, 9)  # Use the default limits
 }
@@ -1425,7 +1436,7 @@ CRE_rcrt_fig
 #
 ```
 
-```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 ggarrange(
   Cage_Mort %>% filter(Site == "SLC") %>%
     mutate(Mean = case_when(Helper == "*" ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" ~ NA_real_, TRUE ~ SD)) %>%
@@ -1433,8 +1444,8 @@ ggarrange(
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
-    labs(title = "St. Lucie-Central Staion 1") +
-    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    labs(title = "St. Lucie-Central Staion 2") +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
@@ -1445,7 +1456,7 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "Loxahatchee-North Staion 2") +
-    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
@@ -1456,7 +1467,7 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "Caloosahatchee-East Iona Cove") +
-    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   NULL,
@@ -1467,7 +1478,7 @@ ggarrange(
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
     labs(title = "Caloosahatchee-West Bird Island") +
-    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 125)) +
+    scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
   nrow =  7, heights = c(1, -0.05, 1, -0.05, 1, -0.05, 1))
