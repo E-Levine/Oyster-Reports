@@ -205,20 +205,7 @@ rm(hsdbDermo)
 
 ### Buceph & Repro Data ###
 # Buceph
-Buceph <- hsdbRepro %>%
-  FilterFunction2() %>%
-  select(OysterID,
-         SampleEventID,
-         FixedLocationID,
-         TripDate,
-         Estuary,
-         SectionName,
-         StationName,
-         StationNumber,
-         StationNameNumber,
-         Year,
-         Parasite,
-         Comments)
+# Will just be using Repro with some filtering
 
 # Repro
 Repro <- hsdbRepro %>%
