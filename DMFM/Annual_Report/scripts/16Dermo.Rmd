@@ -213,183 +213,182 @@ barplot(prop.table(table(DermoStats$DermoGill)))
 barplot(prop.table(table(DermoStats$DermoMantle)))
 barplot(prop.table(table(DermoStats$DermoMean)))
 
-intensity0 <- clm(DermoGill ~ 1, 
+intensityGill0 <- clm(DermoGill ~ 1, 
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity1 <- clmm(DermoGill ~ 1 + (1 | FixedLocationID), 
+intensityGill1 <- clmm(DermoGill ~ 1 + (1 | FixedLocationID), 
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-model.sel(intensity0, intensity1) # adding random effect increase AIC by 133
+model.sel(intensityGill0, intensityGill1) # adding random effect increase AIC by 133
 
-intensity1 <- clmm(DermoGill ~ 1 + (1 | FixedLocationID), # 5 @ 99
+intensityGill1 <- clmm(DermoGill ~ 1 + (1 | FixedLocationID), # 5 @ 99
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity2 <- clmm(DermoGill ~ SectionName + (1 | FixedLocationID), # 6 @ 102
+intensityGill2 <- clmm(DermoGill ~ SectionName + (1 | FixedLocationID), # 6 @ 102
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity3 <- clmm(DermoGill ~ Month + (1 | FixedLocationID), # 1 @ 0
+intensityGill3 <- clmm(DermoGill ~ Month + (1 | FixedLocationID), # 1 @ 0
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity4 <- clmm(DermoGill ~ Year + (1 | FixedLocationID), # 2 @ 45
+intensityGill4 <- clmm(DermoGill ~ Year + (1 | FixedLocationID), # 2 @ 45
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity5 <- clmm(DermoGill ~ SH_scaled + (1 | FixedLocationID), # 4 @ 89
+intensityGill5 <- clmm(DermoGill ~ SH_scaled + (1 | FixedLocationID), # 4 @ 89
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity6 <- clmm(DermoGill ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 86
+intensityGill6 <- clmm(DermoGill ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 86
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-model.sel(intensity1, intensity2, intensity3, intensity4, intensity5, intensity6)
-# nominal_test(intensity3) # this test often fails with random effects
-# intensity_fixed <- clm(DermoGill ~ Month, # running it without a random effect
+model.sel(intensityGill1, intensityGill2, intensityGill3, intensityGill4, intensityGill5, intensityGill6)
+# nominal_test(intensityGill3) # this test often fails with random effects
+# intensityGill_fixed <- clm(DermoGill ~ Month, # running it without a random effect
 #                link = "logit", 
 #                data = DermoStats,
 #                subset = DermoGill != "0")
-# nominal_test(intensity_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# nominal_test(intensityGill_fixed) # test runs, but reveals that proportional odds assumption IS violoated
 # # however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
-r2(intensity3)
-summary(intensity3)
+r2(intensityGill3)
+summary(intensityGill3)
 
 ## Adding complexity
-intensity31 <- clmm(DermoGill ~ Month + (1 | FixedLocationID), # 4 @ 57
+intensityGill31 <- clmm(DermoGill ~ Month + (1 | FixedLocationID), # 4 @ 57
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity32 <- clmm(DermoGill ~ Month + Year + (1 | FixedLocationID), # 1 @ 0
+intensityGill32 <- clmm(DermoGill ~ Month + Year + (1 | FixedLocationID), # 1 @ 0
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity33 <- clmm(DermoGill ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 46
+intensityGill33 <- clmm(DermoGill ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 46
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity34 <- clmm(DermoGill ~ Month + SH_scaled + (1 | FixedLocationID), # 2 @ 43
+intensityGill34 <- clmm(DermoGill ~ Month + SH_scaled + (1 | FixedLocationID), # 2 @ 43
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-model.sel(intensity31, intensity32, intensity33, intensity34)
-r2(intensity32)
-summary(intensity32)
+model.sel(intensityGill31, intensityGill32, intensityGill33, intensityGill34)
+r2(intensityGill32)
+summary(intensityGill32)
 
 ## More complexity
-intensity321 <- clmm(DermoGill ~ Month + Year + (1 | FixedLocationID), # 3 @ 12
+intensityGill321 <- clmm(DermoGill ~ Month + Year + (1 | FixedLocationID), # 3 @ 12
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity322 <- clmm(DermoGill ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+intensityGill322 <- clmm(DermoGill ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-intensity323 <- clmm(DermoGill ~ Month + Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 1
+intensityGill323 <- clmm(DermoGill ~ Month + Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 1
                link = "logit", 
                data = DermoStats,
                subset = DermoGill != "0")
-# intensity324 <- clmm(DermoGill ~ Month * Year + (1 | FixedLocationID), # Doesn't converge
+# intensityGill324 <- clmm(DermoGill ~ Month * Year + (1 | FixedLocationID), # Doesn't converge
 #                link = "logit", 
 #                data = DermoStats,
 #                subset = DermoGill != "0")
-model.sel(intensity321, intensity322, intensity323)
-r2(intensity322)
-summary(intensity322)
+model.sel(intensityGill321, intensityGill322, intensityGill323)
+r2(intensityGill322)
+summary(intensityGill322)
 
 ##### DermoMantle
 ###################################
 ###################################
-intensityM0 <- clm(DermoMantle ~ 1, 
+intensityMantle0 <- clm(DermoMantle ~ 1, 
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM1 <- clmm(DermoMantle ~ 1 + (1 | FixedLocationID), 
+intensityMantle1 <- clmm(DermoMantle ~ 1 + (1 | FixedLocationID), 
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-model.sel(intensityM0, intensityM1) # adding random effect increase AIC by 160
+model.sel(intensityMantle0, intensityMantle1) # adding random effect increase AIC by 160
 
-intensityM1 <- clmm(DermoMantle ~ 1 + (1 | FixedLocationID), # 5 @ 124
+intensityMantle1 <- clmm(DermoMantle ~ 1 + (1 | FixedLocationID), # 5 @ 124
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM2 <- clmm(DermoMantle ~ SectionName + (1 | FixedLocationID), # 6 @ 125
+intensityMantle2 <- clmm(DermoMantle ~ SectionName + (1 | FixedLocationID), # 6 @ 125
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM3 <- clmm(DermoMantle ~ Month + (1 | FixedLocationID), # 1 @ 0
+intensityMantle3 <- clmm(DermoMantle ~ Month + (1 | FixedLocationID), # 1 @ 0
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM4 <- clmm(DermoMantle ~ Year + (1 | FixedLocationID), # 2 @ 91
+intensityMantle4 <- clmm(DermoMantle ~ Year + (1 | FixedLocationID), # 2 @ 91
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM5 <- clmm(DermoMantle ~ SH_scaled + (1 | FixedLocationID), # 4 @ 93
+intensityMantle5 <- clmm(DermoMantle ~ SH_scaled + (1 | FixedLocationID), # 4 @ 93
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM6 <- clmm(DermoMantle ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 92
+intensityMantle6 <- clmm(DermoMantle ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 92
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-model.sel(intensityM1, intensityM2, intensityM3, intensityM4, intensityM5, intensityM6)
-# nominal_test(intensityM3) # this test often fails with random effects
-# intensityM_fixed <- clm(DermoMantle ~ Month, # running it without a random effect
+model.sel(intensityMantle1, intensityMantle2, intensityMantle3, intensityMantle4, intensityMantle5, intensityMantle6)
+# nominal_test(intensityMantle3) # this test often fails with random effects
+# intensityMantle_fixed <- clm(DermoMantle ~ Month, # running it without a random effect
 #                link = "logit", 
 #                data = DermoStats,
 #                subset = DermoMantle != "0")
-# nominal_test(intensityM_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# nominal_test(intensityMantle_fixed) # test runs, but reveals that proportional odds assumption IS violoated
 # # however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
-r2(intensityM3)
-summary(intensityM3)
+r2(intensityMantle3)
+summary(intensityMantle3)
 
 ## Adding complexity
-intensityM31 <- clmm(DermoMantle ~ Month + (1 | FixedLocationID), # 4 @ 35
+intensityMantle31 <- clmm(DermoMantle ~ Month + (1 | FixedLocationID), # 4 @ 35
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM32 <- clmm(DermoMantle ~ Month + Year + (1 | FixedLocationID), # 2 @ 4
+intensityMantle32 <- clmm(DermoMantle ~ Month + Year + (1 | FixedLocationID), # 2 @ 4
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM33 <- clmm(DermoMantle ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 8
+intensityMantle33 <- clmm(DermoMantle ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 8
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM34 <- clmm(DermoMantle ~ Month + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+intensityMantle34 <- clmm(DermoMantle ~ Month + SH_scaled + (1 | FixedLocationID), # 1 @ 0
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-model.sel(intensityM31, intensityM32, intensityM33, intensityM34)
-r2(intensityM32)
-summary(intensityM32)
+model.sel(intensityMantle31, intensityMantle32, intensityMantle33, intensityMantle34)
+r2(intensityMantle32)
+summary(intensityMantle32)
 
 ## More complexity
-intensityM321 <- clmm(DermoMantle ~ Month + SH_scaled + (1 | FixedLocationID), # 3 @ 25
+intensityMantle321 <- clmm(DermoMantle ~ Month + SH_scaled + (1 | FixedLocationID), # 3 @ 25
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM322 <- clmm(DermoMantle ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+intensityMantle322 <- clmm(DermoMantle ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-intensityM323 <- clmm(DermoMantle ~ Month + Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 3
+intensityMantle323 <- clmm(DermoMantle ~ Month + Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 3
                link = "logit", 
                data = DermoStats,
                subset = DermoMantle != "0")
-# intensityM324 <- clmm(DermoMantle ~ Month * Year + (1 | FixedLocationID), # Doesn't converge
+# intensityMantle324 <- clmm(DermoMantle ~ Month * Year + (1 | FixedLocationID), # Doesn't converge
 #                link = "logit", 
 #                data = DermoStats,
 #                subset = DermoMantle != "0")
-model.sel(intensityM321, intensityM322, intensityM323)
-r2(intensityM322)
-summary(intensityM322)
-summary(intensity322)
+model.sel(intensityMantle321, intensityMantle322, intensityMantle323)
+r2(intensityMantle322)
+summary(intensityMantle322)
 
 
 
