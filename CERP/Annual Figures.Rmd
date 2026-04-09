@@ -1436,7 +1436,7 @@ CRE_rcrt_fig
 #
 ```
 
-```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r Cage Mortality Figure, fig.cap = "**Figure 38.**  Mean monthly percent mortality (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee River-East, and Bird Island in Caloosahatchee River-West. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 ggarrange(
   Cage_Mort %>% filter(Site == "SLC") %>%
     mutate(Mean = case_when(Helper == "*" ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" ~ NA_real_, TRUE ~ SD)) %>%
@@ -1466,7 +1466,7 @@ ggarrange(
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
-    labs(title = "Caloosahatchee-East Iona Cove") +
+    labs(title = "Caloosahatchee River-East Iona Cove") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
@@ -1477,7 +1477,7 @@ ggarrange(
     geom_col(position = position_dodge(12), width = 14, color = "black") + 
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(12), size = 10) +
-    labs(title = "Caloosahatchee-West Bird Island") +
+    labs(title = "Caloosahatchee River-West Bird Island") +
     scale_y_continuous("% Mortality", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + BaseForm + theme(legend.position = "none") + PlotTitle,
@@ -1485,7 +1485,7 @@ ggarrange(
 #
 ```
 
-```{r Cage SH Figure, fig.cap = "**Figure 39.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 1 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee-East, and Bird Island in Caloosahatchee-West in 2024. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+```{r Cage SH Figure, fig.cap = "**Figure 39.**  Mean monthly deployed (hatched bars) and retrieved (solid bars) shell height (± S.D.) of oysters planted into open cages at Station 2 in St. Lucie-Central, Station 2 in Loxahatchee-North, Iona Cove in Caloosahatchee River-East, and Bird Island in Caloosahatchee River-West in 2024. Asterisks indicate when no cages were retrived at a site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 ggarrange(
   Cage_SH %>% filter(Site == "SLC") %>%  
     mutate(Mean = case_when(Helper == "*" & Type == 'Ret' ~ NA_real_, TRUE ~ Mean), SD = case_when(Helper == "*" & Type == 'Ret'  ~ NA_real_, TRUE ~ SD)) %>% 
@@ -1494,7 +1494,7 @@ ggarrange(
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
-    labs(title = "St. Lucie-Central Staion 1") +
+    labs(title = "St. Lucie-Central Staion 2") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
@@ -1518,7 +1518,7 @@ ggarrange(
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
-    labs(title = "Caloosahatchee-East Iona Cove") +
+    labs(title = "Caloosahatchee River-East Iona Cove") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
@@ -1530,7 +1530,7 @@ ggarrange(
     geom_col_pattern(aes(pattern_type = Type), pattern = 'magick', pattern_aspect_ratio = 0.25, position = position_dodge(18), width = 12, color = "black") +
     scale_pattern_type_discrete("", choices = c(Dep = "checkerboard", Ret = "gray100"))+
     geom_text(aes(y = 25, label = Helper, color = Site), position = position_dodge(18), size = 10) +
-    labs(title = "Caloosahatchee-West Bird Island") +
+    labs(title = "Caloosahatchee River-West Bird Island") +
     scale_y_continuous("Shell Height (mm)", expand = c(0,0), limits = c(0, 100)) +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(End_date %m-% months(12) %m-% days(10), End_date %m-% days(10)))+
     scale_fill_manual(values = Cages_fill) + scale_color_manual(values = Cages_fill) + scale_color_manual(values = Cages_color) + BaseForm + theme(legend.position = "none") + PlotTitle,
