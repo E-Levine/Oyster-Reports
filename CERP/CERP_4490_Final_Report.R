@@ -19,7 +19,7 @@ pacman::p_load(tidyverse, dplyr,  #DF manipulation
 ####Survey data####
 #
 ##Load data, check, and reformat columns as needed
-Counts <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/SAS Data Analysis/SAS Data/SurveyCountsSAS.xlsx", 
+Counts <- read_excel(file, 
                      sheet = "Counts", skip = 0, col_names = TRUE, na = c("", "Z"), trim_ws = TRUE, .name_repair = "universal")
 #
 head(Counts)
@@ -94,7 +94,7 @@ pairs(emmeans(Counts_mod_NB, "Year", lmer.df = "kenward-roger", type = "unlink")
 #
 #
 ###Testing
-Counts <- read_excel("//fwc-spfs1/FishBio/Molluscs/Oysters/SAS Data Analysis/SAS Data/CERP4203_Final_Live_Data_Test.xlsx", 
+Counts <- read_excel(file, 
                      sheet = "Sheet1", skip = 0, col_names = TRUE, na = c("", "Z"), trim_ws = TRUE, .name_repair = "universal")
 #
 head(Counts)
