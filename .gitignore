@@ -58,6 +58,8 @@ FLTIG/*.xlsx
 NFWF/*.xlsx
 PBC/*.xlsx
 *.docx
+!Quarterly/*SOP.docx
+!Monthly/*SOP.docx
 Data/*Raw*.xlsx
 !Data/.gitkeep
 Presentations/*.xlsx
