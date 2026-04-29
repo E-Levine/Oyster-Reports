@@ -1,0 +1,587 @@
+---
+title: "Dermo"
+output: html_document
+---
+
+# Perform basic analyses, output figures and tables for Dermo data
+
+``` {r BasicStats}
+
+### Stats for Dermo 
+# Dermo prevalence by section
+DermoStats <- Dermo %>%
+  filter(!is.na(DermoMantle) & 
+           !is.na(DermoGill) & 
+           !is.na(ShellHeight) &
+           !is.na(ShellLength) &
+           !is.na(ShellWidth) &
+           !is.na(TotalWeight)) %>% # remove nulls
+  mutate(Infected = DermoMantle != 0 | DermoGill != 0, # mark those infected as True
+         Month = as.factor(month(TripDate)),
+         Year = as.factor(Year),
+         SectionName = factor(SectionName,
+                              levels = lv3),
+         LinearOy = ShellHeight + ShellLength + ShellWidth, # not used
+         CubicOy = ShellHeight * ShellLength * ShellWidth, # not used
+         SH_scaled = scale(ShellHeight)[, 1], # not used
+         Wt_scaled = scale(TotalWeight)[, 1],
+         LO_scaled = scale(LinearOy)[, 1], # not used
+         CO_scaled = scale(CubicOy)[, 1], # not used
+         DermoMax = ifelse(DermoMantle >= DermoGill, DermoMantle, DermoGill), # select the highest level of infection recorded
+         DermoGill = factor(DermoGill,
+                            levels = c("0", "0.5", "1", "2", "3", "4", "5"),
+                            ordered = TRUE),
+         DermoMantle = factor(DermoMantle,
+                            levels = c("0", "0.5", "1", "2", "3", "4", "5"),
+                            ordered = TRUE),
+         DermoMax = factor(DermoMax,
+                            levels = c("0", "0.5", "1", "2", "3", "4", "5"),
+                            ordered = TRUE),
+  )
+  
+```
+
+``` {r Dermo Prevalence Model Selection, eval = FALSE}
+# Selecting the best fit model
+###### ~~~~~~~ DO NOT RUN ~~~~~~~~~~
+infected1 <- glmmTMB(Infected ~ 1 + (1|FixedLocationID), # 7 @ 195
+                       family = binomial,
+                       data = DermoStats)
+infected2 <- glmmTMB(Infected ~ 1 + SectionName + (1|FixedLocationID), # 8 @ 197
+                       family = binomial,
+                       data = DermoStats)
+infected3 <- glmmTMB(Infected ~ 1 + Month + (1|FixedLocationID), # 6 @ 152
+                       family = binomial,
+                       data = DermoStats)
+infected4 <- glmmTMB(Infected ~ 1 + Year + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = DermoStats)
+infected5 <- glmmTMB(Infected ~ 1 + SH_scaled + (1|FixedLocationID), # 2 @ 66
+                       family = binomial,
+                       data = DermoStats)
+infected6 <- glmmTMB(Infected ~ 1 + Wt_scaled + (1|FixedLocationID), # 4 @ 95
+                       family = binomial,
+                       data = DermoStats)
+infected7 <- glmmTMB(Infected ~ 1 + LO_scaled + (1|FixedLocationID), # 3 @ 83
+                       family = binomial,
+                       data = DermoStats)
+infected8 <- glmmTMB(Infected ~ 1 + CO_scaled + (1|FixedLocationID), # 5 @ 109
+                       family = binomial,
+                       data = DermoStats)
+model.sel(infected1,infected2,infected3,infected4,infected5,infected6,infected7,infected8)
+simulateResiduals(infected4, plot = TRUE)
+
+infected41 <- glmmTMB(Infected ~ 1 + Year + (1|FixedLocationID), # 6 @ 99
+                       family = binomial,
+                       data = DermoStats)
+infected42 <- glmmTMB(Infected ~ 1 + Year + SH_scaled + (1|FixedLocationID), # 2 @ 3
+                       family = binomial,
+                       data = DermoStats)
+infected43 <- glmmTMB(Infected ~ 1 + Year + LO_scaled + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = DermoStats)
+infected44 <- glmmTMB(Infected ~ 1 + Year + CO_scaled + (1|FixedLocationID), # 4 @ 28
+                       family = binomial,
+                       data = DermoStats)
+infected45 <- glmmTMB(Infected ~ 1 + Year + Wt_scaled + (1|FixedLocationID), # 3 @ 20
+                       family = binomial,
+                       data = DermoStats)
+infected46 <- glmmTMB(Infected ~ 1 + Year + Month + (1|FixedLocationID), # 5 @ 45
+                       family = binomial,
+                       data = DermoStats)
+infected47 <- glmmTMB(Infected ~ 1 + Year + SectionName + (1|FixedLocationID), # 7 @ 99
+                       family = binomial,
+                       data = DermoStats)
+model.sel(infected41,infected42,infected43,infected44,infected45,infected46,infected47)
+simulateResiduals(infected43, plot = TRUE)
+
+infected431 <- glmmTMB(Infected ~ 1 + Year + LO_scaled + (1|FixedLocationID), # 3 @ 80
+                       family = binomial,
+                       data = DermoStats)
+infected432 <- glmmTMB(Infected ~ 1 + Year + LO_scaled + Month + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = DermoStats)
+infected433 <- glmmTMB(Infected ~ 1 + Year + SH_scaled + Month + (1|FixedLocationID), # 2 @ 11
+                       family = binomial,
+                       data = DermoStats)
+infected434 <- glmmTMB(Infected ~ 1 + Year + Month + (1|FixedLocationID), # 4 @ 125
+                       family = binomial,
+                       data = DermoStats)
+model.sel(infected431,infected432,infected433, infected434)
+simulateResiduals(infected432, plot = TRUE)
+summary(infected432)
+simulateResiduals(infected433, plot = TRUE)
+summary(infected433)
+
+# Takeaways include the fact that Section contributed very little to the variance
+# LO_scaled technically provided an improvement in AIC, but results with SH provided a similar story. Thus, it was decided to go with SH as the more widely accepted measure of oyster size.
+
+```
+
+``` {r Dermo Prevalence}
+# Dermo prevalence model
+DermoPrevalence <- glmmTMB(Infected ~ Year + SH_scaled + Month + (1|FixedLocationID), 
+                           family = binomial,
+                           data = DermoStats)
+
+simulateResiduals(DermoPrevalence, plot = TRUE)
+acf(residuals(DermoPrevalence, type = "pearson"))
+r2(DermoPrevalence)
+# R2 is fairly low and indicates poor predictive power, as well as random effect (locations) have a strong impact on the prevalence
+summary(DermoPrevalence)
+
+# Residuals look good. KS fails, but given the large number of observations, this is expected
+# summary interpretation (coefficients are on the log-odds scale)
+# SIZE effect is the strongest signal (estimate 0.3134) and is statistically significant. Larger oysters are more likely to be infected. Converted roughly to odds (exp(0.3134) = 1.37), so about a 37% increase in odds of infection per SD increase in size. Larger/older oysters have more exposure time and a greater cumulative infection risk
+# YEAR effects have strong interannual signals. Most years 2019-2023 are strongly negative and highly significant. Compared to 2016 infection probability was substantially lower in those years. However, infection probability in 2023 and 2024 have been increasing.
+# MONTH effect show a seasonal pattern. with March having a significantly lower probability than January, and an increase in probability in August through October. Classic seasonal signal for Dermo: Warmer temperatures → increased parasite activity; Accumulation through the growing season; Peak infection prevalence in late summer / fall
+# RANDOM effect (site variability) Variance: 0.696; SD: 0.83. There is substantial variability among locations even after accounting for: Year, Month, and Oyster size. This suggests: Local environmental conditions matter (e.g., salinity, flushing, habitat) and Some sites are consistently higher-risk than others
+
+
+############ predicted probability of infection
+### By Month
+DermoPrevalence_probs_Month <- emmeans(DermoPrevalence, ~ Month, 
+                                       at = list(SH_scaled = 0, Year = "2016"),
+                                       type = "response") %>%
+  as.data.frame() 
+plot(DermoPrevalence_probs_Month)
+# Generate Figure Dermo 1
+ggplot(DermoPrevalence_probs_Month,
+       aes(x = Month, y = prob, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  labs(
+    x = "Month",
+    y = "Predicted Probability of Infection",
+    title = "Predicted Dermo Prevalence by Month"
+  ) +
+  theme_classic()
+
+# Create Appendix table by Month
+DermoPrevalence_Month_TABLE <- DermoPrevalence_probs_Month %>%
+  rename(Probability = prob,
+         `LCL 95%` = asymp.LCL,
+         `UCL 95%` = asymp.UCL) %>%
+  select(Month,
+         Probability,
+         `LCL 95%`,
+         `UCL 95%`)
+
+kable(DermoPrevalence_Month_TABLE, 
+      digits = 3)
+
+### By Year
+DermoPrevalence_probs_Year <- emmeans(DermoPrevalence, ~ Year, 
+                                       at = list(SH_scaled = 0, Month = "10"),
+                                       type = "response") %>%
+  as.data.frame() 
+plot(DermoPrevalence_probs_Year)
+# Generate Figure Dermo 2
+ggplot(DermoPrevalence_probs_Year,
+       aes(x = Year, y = prob, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  labs(
+    x = "Year",
+    y = "Predicted Probability of Infection",
+    title = "Predicted Dermo Prevalence by Year"
+  ) +
+  theme_classic()
+
+# Create Appendix table by Year
+DermoPrevalence_Year_TABLE <- DermoPrevalence_probs_Year %>%
+  rename(Probability = prob,
+         `LCL 95%` = asymp.LCL,
+         `UCL 95%` = asymp.UCL) %>%
+  select(Year,
+         Probability,
+         `LCL 95%`,
+         `UCL 95%`)
+
+kable(DermoPrevalence_Year_TABLE, 
+      digits = 3)
+
+```
+
+``` {r Dermo INTENSITY Model Selection, eval = FALSE}
+##### DermoGill
+# Looking at raw histogram
+barplot(prop.table(table(DermoStats$DermoGill)))
+barplot(prop.table(table(DermoStats$DermoMantle)))
+barplot(prop.table(table(DermoStats$DermoMax)))
+
+intensityGill0 <- clm(DermoGill ~ 1, 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill1 <- clmm(DermoGill ~ 1 + (1 | FixedLocationID), 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+model.sel(intensityGill0, intensityGill1) # adding random effect increase AIC by 133
+
+intensityGill1 <- clmm(DermoGill ~ 1 + (1 | FixedLocationID), # 5 @ 99
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill2 <- clmm(DermoGill ~ SectionName + (1 | FixedLocationID), # 6 @ 102
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill3 <- clmm(DermoGill ~ Month + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill4 <- clmm(DermoGill ~ Year + (1 | FixedLocationID), # 2 @ 45
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill5 <- clmm(DermoGill ~ SH_scaled + (1 | FixedLocationID), # 4 @ 89
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill6 <- clmm(DermoGill ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 86
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+model.sel(intensityGill1, intensityGill2, intensityGill3, intensityGill4, intensityGill5, intensityGill6)
+# nominal_test(intensityGill3) # this test often fails with random effects
+# intensityGill_fixed <- clm(DermoGill ~ Month, # running it without a random effect
+#                link = "logit", 
+#                data = DermoStats,
+#                subset = DermoGill != "0")
+# nominal_test(intensityGill_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# # however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+r2(intensityGill3)
+summary(intensityGill3)
+
+## Adding complexity
+intensityGill31 <- clmm(DermoGill ~ Month + (1 | FixedLocationID), # 4 @ 57
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill32 <- clmm(DermoGill ~ Month + Year + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill33 <- clmm(DermoGill ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 46
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill34 <- clmm(DermoGill ~ Month + SH_scaled + (1 | FixedLocationID), # 2 @ 43
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+model.sel(intensityGill31, intensityGill32, intensityGill33, intensityGill34)
+r2(intensityGill32)
+summary(intensityGill32)
+
+## More complexity
+intensityGill321 <- clmm(DermoGill ~ Month + Year + (1 | FixedLocationID), # 3 @ 12
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill322 <- clmm(DermoGill ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+intensityGill323 <- clmm(DermoGill ~ Month + Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 1
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoGill != "0")
+# intensityGill324 <- clmm(DermoGill ~ Month * Year + (1 | FixedLocationID), # Doesn't converge
+#                link = "logit", 
+#                data = DermoStats,
+#                subset = DermoGill != "0")
+model.sel(intensityGill321, intensityGill322, intensityGill323)
+r2(intensityGill322) # Conditional = 0.240; Marginal = 0.051
+summary(intensityGill322)
+
+##### DermoMantle
+###################################
+###################################
+intensityMantle0 <- clm(DermoMantle ~ 1, 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle1 <- clmm(DermoMantle ~ 1 + (1 | FixedLocationID), 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+model.sel(intensityMantle0, intensityMantle1) # adding random effect increase AIC by 160
+
+intensityMantle1 <- clmm(DermoMantle ~ 1 + (1 | FixedLocationID), # 5 @ 124
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle2 <- clmm(DermoMantle ~ SectionName + (1 | FixedLocationID), # 6 @ 125
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle3 <- clmm(DermoMantle ~ Month + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle4 <- clmm(DermoMantle ~ Year + (1 | FixedLocationID), # 2 @ 91
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle5 <- clmm(DermoMantle ~ SH_scaled + (1 | FixedLocationID), # 4 @ 93
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle6 <- clmm(DermoMantle ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 92
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+model.sel(intensityMantle1, intensityMantle2, intensityMantle3, intensityMantle4, intensityMantle5, intensityMantle6)
+# nominal_test(intensityMantle3) # this test often fails with random effects
+# intensityMantle_fixed <- clm(DermoMantle ~ Month, # running it without a random effect
+#                link = "logit", 
+#                data = DermoStats,
+#                subset = DermoMantle != "0")
+# nominal_test(intensityMantle_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# # however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+r2(intensityMantle3)
+summary(intensityMantle3)
+
+## Adding complexity
+intensityMantle31 <- clmm(DermoMantle ~ Month + (1 | FixedLocationID), # 4 @ 35
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle32 <- clmm(DermoMantle ~ Month + Year + (1 | FixedLocationID), # 2 @ 4
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle33 <- clmm(DermoMantle ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 8
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle34 <- clmm(DermoMantle ~ Month + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+model.sel(intensityMantle31, intensityMantle32, intensityMantle33, intensityMantle34)
+r2(intensityMantle32)
+summary(intensityMantle32)
+
+## More complexity
+intensityMantle321 <- clmm(DermoMantle ~ Month + SH_scaled + (1 | FixedLocationID), # 3 @ 25
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle322 <- clmm(DermoMantle ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+intensityMantle323 <- clmm(DermoMantle ~ Month + Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 3
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMantle != "0")
+# intensityMantle324 <- clmm(DermoMantle ~ Month * Year + (1 | FixedLocationID), # Doesn't converge
+#                link = "logit", 
+#                data = DermoStats,
+#                subset = DermoMantle != "0")
+model.sel(intensityMantle321, intensityMantle322, intensityMantle323)
+r2(intensityMantle322) # Conditional = 0.229; Marginal = 0.053
+summary(intensityMantle322)
+
+
+
+
+
+##### DermoMax
+###################################
+###################################
+IntensityMax0 <- clm(DermoMax ~ 1, 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax1 <- clmm(DermoMax ~ 1 + (1 | FixedLocationID), 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+model.sel(IntensityMax0, IntensityMax1) # adding random effect increase AIC by 271
+
+IntensityMax1 <- clmm(DermoMax ~ 1 + (1 | FixedLocationID), # 5 @ 89
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax2 <- clmm(DermoMax ~ SectionName + (1 | FixedLocationID), # 6 @ 90
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax3 <- clmm(DermoMax ~ Month + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax4 <- clmm(DermoMax ~ Year + (1 | FixedLocationID), # 4 @ 35
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax5 <- clmm(DermoMax ~ SH_scaled + (1 | FixedLocationID), # 3 @ 28
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax6 <- clmm(DermoMax ~ Wt_scaled + (1 | FixedLocationID), # 2 @ 25
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+model.sel(IntensityMax1, IntensityMax2, IntensityMax3, IntensityMax4, IntensityMax5, IntensityMax6)
+# nominal_test(IntensityMax3) # this test often fails with random effects
+# IntensityMax_fixed <- clm(DermoMax ~ Month, # running it without a random effect
+#                link = "logit", 
+#                data = DermoStats,
+#                subset = DermoMax != "0")
+# nominal_test(IntensityMax_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# # however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+r2(IntensityMax3) # Conditional = 0.248; Marginal = 0.021
+summary(IntensityMax3)
+
+## Adding complexity
+IntensityMax31 <- clmm(DermoMax ~ Month + (1 | FixedLocationID), # 4 @ 68
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax32 <- clmm(DermoMax ~ Month + Year + (1 | FixedLocationID), # 3 @ 13
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax33 <- clmm(DermoMax ~ Month + Wt_scaled + (1 | FixedLocationID), # 2 @ 9
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax34 <- clmm(DermoMax ~ Month + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+model.sel(IntensityMax31, IntensityMax32, IntensityMax33, IntensityMax34)
+r2(IntensityMax32) # Conditional = 0.251; Marginal = 0.039
+summary(IntensityMax32)
+
+## More complexity
+IntensityMax341 <- clmm(DermoMax ~ Month + SH_scaled + (1 | FixedLocationID), # 2 @ 41
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+IntensityMax342 <- clmm(DermoMax ~ Month + Year + SH_scaled + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+# IntensityMax343 <- clmm(DermoMax ~ Month * Year + SH_scaled + (1 | FixedLocationID), # Doesn't converge
+#                link = "logit",
+#                data = DermoStats,
+#                subset = DermoMax != "0")
+
+model.sel(IntensityMax341, IntensityMax342)
+r2(IntensityMax342) # Conditional = 0.262; Marginal = 0.049
+summary(IntensityMax342)
+
+
+############
+############
+## Choosing between the different models
+
+r2(intensityGill322) 
+summary(intensityGill322)
+r2(intensityMantle322) 
+summary(intensityMantle322)
+r2(IntensityMax342) 
+summary(IntensityMax342)
+
+# Infection intensity was evaluated using the maximum infection score observed between gill and mantle tissues for each oyster. This approach was selected to represent overall infection severity, as Perkinsus marinus infections may be unevenly distributed among tissues. Models based on gill-only, mantle-only, and maximum scores produced consistent results; however, the maximum-based model provided the most biologically representative measure of infection intensity.
+
+```
+
+``` {r Dermo INTENSITY}
+# Dermo Intensity Model
+DermoIntensity <- clmm(DermoMax ~ Month + Year + SH_scaled + (1 | FixedLocationID), 
+               link = "logit", 
+               data = DermoStats,
+               subset = DermoMax != "0")
+
+r2(DermoIntensity)
+# R2 is fairly low and indicates poor predictive power, as well as random effect (locations) have a strong impact on the prevalence
+summary(DermoIntensity)
+
+
+######
+# Month probabilities
+# model-predicted probabilities 
+intensity_probs_month <- emmeans(DermoIntensity, ~ Month | DermoMax, mode = "prob") %>%
+  as.data.frame() %>%
+  rename(Intensity = DermoMax) %>%
+  select(Month, Intensity, prob) %>%
+  mutate(Intensity = factor(Intensity,
+                levels = c("6","5","4","3","2","1"),
+                          labels = c("Very High",
+                                     "High",
+                                     "Moderately High",
+                                     "Moderate",
+                                     "Low",
+                                     "Very Low")))
+
+ggplot(intensity_probs_month, aes(x = Month, y = prob, fill = Intensity)) +
+  geom_col() +
+  labs(title = "Predicted Dermo Intensity by Month",
+       x = "Month",
+       y = "Probability") + 
+  scale_y_continuous(limits = c(0,1)) +
+  theme_classic()
+
+######
+# Year probabilities
+# model-predicted probabilities 
+intensity_probs_year <- emmeans(DermoIntensity, ~ Year | DermoMax, mode = "prob") %>%
+  as.data.frame() %>%
+  rename(Intensity = DermoMax) %>%
+  select(Year, Intensity, prob) %>%
+  mutate(Intensity = factor(Intensity,
+                levels = c("6","5","4","3","2","1"),
+                          labels = c("Very High",
+                                     "High",
+                                     "Moderately High",
+                                     "Moderate",
+                                     "Low",
+                                     "Very Low")))
+
+ggplot(intensity_probs_year, aes(x = Year, y = prob, fill = Intensity)) +
+  geom_col() +
+  labs(title = "Predicted Dermo Intensity by Year",
+       x = "Year",
+       y = "Probability") + 
+  scale_y_continuous(limits = c(0,1)) +
+  theme_classic()
+
+
+
+# Create Appendix table by Month
+Intensity_Month_TABLE <- intensity_probs_month %>%
+  pivot_wider(names_from = Intensity,
+              values_from = prob)
+
+kable(Intensity_Month_TABLE, 
+      digits = 3)
+
+# Create Appendix table by Year
+Intensity_Year_TABLE <- intensity_probs_year %>%
+  pivot_wider(names_from = Intensity,
+              values_from = prob)
+
+kable(Intensity_Year_TABLE, 
+      digits = 3)
+
+
+
+```
+
+
+
+
+``` {Dermo Text}
+### Placeholder for Dermo text for report
+```
+This is text to output for Dermo

@@ -1,0 +1,193 @@
+---
+title: "Bucephalus"
+output: html_document
+---
+
+# Perform basic analyses, output figures and tables for Buceph data
+
+``` {r BasicStats}
+
+### Stats for Buceph Prevalence
+# Buceph prevalence by section
+BucephStats <- Repro %>%
+  filter(!is.na(ShellHeight) &
+           !is.na(Parasite) & 
+           Parasite != "Z" &
+           !is.na(TotalWeight)) %>% # remove nulls
+  mutate(Year = year(TripDate)) %>%
+  filter(Year <= ReportYear) %>%
+  mutate(Month = as.factor(month(TripDate)),
+         Year = as.factor(Year),
+         SectionName = factor(SectionName,
+                              levels = lv3),
+         Wt_scaled = scale(TotalWeight)[, 1],
+         SH_scaled = scale(ShellHeight)[, 1],
+         Parasite = factor(Parasite)) %>%
+  filter(!is.na(Sex) & !is.na(ShellHeight) & !is.na(TotalWeight)) # Remove Null values that can break the later models
+# Add a T/F column for if an oyster has Buceph (Buceph - TRUE) or not (FALSE)
+BucephStats$Buceph <- BucephStats$Parasite == "Buceph"
+# Year did not have any significant differences
+```
+
+``` {r Buceph Prevalence Model Selection, eval = FALSE}
+# Selecting the best fit model
+###### ~~~~~~~ DO NOT RUN ~~~~~~~~~~
+infected1 <- glmmTMB(Buceph ~ 1 + (1|FixedLocationID), # 6 @ 90
+                       family = binomial,
+                       data = BucephStats)
+infected2 <- glmmTMB(Buceph ~ 1 + SectionName + (1|FixedLocationID), # 4 @ 80
+                       family = binomial,
+                       data = BucephStats)
+infected3 <- glmmTMB(Buceph ~ 1 + Month + (1|FixedLocationID), # 3 @ 49
+                       family = binomial,
+                       data = BucephStats)
+infected4 <- glmmTMB(Buceph ~ 1 + Year + (1|FixedLocationID), # 5 @ 85
+                       family = binomial,
+                       data = BucephStats)
+infected5 <- glmmTMB(Buceph ~ 1 + SH_scaled + (1|FixedLocationID), # 2 @ 7
+                       family = binomial,
+                       data = BucephStats)
+infected6 <- glmmTMB(Buceph ~ 1 + Wt_scaled + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = BucephStats)
+
+model.sel(infected1,infected2,infected3,infected4,infected5,infected6)
+simulateResiduals(infected6, plot = TRUE)
+
+### Adding complexity
+infected61 <- glmmTMB(Buceph ~ 1 + Wt_scaled + (1|FixedLocationID), # 3 @ 56
+                       family = binomial,
+                       data = BucephStats)
+infected62 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = BucephStats)
+infected63 <- glmmTMB(Buceph ~ 1 + Wt_scaled + SectionName + (1|FixedLocationID), # 2 @ 44
+                       family = binomial,
+                       data = BucephStats)
+infected64 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Year + (1|FixedLocationID), # 4 @ 58
+                       family = binomial,
+                       data = BucephStats)
+
+model.sel(infected61,infected62,infected63,infected64)
+simulateResiduals(infected62, plot = TRUE)
+
+### Adding complexity
+infected621 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month + (1|FixedLocationID), # 3 @ 12
+                       family = binomial,
+                       data = BucephStats)
+infected622 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month + SectionName + (1|FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = BucephStats)
+infected623 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month + Year + (1|FixedLocationID), # 4 @ 12
+                       family = binomial,
+                       data = BucephStats)
+infected624 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month + Year + SectionName + (1|FixedLocationID), # 2 @ 0.33
+                       family = binomial,
+                       data = BucephStats)
+infected625 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month * Year + (1|FixedLocationID), # 6 @ 39
+                       family = binomial,
+                       data = BucephStats)
+infected626 <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month * Year + SectionName + (1|FixedLocationID), # 5 @ 26
+                       family = binomial,
+                       data = BucephStats)
+
+model.sel(infected621,infected622,infected623,infected624, infected625, infected626)
+simulateResiduals(infected624, plot = TRUE)
+acf(residuals(infected624, type = "pearson"))
+r2(infected624)
+summary(infected624)
+
+```
+
+``` {r Buceph Prevalence}
+# Dermo prevalence model
+BucephPrevalence <- glmmTMB(Buceph ~ Wt_scaled + Month + SectionName + (1|FixedLocationID), 
+                       family = binomial,
+                       data = BucephStats)
+
+simulateResiduals(BucephPrevalence, plot = TRUE)
+acf(residuals(BucephPrevalence, type = "pearson"))
+r2(BucephPrevalence)
+# R2 is fairly low (0.295) and indicates poor predictive power, as well as random effect (locations) have a strong impact on the prevalence
+summary(BucephPrevalence)
+
+# Residuals look good. KS fails, but given the large number of observations, this is expected
+# summary interpretation (coefficients are on the log-odds scale)
+# SECTION is the strongest signal with oysters from Central and East being very much more likely to be infected
+# SIZE effect is the next strongest signal (estimate 0.4356) and is statistically significant. Larger oysters are more likely to be infected. Converted roughly to odds (exp(0.4356) = 1.55), so about a 55% increase in odds of infection per SD increase in size. Larger/older oysters have more exposure time and a greater cumulative infection risk
+# YEAR effects have NO interannual signals. 
+# MONTH effect show a seasonal pattern. with April through July having a significantly lower probability than January, and an increase in probability in September through November. 
+# RANDOM effect (site variability) Variance: 0.2957; SD: 0.5437. There is  variability among locations even after accounting for: Year, Month, and Oyster size. This suggests: Local environmental conditions matter (e.g., salinity, flushing, habitat) and Some sites are consistently higher-risk than others
+
+############ predicted probability of infection
+### By Month
+BucephPrevalence_probs_Month <- emmeans(BucephPrevalence, ~ Month, 
+                                       at = list(SH_scaled = 0, Year = "2024"),
+                                       type = "response") %>%
+  as.data.frame() 
+plot(BucephPrevalence_probs_Month)
+# Generate Figure Buceph 1
+ggplot(BucephPrevalence_probs_Month,
+       aes(x = Month, y = prob, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  labs(
+    x = "Month",
+    y = "Predicted Probability of Infection",
+    title = "Predicted Buceph Prevalence by Month"
+  ) +
+  theme_classic()
+
+# Create Appendix table by Month
+BucephPrevalence_Month_TABLE <- BucephPrevalence_probs_Month %>%
+  rename(Probability = prob,
+         `LCL 95%` = asymp.LCL,
+         `UCL 95%` = asymp.UCL) %>%
+  select(Month,
+         Probability,
+         `LCL 95%`,
+         `UCL 95%`)
+
+kable(BucephPrevalence_Month_TABLE, 
+      digits = 3)
+
+### By Section
+BucephPrevalence_probs_Section <- emmeans(BucephPrevalence, ~ SectionName, 
+                                       at = list(SH_scaled = 0, Year = "2024"),
+                                       type = "response") %>%
+  as.data.frame() 
+plot(BucephPrevalence_probs_Section)
+# Generate Figure Dermo 2
+ggplot(BucephPrevalence_probs_Section,
+       aes(x = SectionName, y = prob, group = 1)) +
+  geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  labs(
+    x = "Section",
+    y = "Predicted Probability of Infection",
+    title = "Predicted Buceph Prevalence by Section"
+  ) +
+  BaseForm
+
+# Create Appendix table by Month
+BucephPrevalence_Section_TABLE <- BucephPrevalence_probs_Section %>%
+  rename(Probability = prob,
+         `LCL 95%` = asymp.LCL,
+         `UCL 95%` = asymp.UCL) %>%
+  select(SectionName,
+         Probability,
+         `LCL 95%`,
+         `UCL 95%`)
+
+kable(BucephPrevalence_Section_TABLE, 
+      digits = 3)
+
+
+```
+
+``` {Buceph Text}
+### Placeholder for Buceph text for report
+```
+This is text to output for Buceph

@@ -1,0 +1,85 @@
+---
+title: "Annual_AB_Report"
+output: html_document
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportYear <- "2024" # Sets Year of Report
+Database = "OysterLocalMD20260123"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+
+```
+
+```{r SetUp, echo = FALSE, warning = FALSE, message = FALSE}
+# Performs basic set up for running all scripts
+source("scripts/01ReportSetup.R")
+# Sets all needed functions
+source("scripts/02ReportFunctions.R")
+# Set formatting for text and figures
+source("scripts/03ReportFormat.R")
+# Load data
+source("scripts/04ReportLoadData.R")
+# Apply basic filters to data
+source("scripts/05ReportBasicFilters.R")
+
+```
+
+```{r ReportChapters}
+# Water Quality - Drought Index
+#10
+
+# Water Quality - Stream flow
+#11
+
+# Water Quality - Temp, Salinity, Dissolved oxygen
+#12
+
+# # Survey portion of report
+# render("scripts/13Surveyv2.Rmd", quiet = TRUE)
+# # Recruitment portion of report
+# render("scripts/14Recruitment.Rmd", quiet = TRUE)
+# # Condition Index portion of report
+# render("scripts/15ConditionIndex.Rmd", quiet = TRUE)
+# # Dermo portion of report
+# render("scripts/16Dermo.Rmd", quiet = TRUE)
+# # Buceph portion of report
+# render("scripts/17Buceph.Rmd", quiet = TRUE)
+# Repro portion of report
+render("scripts/18Repro.Rmd", quiet = TRUE)
+
+```
+
+
+### Text Format
+```{css}
+/* Sets the fonts for the RMarkdown output */
+p {
+    font-size: 8pt;
+  }
+
+p2 {
+  font-weight: bold;
+}
+
+h1 {
+  font-size: 18pt;
+  font-weight: bold;
+}
+
+h2 {
+  font-size: 14pt;
+  font-weight: bold;
+}
+
+h3 {
+  font-size: 12pt;
+  font-style: italic;
+}
+
+h4 {
+  font-size: 10pt;
+  text-indent: 5%;
+  font-weight: bold;
+}
+```

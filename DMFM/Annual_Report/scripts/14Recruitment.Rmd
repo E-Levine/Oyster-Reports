@@ -1,0 +1,305 @@
+---
+title: "Recruitment_Report"
+---
+# Perform basic analyses, output figures and tables for Recruitment data
+
+``` {r Model Selection}
+
+Recruitment <- Recruitment %>%
+  mutate(Month = month(RetDate),
+         Year = year(RetDate)) %>%
+  filter(Year <= ReportYear)
+
+
+# Analysis indicates No difference in distributions between years, suggests using a single model
+
+# Figure out which data distribution to use
+# All years
+hist(Recruitment$NumBottom)
+# past years
+hist(subset(Recruitment, RetDate <= ReportStart)$NumBottom)
+# current year
+hist(subset(Recruitment, RetDate >= ReportStart)$NumBottom) 
+
+# Treating Month and year as factor and not as numerical greatly improved fit.
+# Attempts to add in extra nested random effects like Section and ShellID either worsened fit or resulted in non-convergence
+# Zero-inflation (~1) did not improve fit
+# testdispersion indicates no evidence of excess or under dispersion
+
+RecruitmentRate <- glmmTMB(
+  NumBottom ~ factor(SectionName) * factor(Month) + factor(Year) +
+    (1 | FixedLocationID) +
+    offset(log(NumDays)),
+  family = nbinom2,
+  data = Recruitment)
+
+simulateResiduals(RecruitmentRate, n = 1000, plot = T)
+
+acf(residuals(RecruitmentRate, type = "pearson"))
+
+summary(RecruitmentRate)
+
+# No summary table of raw means in appendix
+#“Due to variable deployment duration (21–35 days), raw counts were standardized using a 28-day offset model. Raw means and standard deviations are not presented because they do not correspond directly to the standardized modeled rate estimates.”
+
+# Diagnostic Table for the Appendix
+diag_RecruitmentRate <- extract_diagnostics(RecruitmentRate,  "Recruitment Rate")
+kable(diag_RecruitmentRate, digits = 3)
+
+```
+
+
+``` {r Data extraction}
+# Predict standardized monthly settlement rates
+# Rate units are spat per shell per day
+#Use 28 days because that gives values comparable to your historic method:
+
+#1. Predicted Means + 95% CI for All Years (Section × Month)
+# Make sure Month, Year, SectionName are factors
+emm_ALL <- emmeans(
+  RecruitmentRate,
+  specs = ~ Year * SectionName * Month,
+  at = list(
+    NumDays = 28
+  ),
+  type = "response"
+)
+emm_ALL <- as.data.frame(emm_ALL)
+emm_ALL$asymp.UCL[is.infinite(emm_ALL$asymp.UCL)] <- 0 # replace any overruns to 0
+
+##########
+#2. Predicted Means + 95% CI for all previous years combined (2015–2023 pooled)
+emm_prev <- emm_ALL %>%
+  filter(Year < ReportYear)
+
+df_prev_mean <- emm_prev %>%
+  group_by(SectionName, Month) %>%
+  summarize(
+    mean_resp = mean(response),
+    lcl = mean(asymp.LCL),
+    ucl = mean(asymp.UCL),
+    .groups = "drop"
+  )
+
+# Current Year Predicted Means + 95% CI for current year
+currentyear <- emm_ALL %>%
+  filter(Year == ReportYear)
+
+############# Raw means and SD (28-day standardized)
+RecRaw_Historic <- Recruitment %>%
+  filter(Year < ReportYear) %>%
+  mutate(RecRateRaw = NumBottom / (NumDays / 28)) %>%
+  group_by(SectionName,
+           Month) %>%
+  summarise(RecRateMeanRAW = mean(RecRateRaw, na.rm = TRUE),
+            RecRateSDRAW = sd(RecRateRaw, na.rm = TRUE))
+
+RecRaw_Current <- Recruitment %>%
+  filter(Year == ReportYear) %>%
+  mutate(RecRateRaw = NumBottom / (NumDays / 28)) %>%
+  group_by(SectionName,
+           Month) %>%
+  summarise(RecRateMeanRAW = mean(RecRateRaw, na.rm = TRUE),
+            RecRateSDRAW = sd(RecRateRaw, na.rm = TRUE))
+
+# Summary Tables for Appendix
+RecruitmentRateHistoric_TABLE <- left_join(RecRaw_Historic, df_prev_mean, by = c("SectionName", "Month")) %>%
+  rename(RecruitmentMean_modeled = mean_resp,
+         RecruitmentLower_modeled = lcl,
+         RecruitmentUpper_modeled = ucl,
+         RecruitmentMean_raw = RecRateMeanRAW,
+         RecruitmentSD_raw = RecRateSDRAW) %>%
+  mutate(SectionName = factor(SectionName, levels = lv3)) %>%
+  arrange(SectionName)
+
+kable(RecruitmentRateHistoric_TABLE,
+      digits = 2,
+      col.names = c("Section", "Month", 
+      "Raw Mean Recruitment Rate", "Raw SD",
+      "Modeled Mean Recruitment Rate", "LCL 95%", "UCL 95%"),
+      caption = "Raw and modeled mean of historical monthly recruitment rates by Bay section. Data pooled from 2015–2023. Rates expressed as spat per shell per day. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit.")
+
+
+RecruitmentRateCurrent_TABLE <- left_join(RecRaw_Current, currentyear, by = c("SectionName", "Month")) %>%
+  rename(RecruitmentMean_modeled = response,
+         RecruitmentLower_modeled = asymp.LCL,
+         RecruitmentUpper_modeled = asymp.UCL,
+         RecruitmentMean_raw = RecRateMeanRAW,
+         RecruitmentSD_raw = RecRateSDRAW) %>%
+  mutate(SectionName = factor(SectionName, levels = lv3)) %>%
+  arrange(SectionName) %>%
+  select(-Year, -SE, -df)
+
+kable(RecruitmentRateCurrent_TABLE,
+      digits = 2,
+      col.names = c("Section", "Month", 
+      "Raw Mean Recruitment Rate", "Raw SD",
+      "Modeled Mean Recruitment Rate", "LCL 95%", "UCL 95%"),
+      caption = "Raw and modeled mean of monthly recruitment rates by Bay section for 2024 only. Rates expressed as spat per shell per day. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit.")
+
+```
+
+
+
+``` {r ChatFigures}
+# Set data frames
+hist_monthly <- df_prev_mean %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+# Section | Month | mean | lcl | ucl
+
+hist_yearly <- emm_prev %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+# Section | Year | Month | mean
+
+# Historical
+# ggplot Skeleton
+HistoricalRecruitment_FIGURE <-
+ggplot() +
+  # 1. Historical CI ribbon
+  geom_ribbon(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      ymin = lcl,
+      ymax = ucl,
+      group = SectionName
+    ),
+    alpha = 0.25
+  ) +
+
+  # 2. Individual years (thin lines)
+  geom_line(
+    data = hist_yearly,
+    aes(
+      x = Month,
+      y = response,
+      group = Year
+    ),
+    linewidth = 0.5,
+    alpha = 0.4
+  ) +
+
+  # 3. Historical mean line
+  geom_line(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      y = mean_resp
+    ),
+    linewidth = 1.2
+  ) +
+
+  facet_grid(rows = vars(SectionName)) +
+  
+  scale_x_continuous(breaks = 1:12, labels = month.abb) +
+  
+  labs(
+    x = "Month",
+    y = "Modeled recruitment rate",
+    title = "Historical Monthly Oyster Recruitment (2015–2023)"
+  ) +
+  theme_bw() 
+
+print(HistoricalRecruitment_FIGURE)
+
+########################
+# Current Year
+
+CurrentRecruitment_FIGURE <- ggplot() +
+
+  # 1. Historical CI ribbon
+  geom_ribbon(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      ymin = lcl,
+      ymax = ucl,
+      group = SectionName
+    ),
+    alpha = 0.25
+  ) +
+
+  # 2. Historical monthly mean line
+  geom_line(
+    data = hist_monthly,
+    aes(
+      x = Month,
+      y = mean_resp
+    ),
+    linewidth = 1.2
+  ) +
+
+  # 3. Current year's mean as a symbol
+    geom_point(
+    data = currentyear,
+    aes(
+      x = Month,
+      y = response
+    ),
+    shape = 2,        # triangle point up
+    size = 3,
+    stroke = 1
+  ) +
+
+  # 4. Current year's 95% CI
+  geom_errorbar(
+    data = currentyear,
+    aes(
+      x = Month,
+      ymin = asymp.LCL,
+      ymax = asymp.UCL
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+
+  facet_grid(rows = vars(SectionName)) +
+
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb
+  ) +
+
+  labs(
+    x = "Month",
+    y = "Modeled recruitment rate",
+    title = "Monthly Oyster Recruitment in 2024 Relative to Historical Conditions"
+  ) +
+
+  theme_bw() 
+  # theme(
+  #   panel.spacing.y = unit(1.1, "lines"),
+  #   strip.background = element_blank(),
+  #   strip.text.y = element_text(face = "bold")
+  # )
+
+
+print(CurrentRecruitment_FIGURE)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+``` {Recruitment Text}
+### Placeholder for Recruitment text for report
+```
+This is text to output for Recruitment

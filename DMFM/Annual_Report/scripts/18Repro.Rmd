@@ -1,0 +1,505 @@
+---
+title: "Repro"
+output: html_document
+---
+
+# Perform basic analyses, output figures and tables for Repro data
+
+``` {r BasicStats}
+
+### Stats for Repro 
+ReproStats <- Repro %>%
+  mutate(Year = year(TripDate)) %>%
+  filter(Year <= ReportYear) %>%
+  mutate(Month = as.factor(month(TripDate)),
+         Year = as.factor(Year),
+         SectionName = factor(SectionName,
+                              levels = lv3),
+#         LinearOy = ShellHeight + ShellLength + ShellWidth, # not used
+#         CubicOy = ShellHeight * ShellLength * ShellWidth, # not used
+#         SH_scaled = scale(ShellHeight)[, 1], # not used
+         Wt_scaled = scale(TotalWeight)[, 1],
+#         LO_scaled = scale(LinearOy)[, 1], # not used
+#         CO_scaled = scale(CubicOy)[, 1], # not used
+         Sex = factor(Sex, 
+                      levels = c("M", "F", "M/F", "Z")),
+         ReproStage = factor(ReproStage,
+                             levels = c("1", "2", "3", "4", "Z"),
+                             ordered = TRUE),
+         Parasite = factor(Parasite)) %>%
+  filter(!is.na(Sex) & !is.na(ShellHeight) & !is.na(TotalWeight)) # Remove Null values that can break the later models
+# Add a T/F column for if an oyster is Indifferent (Stage 4 - TRUE) or not (FALSE)
+ReproStats$Indifferent <- ReproStats$ReproStage == "4"
+
+# Remove Null stage values and limits stages 1-4 for Repro Stage
+ReproStageStats <- ReproStats %>%
+  filter(!is.na(ReproStage) & ReproStage != "Z")
+
+```
+
+```{r SexRatio Model selection, eval = FALSE}
+#########
+### Leaving this chunk in to show my work, but it doesn't need to be run when knitted to save time
+# Figure out which effects to use
+library(nnet) # need for multinom()
+
+# Use multinom to narrow down which effects to include
+m1 <- multinom(Sex ~ 1, # 5 @ 1153
+               data = ReproStats)
+m2 <- multinom(Sex ~ factor(SectionName), # 3 @ 1028
+               data = ReproStats)
+m3 <- multinom(Sex ~ factor(Month), # 1 @ 0
+               data = ReproStats)
+m4 <- multinom(Sex ~ factor(Year), # 4 @ 1097
+               data = ReproStats)
+m5 <- multinom(Sex ~ Wt_scaled, # 2 @ 777
+               data = ReproStats)
+aictab(list(m1, m2, m3, m4, m5))
+
+m31 <- multinom(Sex ~ factor(Month), # 4 @ 382
+               data = ReproStats)
+m32 <- multinom(Sex ~ factor(Month) + Wt_scaled, # 1 @ 0
+               data = ReproStats)
+m33 <- multinom(Sex ~ factor(Month) + factor(SectionName), # 2 @ 252
+               data = ReproStats)
+m34 <- multinom(Sex ~ factor(Month) + factor(Year), # 3 @ 325
+               data = ReproStats)
+aictab(list(m31, m32, m33, m34))
+
+m321 <- multinom(Sex ~ factor(Month) + Wt_scaled, # 3 @ 230
+               data = ReproStats)
+m322 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(SectionName), # 1 @ 0
+               data = ReproStats)
+m323 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(Year), # 2 @ 194
+               data = ReproStats)
+aictab(list(m321, m322, m323))
+
+m3221 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(SectionName), # 2 @ 29
+               data = ReproStats)
+m3222 <- multinom(Sex ~ factor(Month) + Wt_scaled + factor(SectionName) + factor(Year), # 1 @ 0
+               data = ReproStats)
+aictab(list(m3221, m3222))
+
+# Exploring interactions between factors
+im1 <- multinom(Sex ~ factor(Month) + factor(SectionName) + factor(Year) + Wt_scaled , # 2 @ 50
+               data = ReproStats)
+im2 <- multinom(Sex ~ factor(Month)*factor(SectionName) + factor(Year) + Wt_scaled , # 3 @ 64
+               data = ReproStats)
+im3 <- multinom(Sex ~ factor(Month)*factor(Year) + factor(SectionName) + Wt_scaled , # 4 @ 105
+               data = ReproStats)
+im4 <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , # 1 @ 0
+               data = ReproStats)
+aictab(list(im1, im2, im3, im4))
+
+im41 <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , # 1 @ 0
+               data = ReproStats)
+im42 <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month), # 2 @ 485
+               data = ReproStats)
+im43 <- multinom(Sex ~ factor(SectionName)*factor(Year) + Wt_scaled , # 3 @ 1183
+               data = ReproStats)
+im44 <- multinom(Sex ~ factor(SectionName)*factor(Year), # 4 @ 1658
+               data = ReproStats)
+aictab(list(im41, im42, im43, im44))
+
+# Adding FixedLocationID as fixed effect because multinom doesn't support random effects. It still improves fit 
+im41x <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , 
+               data = ReproStats)
+im41y <- multinom(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled + FixedLocationID, 
+               data = ReproStats)
+aictab(list(im41x, im41y))
+
+# Using glmmTMB to confirm that FixedLocationID should be included as random effect
+im411 <- glmmTMB(Sex ~ factor(SectionName)*factor(Year) + factor(Month) + Wt_scaled , 
+               data = ReproStats)
+im412 <- glmmTMB(Sex ~ factor(SectionName) * factor(Year) + factor(Month) + Wt_scaled + (1 | FixedLocationID), 
+               data = ReproStats)
+im413 <- glmmTMB(Sex ~ factor(SectionName) * factor(Year) + factor(Month) + Wt_scaled + 
+                   (1 | FixedLocationID) + (1 | SectionName:Year), 
+               data = ReproStats)
+aictab(list(im411, im412, im413))
+
+```
+
+
+```{r SexRatio Model FINAL, eval = FALSE}
+#########
+# Produces final model, which takes ~25 minutes to run, so only run it if you have the time
+
+# setting priors to actively prevent separation 
+priors <- c( # Fixed effects (log-odds scale)
+  prior(normal(0, 0.5), class = "b", dpar = "muF"),
+  prior(normal(0, 0.5), class = "b", dpar = "muMF"),
+  prior(normal(0, 0.5), class = "b", dpar = "muZ")
+)
+priors <- c( # Intercepts
+  priors,
+  prior(normal(0, 1), class = "Intercept", dpar = "muF"),
+  prior(normal(0, 1), class = "Intercept", dpar = "muMF"),
+  prior(normal(0, 1), class = "Intercept", dpar = "muZ")
+)
+priors <- c( # Random effects (both grouping factors)
+  priors,
+  prior(exponential(2), class = "sd", dpar = "muF"),
+  prior(exponential(2), class = "sd", dpar = "muMF"),
+  prior(exponential(2), class = "sd", dpar = "muZ")
+)
+
+# The interaction term creates many sparse cells. To fix that I used random interaction (1 | SectionName:Year).
+# Using preset priors to actively prevent separation. Why: log-odds of ±5 are already extreme biologically; prevents runaway coefficients; improves sampler geometry
+# The portion chains to control use HMC settings that are stable, but not excessive
+
+SexRatio <- brm(
+  Sex ~ SectionName + Year + Month + Wt_scaled + (1 | FixedLocationID) + (1 | SectionName:Year),
+  data = ReproStats,
+  family = categorical(),
+  prior = priors,
+  chains = 4, 
+  cores = 8,
+  iter = 2000,
+  warmup = 1000,
+  control = list(adapt_delta = 0.95, 
+                 max_treedepth = 12))
+
+loo(SexRatio)
+summary(SexRatio)
+
+# after fitting
+saveRDS(SexRatio,
+  file = "models/sexratio_brm_final.rds")
+
+```
+
+```{r SexRatio}
+### Loads model without having to rerun it
+SexRatio <- readRDS("models/sexratio_brm_final.rds")
+
+# Instead of simulateResiduals() using posterior predictive checks (PPCs)
+# These compare observed category frequencies to those generated from the fitted model.
+# Light bars (y) = observed counts in each category; Dark points (yrep) = mean of replicated datasets drawn from the posterior; Vertical uncertainty = variability across posterior draws
+
+# The posterior predictive distribution is centered very closely on the observed counts. No category is systematically over- or under-predicted. Even the rare category (Stage 3) is captured well.
+# This is strong evidence that: The multinomial/ordinal likelihood is appropriate and the model is not misallocating probability mass across categories. You can confidently say the model reproduces the observed marginal distribution.
+
+# Generates Posterior predictive check for SexRatio (Figure in Appendix, Residual Diagnostics)
+pp_check(SexRatio, type = "bars", ndraws = 100) +
+  labs(x = "Sex category",
+    y = "Count") +
+  theme_bw()
+
+# Generates P_LOO for Model Summary Statistics. 
+loo(SexRatio)
+
+# provides the complete summary of the modeled data
+summary(SexRatio)   # R-hat & ESS in text are derived from this 
+# In categorical() models, each intercept is the log-odds of that category relative to the reference category, which is male in this case.
+
+# Multilevel Hyperparameters:
+# ~FixedLocationID (Number of levels: 17) 
+# These are random intercept standard deviations by category. This means that each category has its own location-level variability. For example, sd(muF_Intercept) = 0.25, means the log-odds of being F vs reference vary across locations with SD ≈ 0.25. 
+# F = 0.25 -> Moderate location heterogeneity; MF = 0.42 & Z = 0.60 -> Strong location heterogeneity.
+# Location matters, and it matters differently for each sex category. If these SDs were near zero, the random effect would be unnecessary — but they are not. Random effect fully justified ✔ Partial pooling is doing real work
+# ~SectionName:Year (Number of levels: 25)
+# Local year-to-year effects matter, but they are not exploding → the random effect did its job.
+
+# Regression Coefficients:
+# The way to interpret the results are to look at the Regression Coefficients: Estimate, l-95%, u-95%. Estimate gives you the log-odds of that category relative to the reference. Positive values are more likely, negative less likely. If 95% values overlap with zero the results are uncertain. 
+# Baseline categories muF_Intercept, etc. show that F=0.47 -> Female is more likely than male; MF=-3.76 -> MF is rare; Z=-0.09 -> Z is about the same likelihood as M
+# To convert that to odds: exp(0.47) = 1.5999. So F is 1.6 times more likely than Male
+# Fixed effects:
+##### WEIGHT
+# Strongest effect is weight. Larger individuals are much more likely to be female or Z relative to male. 
+# muF_Wt_scaled  0.80  [0.72, 0.88] # Credible interval does not cross 0 → strong effect.
+# MF 0.17 [-0.16 0.48] No clear evidence that weight affects M/F vs. reference.
+# Z 0.64 [0.55 0.74] Strong, positive pattern Z individuals increase with weight relative to the reference.
+##### MONTH
+# ex. muF_Month2 0.10 [-0.15 0.37]
+# Z: March thru Aug, strongly negative, doesn't cross zero. Z is suppressed mid-year, peaks late in the year. This is one of the clearest results in the entire model.
+# F: Month effects are small, centered near zero, overlapping zero. Female probability is stable through the year, once weight is accounted for.
+# M/F: Month effects are: noisy, weak, uncertain. MF remains rare and poorly predicted (as expected).
+##### SECTIONNAME
+# ex. muF_SectionNameCentral 0.45 [-0.04 0.88]
+# Most SectionName main effects have wide intervals, especially for M/F and Z. This is expected because:
+# location variation is now absorbed by the random effect; fixed SectionName effects represent systematic differences, not local quirks. The fact that many CIs overlap zero here is not a problem — it means the random effect is doing its job.
+# F: East has more females relative to males, Central possibly more females, but weaker evidence.
+##### YEAR
+# ex. muF_Year2017 0.08 [-0.29 0.45]
+# Across F, MF, and Z: Most Year coefficients overlap zero, No monotonic trend, No consistent direction.
+# Interpretation: There is no strong global temporal trend once seasonality, weight, and random effects are accounted for.
+
+# I'm choosing not to include this in the report, because it's big and busy. But it can be used to show the good match between the model and actual values
+# plot(SexRatio)      # trace plots
+
+# Create prediction data by creating a grid of values we want predictions for
+newdata <- expand.grid(
+  Wt_scaled = seq(min(ReproStats$Wt_scaled),
+                  max(ReproStats$Wt_scaled),
+                  length.out = 80),
+  Month = levels(ReproStats$Month),
+  Year = "2022", # holds year constant
+  SectionName = "Central" # holds section constant
+)
+
+# Generate predicted probabilities and credible intervals
+pred <- fitted(
+  SexRatio,
+  newdata = newdata,
+  re_formula = NA # average across locations and section-year variation
+)
+# combine predictions with the new data to get predicted probabilities
+pred_df <- cbind(newdata, pred)
+# Convert to long format (for plotting)
+plot_data <- pred_df |>
+  pivot_longer(
+    cols = starts_with("Estimate"),
+    names_to = "Sex",
+    values_to = "Probability"
+  )
+plot_data$Sex <- gsub("Estimate.", "", plot_data$Sex) # Cleans up labels
+plot_data$Weight <- plot_data$Wt_scaled * sd(ReproStats$TotalWeight) +
+                    mean(ReproStats$TotalWeight) # Converts scaled data back to actual values
+
+# Generate Figure Repro.1
+ggplot(plot_data,
+       aes(Weight, Probability, color = Sex)) +
+  geom_line(linewidth = 1.2) +
+  facet_wrap(~Month) +
+  labs(
+    x = "Total weight (g)",
+    y = "Predicted probability",
+    color = "Sex category",
+    title = "Predicted Sex Ratios by Body Size"
+  ) +
+  theme_classic()
+
+#Create Appendix table by Month
+SexRatio_Month_TABLE <- pred_df %>%
+  group_by(Month) %>%
+  summarise(`P(M)` = mean(`Estimate.P(Y = M)`, na.rm = TRUE),
+            `P(F)` = mean(`Estimate.P(Y = F)`, na.rm = TRUE),
+            `P(Z)` = mean(`Estimate.P(Y = Z)`, na.rm = TRUE),
+            `P(M/F)` = mean(`Estimate.P(Y = M/F)`, na.rm = TRUE),
+            .groups = "drop")
+kable(SexRatio_Month_TABLE, 
+      digits = 3)
+
+```
+
+```{r SexStage Model selection, eval = FALSE}
+#########
+### Leaving this chunk in to show my work, but it doesn't need to be run when knitted to save time
+# Figure out which effects to use
+
+# Reproductive stages were categorized as developmental stages 1–3 and an indifferent category (4). Ordinal mixed models were used to evaluate seasonal progression of reproductive development using stages 1–3. The proportion of indifferent oysters (4) was analyzed separately using binomial mixed models.
+###### Stages 1 - 4 #########
+# clmm() requires a Random effect. To evaluate whether or not any random effect was needed, the variance of was examined for stage3 using summary(). Variance was 0.03, which is considered moderate. This shows that random effect is actually needed.
+
+stage1 <- clmm(ReproStage ~ 1 + (1 | FixedLocationID), # 5 @ 2500+
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage2 <- clmm(ReproStage ~ SectionName + (1 | FixedLocationID), # 4 @ 2500+
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage3 <- clmm(ReproStage ~ Month + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage4 <- clmm(ReproStage ~ Year + (1 | FixedLocationID), # 2 @ 2500+
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage5 <- clmm(ReproStage ~ Wt_scaled + (1 | FixedLocationID), # 2 @ 2500+
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+model.sel(stage1, stage2, stage3, stage4, stage5)
+summary(stage3) # variance 0.0777
+nominal_test(stage3) # this test often fails with random effects
+stage_fixed <- clm(ReproStage ~ Month, # running it without a random effect
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+nominal_test(stage_fixed) # test runs, but reveals that proportional odds assumption IS violoated
+# however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+stage_probs <- emmeans(stage3, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame()
+
+# adding more complexity
+stage30 <- clmm(ReproStage ~ Month + (1 | FixedLocationID), # 4 @ 46
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage31 <- clmm(ReproStage ~ Month + Wt_scaled + (1 | FixedLocationID), # 3 @ 45
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage32 <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), # 1 @ 0
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+stage33 <- clmm(ReproStage ~ Month + SectionName + (1 | FixedLocationID), # 2 @ 42
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+# stage34 <- clmm(ReproStage ~ Year * Month + (1 | FixedLocationID), # didn't converge
+#                link = "logit", 
+               # data = ReproStageStats,
+               # subset = ReproStage != "4")
+model.sel(stage30, stage31, stage32, stage33)
+
+summary(stage32) # Random effect variance is 0.0636, which is on the cusp of very small to moderate
+nominal_test(stage32) # this test often fails with random effects
+stage_fixed32 <- clm(ReproStage ~ Month + Year, # running it without a random effect
+               link = "logit", 
+               data = ReproStageStats,
+               subset = ReproStage != "4")
+nominal_test(stage_fixed32) # test runs, but reveals that proportional odds assumption IS violated
+# however, this is very common with month factors and is sensitive with large sample sizes. As long as the model provides biologically reasonable predictions of progression, we will stick with it.
+stage_probs32m <- emmeans(stage32, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame()
+stage_probs32y <- emmeans(stage32, ~ Year | ReproStage, mode = "prob") %>%
+  as.data.frame()
+kable(stage_probs32y)
+
+###### Stages Z only #########
+
+indifferent1 <- glmmTMB(Indifferent ~ 1 + (1|FixedLocationID), # 4 @ 1200+
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent2 <- glmmTMB(Indifferent ~ SectionName + (1 | FixedLocationID), # 5 @ 1200+
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent3 <- glmmTMB(Indifferent ~ Month + (1 | FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent4 <- glmmTMB(Indifferent ~ Year + (1 | FixedLocationID), # 2 @ 1200+ 
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent5 <- glmmTMB(Indifferent ~ Wt_scaled + (1 | FixedLocationID), # 3 @ 1200+
+                       family = binomial,
+                       data = ReproStageStats)
+model.sel(indifferent1, indifferent2, indifferent3, indifferent4, indifferent5)
+summary(indifferent3) # variance 0.04962
+simulateResiduals(indifferent4, plot = TRUE)
+
+indifferent41 <- glmmTMB(Indifferent ~ Year + (1 | FixedLocationID), # 3 @ 46
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent42 <- glmmTMB(Indifferent ~ Year + SectionName + (1 | FixedLocationID), # 4 @ 48
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent43 <- glmmTMB(Indifferent ~ Year + Month + (1 | FixedLocationID), # 1 @ 0
+                       family = binomial,
+                       data = ReproStageStats)
+indifferent44 <- glmmTMB(Indifferent ~ Year + Wt_scaled + (1 | FixedLocationID), # 2 @ 45
+                       family = binomial,
+                       data = ReproStageStats)
+model.sel(indifferent41, indifferent42, indifferent43, indifferent44)
+simulateResiduals(indifferent43, plot = TRUE)
+summary(indifferent43) # variance 0.05211
+
+################
+# combining all the stage data to see if there's any point in treating them separately
+# general trends do seem to hold up, but the accuracy of stage 4 (indifferent) appears reduced. Stage 4 is underrepresented in the early months, likely because stage 4 is occurring in the "wrong", i.e., not expected, part of the year.
+# combined_stage_model <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), 
+#                     data = ReproStageStats,
+#                     link = "logit")
+# 
+# summary(combined_stage_model)
+# 
+# combined_stage_probs <- emmeans(combined_stage_model, ~ Month | ReproStage, mode = "prob") %>%
+#   as.data.frame() %>%
+#   filter(ReproStage %in% c("1","2","3", "4")) %>%
+#   rename(Stage = ReproStage) %>%
+#   select(Month, Stage, prob) %>%
+#   arrange(Month, Stage)
+# combined_stage_probs$Stage <- factor(combined_stage_probs$Stage,
+#                           levels = c("4","3","2","1"),
+#                           labels = c("Indifferent",
+#                                      "Spent/Recycling",
+#                                      "Ripe/Spawning",
+#                                      "Developing"))
+# 
+# ggplot(combined_stage_probs, aes(x = Month, y = prob, fill = Stage)) +
+#   geom_col() +
+#   labs(title = "Combined Predicted Reproductive Stage by Month",
+#        x = "Month",
+#        y = "Probability") + 
+#   scale_y_continuous(limits = c(0,1)) +
+#   theme_classic()
+
+```
+
+``` {r ReproStages}
+
+# Stages 1–3 model
+stage_model <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), 
+                    link = "logit",
+                    data = ReproStageStats,
+                    subset = ReproStage != "4")
+
+summary(stage_model)
+
+# Stage 4 (indifferent) model
+indifferent_model <- glmmTMB(Indifferent ~ Year + Month + (1 | FixedLocationID), 
+                       family = binomial,
+                       data = ReproStageStats)
+
+summary(indifferent_model)
+simulateResiduals(indifferent_model)
+
+# Month probabilities
+# model-predicted probabilities for stages 1-3
+stage_probs <- emmeans(stage_model, ~ Month | ReproStage, mode = "prob") %>%
+  as.data.frame() %>%
+  filter(ReproStage %in% c("1","2","3")) %>%
+  rename(Stage = ReproStage) %>%
+  select(Month, Stage, prob)  
+# predicted probability of being indifferent (Stage 4)
+indifferent_probs <- emmeans(indifferent_model, ~ Month, type = "response") %>%
+  as.data.frame() %>%
+  mutate(Stage = "4") %>%
+  select(Month, Stage, prob)
+
+# Merge Stage 4 probability into Stage 1-3 table
+all_probs <- stage_probs %>%
+  left_join(indifferent_probs %>% select(Month, p4 = prob),
+            by = c("Month")) %>%
+  mutate(prob = prob * (1 - p4)) %>%   # scale Stage 1-3 probabilities
+  select(-p4)
+
+# Add Stage 4 back in
+all_probs <- bind_rows(all_probs, indifferent_probs %>%
+                         rename(prob = prob)) %>%
+  arrange(Month, Stage)
+all_probs$Stage <- factor(all_probs$Stage,
+                          levels = c("4","3","2","1"),
+                          labels = c("Indifferent",
+                                     "Spent/Recycling",
+                                     "Ripe/Spawning",
+                                     "Developing"))
+
+ggplot(all_probs, aes(x = Month, y = prob, fill = Stage)) +
+  geom_col() +
+  labs(title = "Predicted Reproductive Stage by Month",
+       x = "Month",
+       y = "Probability") + 
+  scale_y_continuous(limits = c(0,1)) +
+  theme_classic()
+
+# Create Appendix table by Month
+Stage_Month_TABLE <- all_probs %>%
+  pivot_wider(names_from = Stage,
+              values_from = prob)
+
+kable(Stage_Month_TABLE, 
+      digits = 3)
+
+```
+
+
+``` {Repro Text}
+### Placeholder for Repro text for report
+```
+This is text to output for Repro

@@ -1,0 +1,1080 @@
+---
+title: "Survey_Report"
+---
+# Perform basic analyses, output figures and tables for Survey data
+
+# Use modelled means
+
+``` {r BasicStats}
+### Limit data to March through June samples to reduce seasonal bias
+ShellHeights_1 <- ShellHeights_ALL %>%
+  filter(month(TripDate) > 02 & month(TripDate) < 07)
+
+Quadrats_1 <- Quadrats_ALL %>%
+  filter(month(TripDate) > 02 & month(TripDate) < 07)
+
+### Provides how many were measured for each size class for each quadrat
+SHMeasures <- ShellHeights_1 %>%
+  group_by(QuadratID) %>%
+  summarize(TotalNumMeasured = sum(!is.na(ShellHeight)),
+            Count_Spat_1_to_30 = sum(ifelse(ShellHeight >= 1 & ShellHeight <= 30, 1, 0), na.rm = TRUE),
+            Count_Seed_31_to_75 = sum(ifelse(ShellHeight >= 31 & ShellHeight <= 75, 1, 0), na.rm = TRUE),
+            Count_Legal_76_plus = sum(ifelse(ShellHeight >= 76, 1, 0), na.rm = TRUE)
+  )
+
+### Provide stats for how many live oysters there were in each quadrat, by size class
+QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
+  mutate(
+    Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
+    Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
+    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)) %>%
+  select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
+
+# remove intermediate data frames
+# rm(ShellHeights_ALL, ShellHeights_1, Quadrats_ALL, Quadrats_1)
+
+
+
+# Prep data frame for creating SH distribution histogram for ALL Years
+SizeClasses_ALL <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight)) %>%
+  mutate(ShellHeightBin = cut(ShellHeight, 
+                              breaks = c(0, 30, 75, 200),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 3 bins
+  group_by(Year, ProjectGroup) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(ProjectGroup, Year, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(ProportionMeasured = (ProjectNumberMeasured / ProjectTotal),
+         Year = factor(Year),
+         ShellHeightBin = factor(ShellHeightBin,
+                                 levels = c("(75,200]", "(30,75]", "[0,30]" )   # <-- order from bottom to top
+    ))
+
+SizeClasses_ALL$ShellHeightBin <- forcats::fct_recode(SizeClasses_ALL$ShellHeightBin,
+  "Spat (1–30 mm)"    = "[0,30]",
+  "Seed (31–75 mm)"   = "(30,75]",
+  "Legal (>=76 mm)"  = "(75,200]"
+)
+
+maxSH <- max(ShellHeights_1$ShellHeight, na.rm = TRUE)
+
+
+
+
+# Prep data frame for creating SH distribution histogram for PROJECT YEAR
+ShellHeightsReportYrX <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight),
+  Year == ReportYear) %>%
+
+  mutate(ShellHeightBin = cut(ShellHeight, 
+                              breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(ProjectGroup) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(ProjectGroup, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
+
+ShellHeightsReportYr <- ShellHeights_1 %>%
+  filter(Year == ReportYear) 
+
+maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
+
+```
+
+``` {r SampleWeightStats}
+# Analysis indicates that Historic and Restoration data should be modeled separately
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$TotalWeight)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$TotalWeight) 
+
+### Historic Model ###
+# Gamma out performed Gaussian
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = Gamma(link = "log"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "Historic Uncultched")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Gaussian out performed Gamma
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+
+TotalWeight_NFWF2021 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
+                      family = gaussian(link = "identity"), 
+                      data = QuadStats,
+                      subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF2021, n = 1000, plot = T)
+
+# Look at summaries
+summary(TotalWeight_Historic)
+summary(TotalWeight_NFWF2021)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+TotalWeightStats_historic <- emmeans(TotalWeight_Historic, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched") 
+
+TotalWeightStats_nfwf2021 <- emmeans(TotalWeight_NFWF2021, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021") %>%
+  rename(response = emmean, # rename due to gaussian family
+         asymp.LCL = lower.CL,
+         asymp.UCL = upper.CL)
+
+TotalWeightStats_modeled <- bind_rows(TotalWeightStats_historic, TotalWeightStats_nfwf2021) %>%
+  rename(TotalWeightMean_modeled = response,
+         TotalWeightLower_modeled = asymp.LCL,
+         TotalWeightUpper_modeled = asymp.UCL) %>%
+  mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
+         TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
+         TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
+  select(-SE, -df) %>%
+  mutate(TotalWeightUpperDensity_modeled = case_when(
+    TotalWeightMean_modeled <= 0 ~ 0,
+    TRUE ~ TotalWeightUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+TotalWeightStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Num"))
+
+TotalWeightStats_ALL <- left_join(TotalWeightStats_modeled, 
+                              TotalWeightStats_RAW, 
+                              by = c("Year", "ProjectGroup")) 
+
+#  # Create a complete grid for all years, sections, and projects
+# df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
+#     left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
+#     mutate(has_data = !is.na(RawOysterDensityMean), # Add a flag for missing data
+#            SectionName = factor(SectionName, levels = lv3))
+
+
+
+
+
+
+```
+
+
+``` {r TotalWeight Figures}
+
+# Bar graph for modeled mean Total Weight density by ProjectGroup and Year
+
+### HISTORIC ###
+# Needed for Null data symbol
+# df_historic <- df_complete %>%
+#   filter(ProjectGroup == "Historic Uncultched")
+
+# TotalWeightStats_FIG_Historic <- TotalWeightStats_ALL %>%
+#   filter(ProjectGroup == "Historic Uncultched")  # limits to Historic Uncultched only
+    
+TotalWeightStats_FIGURE_ALL <- TotalWeightStats_ALL %>%
+  ggplot(aes(x = as.factor(Year), 
+             y = TotalWeightMeanDensity_modeled,
+             fill = as.factor(ProjectGroup))) + 
+      geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) +
+    geom_errorbar(aes(ymin = TotalWeightLowerDensity_modeled, 
+                      ymax = TotalWeightUpperDensity_modeled),
+                      width = 0.3, 
+                      position = position_dodge(width = 0.9)) + # Add error bars
+      scale_x_discrete("Year", 
+                       expand = c(0.005, 0), 
+                       guide = guide_axis(angle = -45)) +
+      scale_y_continuous("Mean Sample Weight Density (kg / m2)", 
+                         expand = c(0, 0),
+                         limits = c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Sample Weight Density by Year and Project Group") + 
+      BaseForm +
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0, vjust = 0)) 
+
+print(TotalWeightStats_FIGURE_ALL)
+
+
+
+# Summary Table for the Appendix
+TotalWeightStats_TABLE <- TotalWeightStats_ALL %>%
+  select(ProjectGroup,
+         Year, 
+         TotalWeightDensityMean_raw,
+         TotalWeightDensitySD_raw,
+         TotalWeightMeanDensity_modeled,
+         TotalWeightLowerDensity_modeled,
+         TotalWeightUpperDensity_modeled) %>%
+  arrange(ProjectGroup,
+          Year)
+  
+kable(TotalWeightStats_TABLE,
+      digits = 1,
+      col.names = c("Project", "Year", 
+      "Raw Mean Density", "Raw SD",
+      "Modeled Mean Density", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Densities of Substrate. Density is expressed in kilogramss per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. NA indicates that no samples were collected. ")
+
+# Diagnostic Table for the Appendix
+diag_TotalWeight_Historic <- extract_diagnostics(TotalWeight_Historic,  "Historic Uncultched")
+diag_TotalWeight_NFWF2021 <- extract_diagnostics(TotalWeight_NFWF2021,  "NFWF-2021")
+
+# Combine into a single Table
+TotalWeight_Diagnostic_Table <- rbind(diag_TotalWeight_Historic, diag_TotalWeight_NFWF2021)
+kable(TotalWeight_Diagnostic_Table)
+
+```
+
+
+
+
+
+
+
+
+``` {r NumLiveStats}
+# Analysis indicates that Historic and Restoration data should be modeled separately
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$NumLive)
+# NFWF-2021
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+
+### Historic Model ###
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was very detrimental to the model
+# Adding in extra nested structure to the random effects improved AIC and ultimately DHARMa, but keeping Section as a fixed effect was best
+# Adding in dispformula = ~ SectionName improved fit, suggesting that variance is different between sections, but so are means. Preference for the simpler model meant leaving that out
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID/QuadratID), 
+                       family = nbinom2,   
+                       data = QuadStats,
+                       subset = ProjectGroup == "Historic Uncultched")
+
+# Compare all models
+#aictab(list(NumLive_Historic,NumLive_Historic2))
+# Check goodness of fit
+simulateResiduals(NumLive_Historic, n = 1000, plot = T)
+
+### Restoration Model ###
+## NFWF-2021 ##
+# Negative binomial out performed Poisson
+# Zero-inflation did not improve model fit
+# Leaving out Random effect of Location was slightly detrimental to the model
+# Adding nested random effects did not improve AIC, thus simpler is chosen, but keeping Section as a fixed effect was best
+NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), # Best
+                       family = nbinom2,  
+                       data = QuadStats,
+                       subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF2021, n = 1000, plot = T)
+
+# Look at summaries
+summary(NumLive_Historic)
+summary(NumLive_NFWF2021)
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year * SectionName, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched") 
+
+NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year * SectionName, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021")
+
+NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021) %>%
+  rename(NumLiveMean_modeled = response,
+         NumLiveLower_modeled = asymp.LCL,
+         NumLiveUpper_modeled = asymp.UCL) %>%
+  mutate(NumLiveMeanDensity_modeled = NumLiveMean_modeled * 4,
+         NumLiveLowerDensity_modeled = NumLiveLower_modeled * 4,
+         NumLiveUpperDensity_modeled = NumLiveUpper_modeled * 4) %>%
+  select(-SE, -df) %>%
+  mutate(NumLiveUpperDensity_modeled = case_when(
+    NumLiveMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLiveUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+NumLiveStats_RAW <- QuadStats %>%
+  group_by(Year, 
+           ProjectGroup,
+           SectionName) %>%
+  summarise_ALL() %>%
+  arrange(Year,
+          ProjectGroup) %>%
+  select(-matches("Drill|Weight"))
+
+NumLiveStats_ALL <- left_join(NumLiveStats_modeled, 
+                              NumLiveStats_RAW, 
+                              by = c("Year", "ProjectGroup", "SectionName")) %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+  
+# rm(NumLiveStats_historic, NumLiveStats_RAW, NumLiveStats_RAW, NumLiveStats_RAW)
+
+ # Create a complete grid for all years, sections, and projects
+df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
+    left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
+    mutate(has_data = !is.na(NumLiveDensityMean_raw), # Add a flag for missing data
+           SectionName = factor(SectionName, levels = lv3))
+  
+```
+
+``` {r NumLive Figures}
+
+# Bar graph for modeled mean oyster density by ProjectGroup, Year, and Section
+
+### HISTORIC ###
+# Needed for Null data symbol
+df_historic <- df_complete %>%
+  filter(ProjectGroup == "Historic Uncultched") %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+
+NumLiveStats_FIG_Historic <- NumLiveStats_ALL %>%
+  filter(ProjectGroup == "Historic Uncultched") %>% # limits to Historic Uncultched only
+    mutate(SectionName = factor(SectionName, levels = lv3))
+
+NumLiveStats_FIGURE_Historic <- NumLiveStats_FIG_Historic %>%
+  ggplot(aes(x = as.factor(Year), 
+             y = NumLiveMeanDensity_modeled,
+             fill = SectionName)) + 
+      geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) +
+    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, ymax = NumLiveUpperDensity_modeled), width = 0.3) + # Add error bars
+  # Add symbol for years with no data
+    geom_point(
+      data = subset(df_historic, !has_data),
+      aes(x = as.factor(Year),
+          y = ceiling(max(NumLiveStats_FIG_Historic$NumLiveMeanDensity_modeled, na.rm = TRUE) * 0.5),
+          group = SectionName),
+          shape = 4,   # X shape
+          size = 4,
+          stroke = 1.3,
+          color = "black",
+          inherit.aes = FALSE
+          ) +
+      facet_wrap(~SectionName, nrow = 1) +
+  
+      scale_x_discrete("Year", 
+                       expand = c(0.005, 0), 
+                       guide = guide_axis(angle = -45)) +
+      scale_y_continuous("Mean Oyster Density (per m2)", 
+                         expand = c(0, 0),
+                         limits = c(0, ceiling(max(NumLiveStats_FIG_Historic$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_Historic$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Oyster Density on Historic Uncultched Reefs by Year and Section") + 
+      BaseForm +
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0, vjust = 0)) 
+
+print(NumLiveStats_FIGURE_Historic)
+
+### RESTORATION ###
+## NFWF-2021 ##
+# Needed for Null data symbol
+df_nfwf2021 <- df_complete %>%
+  filter(ProjectGroup == "NFWF-2021" &
+           Year > 2021 &
+           SectionName != "West") %>%
+  mutate(SectionName = factor(SectionName, levels = lv3))
+
+NumLiveStats_FIG_NFWF2021 <- NumLiveStats_ALL %>%
+  filter(ProjectGroup == "NFWF-2021") %>% # limits to NFWF-2021 only
+    mutate(SectionName = factor(SectionName, levels = lv3))
+
+NumLiveStats_FIGURE_NFWF2021 <- NumLiveStats_FIG_NFWF2021 %>%
+  ggplot(aes(x = as.factor(Year), 
+             y = NumLiveMeanDensity_modeled,
+             fill = SectionName)) + 
+      geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) +
+    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, ymax = NumLiveUpperDensity_modeled), width = 0.3) + # Add error bars
+  # Add symbol for years with no data
+    geom_point(
+      data = subset(df_nfwf2021, !has_data),
+      aes(x = as.factor(Year),
+          y = ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveMeanDensity_modeled, na.rm = TRUE) * 0.5),
+          group = SectionName),
+          shape = 4,   # X shape
+          size = 4,
+          stroke = 1.3,
+          color = "black",
+          inherit.aes = FALSE
+          ) +
+      facet_wrap(~SectionName, nrow = 1) +
+  
+      scale_x_discrete("Year", 
+                       expand = c(0.005, 0), 
+                       guide = guide_axis(angle = -45)) +
+      scale_y_continuous("Mean Oyster Density (per m2)", 
+                         expand = c(0, 0),
+                         limits = c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Oyster Density on NFWF-2021 Reefs by Year and Section") + 
+      BaseForm +
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0, vjust = 0)) 
+
+print(NumLiveStats_FIGURE_NFWF2021)
+
+# Summary Table for the Appendix
+NumLiveStats_TABLE <- NumLiveStats_ALL %>%
+  select(ProjectGroup,
+         Year,
+         SectionName, 
+         NumLiveDensityMean_raw,
+         NumLiveDensitySD_raw,
+         NumLiveMeanDensity_modeled,
+         NumLiveLowerDensity_modeled,
+         NumLiveUpperDensity_modeled) %>%
+  arrange(ProjectGroup,
+          SectionName,
+          Year)
+  
+kable(NumLiveStats_TABLE,
+      digits = 1,
+      col.names = c("Project", "Year", "Section",
+      "Raw Mean Density", "Raw SD",
+      "Modeled Mean Density", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Densities of Oysters. Density is expressed in number of oysters per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. NA indicates that no samples were collected. ")
+
+# Diagnostic Table for the Appendix
+diag_NumLive_Historic <- extract_diagnostics(NumLive_Historic,  "Historic Uncultched")
+diag_NumLive_NFWF2021 <- extract_diagnostics(NumLive_NFWF2021,  "NFWF-2021")
+
+# Combine into a single Table
+NumLive_Diagnostic_Table <- rbind(diag_NumLive_Historic, diag_NumLive_NFWF2021)
+kable(NumLive_Diagnostic_Table)
+
+```
+
+
+
+``` {r Size Distribution Figures}
+### Size Distributions
+
+## Years past
+
+
+
+SizeClasses_FIG <- ggplot(SizeClasses_ALL, 
+                          aes(x = as.factor(Year), y = ProportionMeasured, fill = ShellHeightBin)) +
+  geom_col(color = "black") +
+  facet_wrap(~ ProjectGroup, ncol = 1) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    x = "Year",
+    y = "Proportion",
+    fill = "Shell Height Bin"
+  ) +
+  BaseForm +
+  theme_bw()
+
+SizeClasses_FIG
+
+
+
+
+
+# Report Year
+# Histograms
+
+histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+  geom_col() +
+  facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  BaseForm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+histogramY
+
+
+```
+
+
+``` {r NumLegalStats}
+# Determine which stations have enough legal oysters to merit inclusion in the modeling process
+# For this we will only include stations whose raw mean is greater than 1 legal oysters PER QUADRAT
+QuadStatsLegal_List <- QuadStats %>% # Determine raw mean per quadrat 
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  summarise(N = sum(!is.na(Num_Legal_76_plus)),
+              Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE)) 
+QuadStatsLegal_NoModel <- QuadStatsLegal_List %>%
+  filter(Num_Legal_76_plus_Mean < 2)
+QuadStatsLegal_YesModel <- QuadStatsLegal_List %>%
+  filter(Num_Legal_76_plus_Mean >= 2)
+rm(QuadStatsLegal_List)
+
+# Round Legal Number to a whole number
+QuadStatsLegal <- QuadStats %>%
+  filter(Year == ReportYear) %>%
+  right_join(QuadStatsLegal_YesModel,
+            by = c("FixedLocationID")) %>%
+  mutate(NumLegal = round(Num_Legal_76_plus))
+
+# Analysis indicates ......
+
+# Figure out which data distribution to use
+# Historic
+hist(subset(QuadStatsLegal, ProjectGroup == "Historic Uncultched")$NumLegal)
+# NFWF-2021
+hist(subset(QuadStatsLegal, ProjectGroup == "NFWF-2021")$NumLegal)
+
+# FixedLocationID 0024
+hist(subset(QuadStatsLegal, FixedLocationID == "0024")$NumLegal)
+# FixedLocationID 0309
+hist(subset(QuadStatsLegal, FixedLocationID == "0309")$NumLegal)
+# FixedLocationID 0310
+hist(subset(QuadStatsLegal, FixedLocationID == "0310")$NumLegal)
+# FixedLocationID 0311
+hist(subset(QuadStatsLegal, FixedLocationID == "0311")$NumLegal)
+# data distributions appear similar between reefs
+
+### Testing pooled vs. reef-specific means
+# Model A (pooled)
+m_pooled <- glmmTMB(NumLegal ~ 1,
+                    family = nbinom2,
+                    data = QuadStatsLegal)
+# Model B (reef-specific means)
+m_Reef_Specific <- glmmTMB(NumLegal ~ FixedLocationID,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Model C (ProjectGroup-specific means)
+m_Project_Specific <- glmmTMB(NumLegal ~ ProjectGroup,
+                     family = nbinom2,
+                     data = QuadStatsLegal)
+# Compared
+anova(m_pooled, m_Reef_Specific, m_Project_Specific)
+#### Results indicate adding ProjectGroup massively improved model fit (ΔAIC = 11, p < 0.001). Adding reef-specific means marginally improved model fit and was not statistically significant (ΔAIC = 0.3, p = 0.12) Thus models for each ProjectGroup were used.
+
+
+### Testing to see if each reef needs its own dispersion parameter
+## Model with shared dispersion:
+m1 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~1,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with reef-specific dispersion:
+m2 <- glmmTMB(NumLegal ~ FixedLocationID,
+              dispformula = ~FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Model with ProjectGroup-specific dispersion:
+m3 <- glmmTMB(NumLegal ~ ProjectGroup,
+              dispformula = ~ProjectGroup,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# Compare:
+anova(m1, m2, m3)
+#### Results indicate adding reef-specific dispersion did not improve model fit (ΔAIC = -2.3, p = 0.35), and the difference was not statistically significant. Adding ProjectGroup dispersion found similar results (ΔAIC = -1.5, p = 0.054). Thus, no extra dispersion parameter will be used.
+
+
+### Testing to see if zero inflation varies strongly among reef
+## Without zero inflation:
+m0 <- glmmTMB(NumLegal ~ FixedLocationID,
+              ziformula = ~0,
+              family = nbinom2,
+              data = QuadStatsLegal)
+# With zero inflation:
+mzi <- glmmTMB(NumLegal ~ FixedLocationID,
+               ziformula = ~1,
+               family = nbinom2,
+               data = QuadStatsLegal)
+# Compare:
+anova(m0, mzi)
+#### Results indicate adding reef-specific zero inflation did not help fit and was not significant (p = 1)
+#### Manual checking revealed that there are no zero values in NumLegal, thus zero-inflation shouldn't be necessary
+
+
+
+### Historic
+# Negative binomial out performed Poisson
+NumLegal_Historic <- glmmTMB(NumLegal ~ 1,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "Historic Uncultched")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_Historic, n = 1000, plot = T)
+
+
+
+### NFWF-2021
+# Negative binomial out performed Poisson
+NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
+              family = nbinom2,
+              data = QuadStatsLegal,
+              subset = ProjectGroup == "NFWF-2021")
+
+# Check goodness of fit
+simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
+
+
+
+
+
+
+# Look at summaries
+summary(NumLegal_Historic)
+summary(NumLegal_NFWF2021)
+
+
+# Create dataframe to store 
+####### Put the modeled means into a data frame for plotting
+NumLegalStats_historic <- emmeans(NumLegal_Historic, ~ 1, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "Historic Uncultched",
+         "1" = "0024") %>%
+  rename("FixedLocationID" = "1")
+
+NumLegalStats_nfwf2021 <- emmeans(NumLegal_NFWF2021, ~ FixedLocationID, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021")
+
+NumLegalStats_modeled <- bind_rows(NumLegalStats_historic, NumLegalStats_nfwf2021) %>%
+  rename(NumLegalMean_modeled = response,
+         NumLegalLower_modeled = asymp.LCL,
+         NumLegalUpper_modeled = asymp.UCL) %>%
+  mutate(NumLegalMeanDensity_modeled = NumLegalMean_modeled * 4,
+         NumLegalLowerDensity_modeled = NumLegalLower_modeled * 4,
+         NumLegalUpperDensity_modeled = NumLegalUpper_modeled * 4) %>%
+  select(-SE, -df, -ProjectGroup) %>%
+  mutate(NumLegalUpperDensity_modeled = case_when(
+    NumLegalMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLegalUpperDensity_modeled
+  ))
+
+# Generate raw mean and SD
+NumLegalStats_RAW <- QuadStats %>%
+  filter(Year == ReportYear) %>%
+  group_by(FixedLocationID) %>%
+  group_by(ProjectGroup, FixedLocationID) %>%
+    summarise(N = sum(!is.na(Num_Legal_76_plus)),
+              NumLegal_76plus_Mean_raw = mean(Num_Legal_76_plus, na.rm = TRUE),
+              NumLegal_76_plus_SD_raw = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
+    mutate(NumLegal_76plus_DensityMean_raw = NumLegal_76plus_Mean_raw * 4,
+           NumLegal_76plus_DensitySD_raw = NumLegal_76_plus_SD_raw * 4) %>%
+  arrange(FixedLocationID) %>%
+  select(-matches("Live|Weight|Drill"))
+
+NumLegalStats_ALL <- right_join(NumLegalStats_modeled, 
+                              NumLegalStats_RAW, 
+                              by = c("FixedLocationID")) %>%
+  left_join(FixedLocations1,
+            by = c("FixedLocationID")) %>%
+  mutate(ParcelArea = case_when( # For parcels with no Area (Historic bars) assign area as 1 acre
+    is.na(ParcelArea) ~ 1,
+    TRUE ~ ParcelArea),
+    LowerBagsPerAcre = (NumLegalLowerDensity_modeled * 4047) / 225,
+    HarvestableBags = case_when( # Only reefs with LowerBags perAcre is >= 400 are harvestable
+      LowerBagsPerAcre >= 400 ~ (LowerBagsPerAcre * ParcelArea) * 0.1,
+      TRUE ~ NA))
+
+
+```
+
+
+
+``` {r NumLegalStats for Tables}
+
+# Summary Table for Report
+NumLegalStats_TABLE <- NumLegalStats_ALL %>%
+  filter(!is.na(NumLegalMean_modeled)) %>%
+  select(FixedLocationID, 
+         ProjectGroup,
+         StationNumber,
+         StationNameNumber,
+         ParcelArea,
+         NumLegalLowerDensity_modeled,
+         LowerBagsPerAcre, # Calculated from LCL 
+         HarvestableBags) %>% # Estimated Harvestable Bags (10% of Total bags)
+  arrange(ProjectGroup,
+          StationNumber) %>%
+  select(-StationNumber)
+
+kable(NumLegalStats_TABLE,
+      digits = 1,
+      col.names = c("FixedLocationID", "Project", "Station Name", "Reef Acreage",
+      "Modeled Mean Density (LCL 95%)", "Estimated Bags per Acre (LCL 95%)", "Estimated Harvestable Bags (LCL 95%)"),
+      caption = "Modeled Mean Densities of legal-sized oysters (≥76 mm shell height) on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. LCL = Lower Confidence Limit. NA indicates reef densities do not meet the required 400 bags per acre threshold for harvest. Reefs with a raw mean density at or below 8 legal-size oysters/m² (144 bags/acre) were not modeled. Raw and modeled mean densities for all reefs sampled available in Appendix A. ")
+
+# Summary Table for the Appendix
+NumLegalStats_TABLE_appendix <- NumLegalStats_ALL %>%
+  select(FixedLocationID, 
+         ProjectGroup,
+         N,
+         StationNumber,
+         StationNameNumber,
+         ParcelArea,
+         NumLegal_76plus_DensityMean_raw,
+         NumLegal_76plus_DensitySD_raw,
+         NumLegalMeanDensity_modeled,
+         NumLegalLowerDensity_modeled,
+         NumLegalUpperDensity_modeled) %>%
+  arrange(ProjectGroup,
+          StationNumber) %>%
+  select(-StationNumber)
+  
+kable(NumLegalStats_TABLE_appendix,
+      digits = 1,
+      col.names = c("FixedLocationID", "Project", "N", "Station Name", "Reef Acreage",
+      "Raw Mean Density (Legal)", "Raw SD (Legal)",
+      "Modeled Mean Density (Legal)", "LCL 95% (Legal)", "UCL 95% (Legal)"),
+      caption = "Raw and Modeled Mean Densities of Legal-sized oysters on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. N = Number of quadrats collected, SD = Standard deviation. LCL = Lower confidence limit. UCL = Upper confidence limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 8 per square meter were not modeled. ")
+
+# I may leave this out since r2() does not support models of class `glmmTMB` without random effects and from nbinom2-family with log-link-function.
+# # Diagnostic Table for the Appendix
+# diag_NumLegal_Historic <- extract_diagnostics(NumLegal_Historic,  "Historic Uncultched")
+# diag_NumLegal_NFWF2021 <- extract_diagnostics(NumLegal_NFWF2021,  "NFWF-2021")
+# 
+# # Combine into a single Table
+# NumLegal_Diagnostic_Table <- rbind(diag_NumLegal_Historic, diag_NumLegal_NFWF2021)
+# kable(NumLegal_Diagnostic_Table)
+
+```
+
+
+
+
+``` {r NumLegalStats LCL calculations A, eval = FALSE}
+### Looking at three ways to calculate the Lower Confidence level 95% for Legal densities
+
+######
+######
+######
+### A) emmeans → modeled mean per quadrat → multiply by n_quadrats
+
+# model: m (glmmTMB); reef name variable: FixedLocationID
+# choose reef(s) of interest
+
+# emm_all <- emmeans(m, ~ FixedLocationID, type = "response")
+# emm_df <- as.data.frame(emm_all)
+LCL_calcs_A <- NumLegalStats_modeled %>%
+  select(-LegalMeanDensity, -LegalLowerDensity, -LegalUpperDensity)
+
+print(LCL_calcs_A)
+######
+######
+######
+
+```
+
+```{r NumLegalStats LCL calculations B, eval = FALSE}
+### B) Colin’s explicit parametric bootstrap (draw mean, simulate NB per quadrat)
+
+#List of models we want to use for prediction and extrapolation.
+modList <- list(NumLegal_Historic, NumLegal_NFWF2021, NumLegal_NFWF2021, NumLegal_NFWF2021)
+
+#Add relevant model estimates to extrapDat. I just copied these from summary() as they are all nbinom and no zero-inflation
+extrapDat <- data.frame(LCL_calcs_A, 
+                        meanLog = c(2.6626, 3.4078, 3.1724, 3.0788), 
+                        meanLogSE = c(0.1431, 0.1069, 0.1532, 0.1540), 
+                        disp = c(4.21, 7.22, 7.22, 7.22),
+                        N = 15)
+
+
+#Final data frame called extrapDat2 is all set up for bootstrapping and to stor results
+
+extrapDat2 <- extrapDat %>% mutate(`Mean Total` = NA, `L95 Total` = NA, `U95 Total` = NA)
+
+nSims <- 1000
+#REady to bootstrap
+# had to remove nested if loops
+for (j in 1:nrow(extrapDat2)){
+  totalCount <- NULL
+  extrapolated <- NULL
+  for (i in 1:nSims){
+        extrapolated[i] <- sum(rnbinom(n = 1, 
+                                       mu = exp(rnorm(1, 
+                                                      mean = extrapDat2$meanLog[j], 
+                                                      sd = extrapDat2$meanLogSE[j])), 
+                                       size = extrapDat2$disp[j]))
+    
+     
+    totalCount <- c(totalCount, extrapolated[i])
+  }
+  extrapDat2$`Mean Total`[j] <- mean(totalCount)
+  extrapDat2$`L95 Total`[j] <- quantile(totalCount, 0.025)
+  extrapDat2$`U95 Total`[j] <- quantile(totalCount, 0.975)
+
+}
+
+print(extrapDat2)
+```
+
+``` {r NumLegalStats LCL calculations C historic, eval = FALSE}
+###C) Recommended: Model-based parametric bootstrap using simulate() (glmmTMB)
+
+# Build newdata that lists each quadrat/unit to be summed across reef
+# If you have actual quadrat rows, use them (one row per quadrat).
+# If you only know the number of quadrats per reef, create that many rows per reef.
+make_quadrat_df <- function(reef_id, n_quads) {
+  data.frame(
+    FixedLocationID = factor(rep(reef_id, n_quads)),
+    # include other covariates used in the model (Year, ProjectGroup, etc.)
+    #Year = NA,     # fill with relevant Year if model uses Year (or set to target Year)
+    stringsAsFactors = FALSE
+  )
+}
+
+# Example: create newdata for all reefs
+nd <- bind_rows(
+  make_quadrat_df("0024", 15)
+)
+
+# IMPORTANT: newdata must have all predictors used in model. If model has Year or other covariates,
+# you should fill them appropriately (e.g., Year = 2024, etc.)
+# Also ensure factor levels match model's levels.
+
+# Simulate responses:
+set.seed(14)
+nsim <- 1000
+sims <- simulate(NumLegal_Historic, nsim = nsim, newdata = nd)
+
+# sims is a list (or matrix) of simulated response vectors; each column is a replicate
+# For glmmTMB, simulate returns a list of nsim vectors.
+# Convert to matrix for aggregation:
+sims_mat <- do.call(cbind, sims)     # rows = quadrats in nd, cols = sims
+
+# Add FixedLocationID to nd for aggregation
+nd$FixedLocationID <- factor(nd$FixedLocationID, levels = levels(nd$FixedLocationID))
+
+# For each simulation replicate, sum by reef
+library(matrixStats)
+reef_ids <- unique(nd$FixedLocationID)
+mean_by_reef <- sapply(seq_len(nsim), function(i) {
+  tapply(sims_mat[, i], nd$FixedLocationID, mean)
+})
+# mean_by_reef is matrix (rows = reefs, cols = sims)
+# Convert to tidy table
+mean_by_reef_df <- data.frame(
+  simulation = seq_along(mean_by_reef),
+  FixedLocationID = names(mean_by_reef),
+  mean = as.numeric(mean_by_reef)
+)
+
+#colnames(mean_by_reef_df) <- as.character(reef_ids)  # replicate-wise columns: each col a reef? adjust orientation
+
+# Compute stats per reef:
+library(tidyr)
+# mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
+#   # rows are reefs, columns sims; we'll compute quantiles
+#   rownames_to_column("FixedLocationID") %>%
+#   pivot_longer(-FixedLocationID, names_to = "sim", values_to = "total")
+
+summary_table <- mean_by_reef_df %>%
+  group_by(FixedLocationID) %>%
+  summarize(
+    mean_total = mean(mean),
+    lcl_total = quantile(mean, 0.025),
+    ucl_total = quantile(mean, 0.975),
+    .groups = "drop"
+  )
+
+summary_table
+
+```
+
+
+``` {r NumLegalStats LCL calculations Restoration, eval = FALSE}
+###########################
+###########################
+###########################
+# Lazy version of code above, adjusted for Restoration
+###C) Recommended: Model-based parametric bootstrap using simulate() (glmmTMB)
+
+# Build newdata that lists each quadrat/unit to be summed across reef
+# If you have actual quadrat rows, use them (one row per quadrat).
+# If you only know the number of quadrats per reef, create that many rows per reef.
+make_quadrat_df <- function(reef_id, n_quads) {
+  data.frame(
+    FixedLocationID = factor(rep(reef_id, n_quads)),
+    # include other covariates used in the model (Year, ProjectGroup, etc.)
+    #Year = NA,     # fill with relevant Year if model uses Year (or set to target Year)
+    stringsAsFactors = FALSE
+  )
+}
+
+# Example: create newdata for all reefs
+nd <- bind_rows(
+  make_quadrat_df("0309", 15),
+  make_quadrat_df("0310", 15),
+  make_quadrat_df("0311", 15)
+)
+
+# IMPORTANT: newdata must have all predictors used in model. If model has Year or other covariates,
+# you should fill them appropriately (e.g., Year = 2024, etc.)
+# Also ensure factor levels match model's levels.
+
+# Simulate responses:
+set.seed(14)
+nsim <- 1000
+sims <- simulate(NumLegal_NFWF2021, nsim = nsim, newdata = nd)
+
+# sims is a list (or matrix) of simulated response vectors; each column is a replicate
+# For glmmTMB, simulate returns a list of nsim vectors.
+# Convert to matrix for aggregation:
+sims_mat <- do.call(cbind, sims)     # rows = quadrats in nd, cols = sims
+
+# Add FixedLocationID to nd for aggregation
+nd$FixedLocationID <- factor(nd$FixedLocationID, levels = levels(nd$FixedLocationID))
+
+# For each simulation replicate, sum by reef
+library(matrixStats)
+reef_ids <- unique(nd$FixedLocationID)
+mean_by_reef <- sapply(seq_len(nsim), function(i) {
+  tapply(sims_mat[, i], nd$FixedLocationID, mean)
+})
+# mean_by_reef is matrix (rows = reefs, cols = sims)
+# Convert to tidy table
+sum_by_reef_df <- as.data.frame(t(sum_by_reef))
+colnames(sum_by_reef_df) <- as.character(reef_ids)  # replicate-wise columns: each col a reef? adjust orientation
+
+
+# Compute stats per reef:
+library(tidyr)
+mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
+  # rows are reefs, columns sims; we'll compute quantiles
+  rownames_to_column("FixedLocationID") %>%
+  pivot_longer(-FixedLocationID, names_to = "sim", values_to = "mean")
+
+summary_table <- mean_by_reef_long %>%
+  group_by(FixedLocationID) %>%
+  summarize(
+    mean_total = mean(mean),
+    lcl_total = quantile(mean, 0.025),
+    ucl_total = quantile(mean, 0.975),
+    .groups = "drop"
+  )
+
+summary_table
+
+```
+
+
+
+``` {r NumLegalStats LCL calculations vC2, eval = FALSE}
+
+###############################################
+###############################################
+###############################################
+##### C v2 using chatGPT to make the above code work for multiple reefs and multiple models
+
+# 1. Store your reef IDs
+reef_ids <- c("0024", "0309", "0310", "0311")
+
+# 2. Store each model in a named list
+models <- list(
+  "0024" = NumLive_Historic,
+  "0309" = NumLegal_NFWF2021,
+  "0310" = NumLegal_NFWF2021,
+  "0311" = NumLegal_NFWF2021
+)
+
+# 3. Function to build newdata for a single reef
+make_quadrat_df <- function(reef_id, n_quads) {
+  data.frame(
+    FixedLocationID = factor(rep(reef_id, n_quads)),
+    # Include all covariates the model uses!
+    # Example (if model has Year):
+    # Year = 2024,
+    stringsAsFactors = FALSE
+  )
+}
+
+# 4. Number of simulations per reef
+nsim <- 1000
+set.seed(14)
+
+# 5. Loop over reefs and simulate
+library(dplyr)
+library(purrr)
+
+results <- map_dfr(reef_ids, function(reef) {
+
+  mod <- models[[reef]]
+  n_quads <- 15  # Insert real number of quadrats for that reef
+
+  # Build newdata for this reef
+  nd <- make_quadrat_df(reef, n_quads)
+
+  # Make sure factor levels match model
+  nd$FixedLocationID <- factor(nd$FixedLocationID,
+                               levels = mod$frame$FixedLocationID |> levels())
+
+  # Simulate
+  sims_mat <- simulate(mod, nsim = nsim, newdata = nd)
+  sims_mat <- as.matrix(sims_mat)
+
+  # Compute reef-wide means for each simulation
+  mean_by_sim <- colMeans(sims_mat)
+
+  # Return a tidy data frame
+  tibble(
+    reef_id = reef,
+    simulation = 1:nsim,
+    mean = mean_by_sim
+  )
+})
+
+
+mean_by_reef_df <- as.data.frame(results)
+
+# Compute stats per reef:
+library(tidyr)
+mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
+  # rows are reefs, columns sims; we'll compute quantiles
+  rownames_to_column("FixedLocationID") %>%
+  pivot_longer(-FixedLocationID, names_to = "sim", values_to = "total")
+
+summary_table <- mean_by_reef_df %>%
+  group_by(reef_id) %>%
+  summarize(
+    mean_total = mean(mean),
+    lcl_total = quantile(mean, 0.025),
+    ucl_total = quantile(mean, 0.975),
+    .groups = "drop"
+  )
+
+summary_table
+
+```
+
+
+
+
+
+
+``` {Survey Text}
+### Placeholder for Survey text for report
+```
+This is text to output for Survey
+
