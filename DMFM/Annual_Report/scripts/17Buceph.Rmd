@@ -101,7 +101,7 @@ summary(infected624)
 
 ``` {r Buceph Prevalence}
 # Dermo prevalence model
-BucephPrevalence <- glmmTMB(Buceph ~ 1 + Wt_scaled + Month + SectionName + (1|FixedLocationID), 
+BucephPrevalence <- glmmTMB(Buceph ~ Wt_scaled + Month + SectionName + (1|FixedLocationID), 
                        family = binomial,
                        data = BucephStats)
 
@@ -118,11 +118,6 @@ summary(BucephPrevalence)
 # YEAR effects have NO interannual signals. 
 # MONTH effect show a seasonal pattern. with April through July having a significantly lower probability than January, and an increase in probability in September through November. 
 # RANDOM effect (site variability) Variance: 0.2957; SD: 0.5437. There is  variability among locations even after accounting for: Year, Month, and Oyster size. This suggests: Local environmental conditions matter (e.g., salinity, flushing, habitat) and Some sites are consistently higher-risk than others
-
-
-
-
-
 
 ############ predicted probability of infection
 ### By Month
@@ -157,10 +152,6 @@ BucephPrevalence_Month_TABLE <- BucephPrevalence_probs_Month %>%
 kable(BucephPrevalence_Month_TABLE, 
       digits = 3)
 
-
-
-
-
 ### By Section
 BucephPrevalence_probs_Section <- emmeans(BucephPrevalence, ~ SectionName, 
                                        at = list(SH_scaled = 0, Year = "2024"),
@@ -174,11 +165,11 @@ ggplot(BucephPrevalence_probs_Section,
                position = position_dodge(width = 0.9)) +
   geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
   labs(
-    x = "Month",
+    x = "Section",
     y = "Predicted Probability of Infection",
     title = "Predicted Buceph Prevalence by Section"
   ) +
-  theme_classic()
+  BaseForm
 
 # Create Appendix table by Month
 BucephPrevalence_Section_TABLE <- BucephPrevalence_probs_Section %>%
@@ -192,6 +183,7 @@ BucephPrevalence_Section_TABLE <- BucephPrevalence_probs_Section %>%
 
 kable(BucephPrevalence_Section_TABLE, 
       digits = 3)
+
 
 ```
 
