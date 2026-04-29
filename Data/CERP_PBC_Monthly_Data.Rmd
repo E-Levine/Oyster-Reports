@@ -1,0 +1,273 @@
+---
+title: "CERP and PBC monthly data updates"
+author: "EWilliams"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+~~~{=comment}
+This file compiles the monthly data for the specified date range. Cleaned data is appended to the existing Excel sheet located at the file path specified. 
+~~~
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+Author <- c("E Levine Williams") #Change to your name
+Database <- "Oysters_26-02-25"  #Set the local database to use
+Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
+#######File locations required to be updated for use.
+Start_date <- as.Date("2026-02-01")
+End_date <- as.Date("2026-02-28")
+data_file_location <- "../Monthly/Summary data/CERP_PBC_Monthly_Data.xlsx"#... UPDATE ....
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+pacman::p_load(odbc, DBI, dbplyr, data.table,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx,         #Excel
+  lubridate, zoo,         #Dates
+  knitr, 
+  install = TRUE)
+
+Estuaries <- c("SL", "LX", "CR", "LW")
+Sites <- c("CR-E", "CR-W", "LW-L", "LW-R", "LX-N", "LX-S", "SL-C", "SL-N", "SL-S")
+LocationID_order <- c("0235", "0236", "0237", "0240", "0241", "0312", #LW
+                      "0242", "0243", "0244", "0246", "0247", "0249", #LX
+                      "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271", #SL
+                      "0230", "0231", "0232", "0233")  #CR
+Station_order <- c("LW-L1", "LW-L2", "LW-L3", "LW-R2", "LW-R3", "LW-R4", #LW
+                   "LX-N1", "LX-N2", "LX-N3", "LX-S1", "LX-S2", "LX-S3", #LX
+                   "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3", #SL
+                   "CR-E1", "CR-E2", "CR-W3", "CR-W4") #CR
+#
+```
+
+```{css}
+caption {
+  color: black;
+  font-weight: bold;
+  font-size: 14;
+} 
+```
+
+```{r Database Download}
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                    Driver = "SQL Server", 
+                    Server = Server,
+                    Database = Database,
+                    Authentication = "ActiveDirectoryIntegrated")
+
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries & grepl("^0", FixedLocationID)) %>% #Limit to primary stations, remove "ARRA" and SLN4
+  filter(!grepl("^ARRA", StationName) & StationName != "SL-N-4")
+
+#Water quality
+hsdbSampleEventWQ <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) %>% #Limit to COLL (dermo) data (Pre-2023, WQ is with RCRT. 2023+ is with COLL)
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+dboSampleEventWQ <- tbl(con,in_schema("dbo", "SampleEventWQ")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID & str_detect(SampleEventWQID, 'COLL')) %>% #Limit to COLL (dermo) data
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+
+#Dermo
+hsdbDermo <- tbl(con,in_schema("hsdb", "Dermo")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+dboDermo <- tbl(con,in_schema("dbo", "Dermo")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+
+#Recruitment
+hsdbRcrt <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+dboRcrt <- tbl(con,in_schema("dbo", "Recruitment")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+
+#PBC Sediment
+hsdbSedi <- tbl(con,in_schema("hsdb", "SedimentTrap")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+dboSedi <- tbl(con,in_schema("dbo", "SedimentTrap")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+
+#Survey
+hsdbSrvy <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+dboSrvy <- tbl(con,in_schema("dbo", "SurveyQuadrat")) %>%
+  collect() %>% mutate(FixedLocationID = substring(SampleEventID, 19, 22)) %>% #Create FixedLocationID column and filter to matching IDs
+  filter(FixedLocationID %in% dboFixedLocations$FixedLocationID) %>%
+  filter(as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") > Start_date & as.Date(substr(SampleEventID, 8, 15), format = "%Y%m%d") < End_date)
+
+DBI::dbDisconnect(con)
+#
+#
+```
+
+```{r Water Quality data}
+#
+##WQ - new data
+#Combined table of parameters
+new_WQ <- rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboSampleEventWQ) %>%
+  #Filter data to desired columns needed for summary
+  dplyr::select(FixedLocationID, SampleEventWQID:TurbidityYSI, Comments, CollectionTime, PercentDissolvedOxygen) %>%
+  #Arrange by station then date
+  arrange(match(FixedLocationID, c(LocationID_order))) %>%
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
+#
+#
+#Load exisiting data, and append new data
+WQ_data <- as.data.table(readWorkbook(data_file_location, sheet = 'SampleEventWQ', detectDates = TRUE))
+#
+combined_WQ <- rbindlist(list(WQ_data, new_WQ), use.names = TRUE, fill = TRUE)
+combined_WQ_f <- unique(combined_WQ)
+setorder(combined_WQ, SampleEventWQID)
+#
+#
+```
+
+```{r Recruitment data}
+#
+##Recruitment - new data
+#Combined table of parameters
+new_Rcrt <- rbind((hsdbRcrt %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRcrt %>% filter(DataStatus == "Proofed"))) %>%
+  #Filter data to desired columns needed for summary
+  dplyr::select(FixedLocationID, ShellID:NumBottom, Comments) %>% 
+  #Convert dates
+  dplyr::mutate(DeployedDate = as.Date(DeployedDate)) %>%
+  #Arrange by station
+  arrange(match(FixedLocationID, c(LocationID_order))) %>%
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
+#
+#
+#Load existing data, and append new data
+Rcrt_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Recruitment', detectDates = TRUE)) %>% 
+  dplyr::select(ShellID:Comments)
+#
+combined_Rcrt <- rbindlist(list(Rcrt_data, new_Rcrt), use.names = TRUE, fill = TRUE)
+combined_Rcrt_f <- unique(combined_Rcrt)
+setorder(combined_Rcrt_f, ShellID)
+#
+#
+```
+
+```{r Dermo data}
+#
+##Dermo - new data
+#Combined table of parameters
+new_Dermo <-rbind((hsdbDermo %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboDermo) %>% 
+  #Filter data to desired columns needed for summary
+  dplyr::select(FixedLocationID, OysterID:DermoGill, Comments) %>% 
+  # Remove extra samples
+  dplyr::filter(as.numeric(substr(OysterID, 10, 11)) < 16) %>%
+  #Arrange by station
+  arrange(match(FixedLocationID, c(LocationID_order))) %>%
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
+#
+#
+#Load existing data, and append new data
+Dermo_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Dermo', detectDates = TRUE)) %>%
+  dplyr::select(OysterID:Comments) %>%
+  # Remove extra samples
+  dplyr::filter(as.numeric(substr(OysterID, 10, 11)) < 16) 
+  
+#
+combined_Dermo <- rbindlist(list(Dermo_data, new_Dermo), use.names = TRUE, fill = TRUE)
+combined_Dermo_f <- unique(combined_Dermo)
+setorder(combined_Dermo_f, OysterID)
+#
+#
+```
+
+```{r Sediment data}
+#
+##SDTP - new data
+#Combined table of parameters
+new_Sdtp <-rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboSedi) %>% 
+  #Filter data to desired columns needed for summary
+  dplyr::select(FixedLocationID, CupSampleID:NumOtherBiota, Comments, Volume, TareCrucible, AshWeight, PortionofSample, CrucibleDW) %>% # 
+  #Convert dates
+  dplyr::mutate(DeployedDate = as.Date(DeployedDate)) %>%
+  #Arrange by station
+  arrange(match(FixedLocationID, c(LocationID_order))) %>%
+  dplyr::select(-FixedLocationID) %>%
+  as.data.table()
+#
+#
+#Load exisiting data, and append new data
+Sdtp_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Sediment', detectDates = TRUE)) %>% 
+  dplyr::select(CupSampleID:CrucibleDW)
+#
+combined_Sdtp <- rbindlist(list(Sdtp_data, new_Sdtp), use.names = TRUE, fill = TRUE)
+combined_Sdtp_f <- unique(combined_Sdtp)
+setorder(combined_Sdtp_f, CupSampleID)
+#
+#
+```
+
+```{r Survey count data}
+#
+Months <- unique(format(seq(Start_date, End_date, by = "day"), "%m"))
+Survey_month <- any(c("03", "06", "09", "12") %in% Months)
+if(Survey_month){
+  ##SRVY - new data
+  #Combined table of parameters
+  new_Srvy <- rbind((hsdbSrvy %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), dboSrvy) %>% 
+    #Filter data to desired columns needed for summary
+    dplyr::select(FixedLocationID, QuadratID:NumDrills, Comments, NumLegal) %>% # 
+    #Arrange by station
+    arrange(match(FixedLocationID, c(LocationID_order))) %>%
+    dplyr::select(-FixedLocationID) %>%
+    as.data.table()
+  #
+  #
+  #Load existing data, and append new data
+  Srvy_data <- as.data.table(readWorkbook(data_file_location, sheet = 'Survey', detectDates = TRUE)) %>%
+    dplyr::select(QuadratID:NumLegal)
+  #
+  combined_Srvy <- rbindlist(list(Srvy_data, new_Srvy), use.names = TRUE, fill = TRUE)
+  combined_Srvy_f <- unique(combined_Srvy)
+  setorder(combined_Srvy_f, QuadratID)
+} else {
+    print("Survey month not included in data request. No survey update needed.")
+  }
+#
+#
+```
+
+```{r Excel file output}
+#
+#Load workbook of existing data
+Summary_wb <- loadWorkbook(data_file_location)
+#
+#Overwrite each sheet with new data appended to old
+  writeData(Summary_wb, "SampleEventWQ", combined_WQ_f, startRow = 2, colNames = FALSE)
+  print("WQ data updated")
+  writeData(Summary_wb, "Recruitment", combined_Rcrt_f, startRow = 2, colNames = FALSE)
+  print("Recruitment data updated")
+  writeData(Summary_wb, "Dermo", combined_Dermo_f, startRow = 2, colNames = FALSE)
+  print("Dermo data updated")
+  writeData(Summary_wb, "Sediment", combined_Sdtp_f, startRow = 2, colNames = FALSE)
+  print("Sediment data updated")
+  if(Survey_month){writeData(Summary_wb, "Survey", combined_Srvy_f, startRow = 2, colNames = FALSE)
+    print("Survey data updated")}
+  #Save workbook
+  saveWorkbook(Summary_wb, data_file_location, overwrite=TRUE)
+```

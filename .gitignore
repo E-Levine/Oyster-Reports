@@ -35,13 +35,20 @@ po/*~
 rsconnect/
 # RMarkdown output
 *.html
-# Excel output
+
+# Excel and Word outputs
 CERP/*.xlsx
 DMFM/*.xlsx
 FLTIG/*.xlsx
 NFWF/*.xlsx
 PBC/*.xlsx
 *.docx
-*.Rproj
-Oyster-Reports.Rproj
-*.xlsx
+Data/*Raw*.xlsx
+!Data/.gitkeep
+Presentations/*.xlsx
+
+
+
+#DBHydro files
+DBHYDRO/Local_data/*
+!DBHYDRO/Local_data//.gitkeep

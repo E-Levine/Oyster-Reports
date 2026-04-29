@@ -1,0 +1,250 @@
+---
+title: "Davis_OIMMP_FL-TIG_202604"
+output: html_document
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportYear <- "2025" # Sets Year of Report
+Database = "OysterLocalMD20260323"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+
+```
+
+```{r SetUp, echo = FALSE, warning = FALSE, message = FALSE}
+############
+# 01
+# Load necessary R packages
+library(tidyverse) # Loads a number of very useful packages
+library(odbc) # Necessary for loading data from SQL Server
+library(DBI) # Necessary for loading data from SQL Server
+library(dbplyr) # Necessary for loading data from SQL Server
+library(lubridate) # Makes dealing with dates easier
+library(knitr) # Allows Dynamic Report generation (knit)
+library(rmarkdown) # Necessary for working with RMarkdown files
+library(ggpubr) # Increases the flexibility of ggplot2 generated plots
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales) # Improves scales in plot labels
+library(plotrix) # needed for standard error calculations
+library(glmmTMB) # needed for modeled means
+library(DHARMa) # needed for model diagnostics
+library(performance) # needed for model diagnostics
+library(AICcmodavg) # needed for model selection
+library(MuMIn) # needed for model selection
+library(emmeans) # needed to extract modeled means and CI
+library(openxlsx) # needed to read and write to Excel
+
+# Set background variables
+ReportStart <- as.Date(paste0(ReportYear, "-01-01"))
+ReportEnd <- as.Date(paste0(ReportYear, "-12-31"))
+Estuaries <- c("PE", "SA")
+
+# Set data ranges
+Years_WQ <- seq(2022, ReportYear)
+
+Years_Recruitment <- seq(2022, ReportYear)
+
+
+# Set important lists
+lv3 <- c("West", "North", "East")
+
+# Configure chunks
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE)
+
+options(scipen = 999) # force outputs to not use scientific notation
+
+############
+############
+
+############
+############
+# 02
+# Create all Functions necessary for Report
+############
+############
+# 03
+# Set formatting for text and figures
+#Base formatting for figure consistency
+
+```
+
+``` {r SetUp Data Load}
+############
+# 04
+# Load Data
+
+# Load Database Data
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server", 
+                 Server = Server,
+                 Database = Database,
+                 Authentication = "ActiveDirectoryIntegrated")
+
+# Load Fixed location information
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+# Load Water Quality Data
+hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+# Load Recruitment Data
+hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+# Disconnect from database
+DBI::dbDisconnect(con)
+
+############
+############
+
+############
+############
+# 05
+# Apply basic filters to data
+# Filter data frames so that only data collected for inclusion in the Report are present.
+
+### Location Data ###
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched),
+         SectionName = case_when(
+           SectionName == "W" ~ "West",
+           SectionName == "N" ~ "North",
+           SectionName == "E" ~ "East",
+           TRUE ~ SectionName)) %>%
+  select(FixedLocationID,
+         Estuary,
+         SectionName,
+         StationName,
+         ParcelName,
+         StationNumber,
+         StationNameNumber
+         ) %>% 
+  distinct()
+
+### Recruitment Data ###
+# Recruitment
+Recruitment <- hsdbRecruitment %>%
+  filter(ShellPosition %in% c(2, 3, 4, 5, 8, 9, 10, 11)) %>%
+  mutate(DeployedDate = as.Date(DeployedDate), 
+         RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+         FixedLocationID = substring(ShellID, 19, 22), 
+         NumDays = as.numeric(RetDate - DeployedDate),
+         Year = year(RetDate),
+         Month = month(RetDate)
+         ) %>%
+  left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+  mutate(Estuary = as.factor(Estuary),
+         SectionName = as.factor(SectionName),
+         Yearf = as.factor(Year),
+         Monthf = as.factor(Month)
+  )
+###
+
+### Remove intermediate data frames
+# rm(dboFixedLocations, hsdbRecruitment)
+###
+
+```
+
+``` {r Model Selection}
+### View data distributions
+# By estuary
+hist(subset(Recruitment, Estuary == "PE")$NumBottom)
+hist(subset(Recruitment, Estuary == "SA")$NumBottom)
+### Both look to need nbinom2
+# Best treated separately
+
+pe2 <- glmmTMB(NumBottom ~ SectionName + Yearf + Monthf + (1 | FixedLocationID) +
+    offset(log(NumDays)),
+  family = nbinom2,
+  data = Recruitment,
+  subset = Estuary == "PE")
+
+summary(pe2)
+simulateResiduals(pe2, plot = TRUE)
+acf(residuals(pe2, type = "pearson"))
+r2(pe2)
+
+
+
+sa2 <- glmmTMB(NumBottom ~ SectionName + Yearf + Monthf + (1 | FixedLocationID) +
+    offset(log(NumDays)),
+  family = nbinom2,
+  data = Recruitment,
+  subset = Estuary == "SA")
+
+summary(sa2)
+simulateResiduals(sa2, plot = TRUE)
+acf(residuals(sa2, type = "pearson"))
+r2(sa2)
+
+```
+
+``` {r Data extraction }
+# Predict standardized monthly settlement rates
+# Rate units are spat per shell per day
+#Use 28 days because that gives values comparable to your historic method:
+
+#1. Predicted Means + 95% CI for All Years (Section × Month)
+# Make sure Month, Year, SectionName are factors
+# PE
+emm_PE_ALL <- emmeans(
+  pe2,
+  specs = ~ Yearf * SectionName * Monthf,
+  at = list(
+    NumDays = 28
+  ),
+  type = "response"
+)
+emm_PE_ALL <- as.data.frame(emm_PE_ALL)
+emm_PE_ALL$asymp.UCL[is.infinite(emm_PE_ALL$asymp.UCL)] <- 0 # replace any overruns to 0
+
+# SA
+emm_SA_ALL <- emmeans(
+  sa2,
+  specs = ~ Yearf * SectionName * Monthf,
+  at = list(
+    NumDays = 28
+  ),
+  type = "response"
+)
+emm_SA_ALL <- as.data.frame(emm_SA_ALL)
+emm_SA_ALL$asymp.UCL[is.infinite(emm_SA_ALL$asymp.UCL)] <- 0 # replace any overruns to 0
+
+############# Raw means and SD (28-day standardized)
+RecRaw_ALL <- Recruitment %>%
+  mutate(RecRateRaw = NumBottom / (NumDays / 28),
+         YRMON = paste0(Year, Month)) %>%
+  group_by(Estuary,
+           SectionName,
+           YRMON = substring(SampleEventID, 8, 13)) %>%
+  summarise(RecRateMeanRAW = mean(RecRateRaw, na.rm = TRUE),
+            RecRateSDRAW = sd(RecRateRaw, na.rm = TRUE))
+
+
+
+```
+
+``` {r Data Export }
+# Export data to Excel
+mydatasets <- list('Raw Means' = RecRaw_ALL, 
+                   'PE Means' = emm_PE_ALL,
+                   'SA Means' = emm_SA_ALL
+                   )
+write.xlsx(mydatasets, "Davis_OIMMP_FL-TIG_202604_Stats.xlsx", colNames = TRUE, rowNames = FALSE)
+
+
+
+
+
+
+```
