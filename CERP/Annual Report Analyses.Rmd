@@ -1,5 +1,5 @@
 ---
-title: "Annual Report Analyses Setup"
+title: "Annual Report Analyses"
 author: "EWilliams"
 date: "`r Sys.Date()`"
 output: html_document
@@ -227,6 +227,7 @@ rm(files, flow_list, flow_list_long)
 #
 ```
 
+<h1>--- Survey analyses --- </h1>
 ```{r Survey analyses}
 #
 ## Testing for differences between sites and months
@@ -235,6 +236,26 @@ rm(files, flow_list, flow_list_long)
 Counts2 <- Counts_df %>% 
   filter(SurvCode == 1 | SurvCode == 2) %>% droplevels() %>%
   arrange(Site, Station, SurvCode, time)
+#
+# Raw means
+Surv_Site_means <- Counts2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMeanLive = mean(NumLive, na.rm = T), 
+    RawMeanDR = mean(DeadRatio, na.rm = T))
+#
+Surv_Month_means <- Counts2 %>% 
+  group_by(SurvCode) %>% 
+  summarise(
+    RawMeanLive = mean(NumLive, na.rm = T), 
+    RawMeanDR = mean(DeadRatio, na.rm = T))
+#
+Surv_SiteMonth_means <- Counts2 %>% 
+  group_by(SurvCode, Site) %>% 
+  summarise(
+    RawMeanLive = mean(NumLive, na.rm = T), 
+    RawMeanDR = mean(DeadRatio, na.rm = T))
+#
 #
 ### Live counts:
 # Fit best model: No random, NB
@@ -303,7 +324,8 @@ Live_cld_site_table <- as.data.frame(Live_cld_site) %>%
     Group = .group
   )
 #
-left_join(Live_site_table, Live_cld_site_table) %>% gt()
+left_join(Live_site_table, Live_cld_site_table) %>% 
+  left_join(Surv_Site_means %>% dplyr::select(-RawMeanDR)) %>% gt()
 Live_cld_site_table %>% gt()
 #
 Live_cld_int <- multcomp::cld(
@@ -319,7 +341,8 @@ Live_cld_int_table <- as.data.frame(Live_cld_int) %>%
     Group = .group
   )
 #
-left_join(Live_int_table, Live_cld_int_table) %>% gt()
+left_join(Live_int_table, Live_cld_int_table) %>% 
+  left_join(Surv_SiteMonth_means %>% dplyr::select(-RawMeanDR)) %>% gt()
 Live_cld_int_table %>% gt()
 #
 #
@@ -390,7 +413,8 @@ Dead_cld_site_table <- as.data.frame(Dead_cld_site) %>%
     Group = .group
   )
 #
-left_join(Dead_site_table, Dead_cld_site_table) %>% gt()
+left_join(Dead_site_table, Dead_cld_site_table) %>% 
+  left_join(Surv_Site_means %>% dplyr::select(-RawMeanLive)) %>% gt()
 Dead_cld_site_table %>% gt()
 #
 Dead_cld_int <- multcomp::cld(
@@ -406,7 +430,8 @@ Dead_cld_int_table <- as.data.frame(Dead_cld_int) %>%
     Group = .group
   )
 #
-left_join(Dead_int_table, Dead_cld_int_table) %>% gt()
+left_join(Dead_int_table, Dead_cld_int_table) %>% 
+  left_join(Surv_SiteMonth_means %>% dplyr::select(-RawMeanLive)) %>% gt()
 Dead_cld_int_table %>% gt()
 #
 #
@@ -417,8 +442,22 @@ SH2 <- SH_df %>%
   group_by(Site, time, SurvCode, Station, Quadrat) %>%
   # Calculate mean SH per quadrat 
   summarise(MeanSH = mean(ShellHeight, na.rm = T), .groups = "drop") %>%
-  
   arrange(Site, SurvCode, time, Station)
+#
+SH_Site_means <- SH2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(MeanSH, na.rm = T))
+#
+SH_Month_means <- SH2 %>% 
+  group_by(SurvCode) %>% 
+  summarise(
+    RawMean = mean(MeanSH, na.rm = T))
+#
+SH_SiteMonth_means <- SH2 %>% 
+  group_by(SurvCode, Site) %>% 
+  summarise(
+    RawMeanSH = mean(MeanSH, na.rm = T))
 #
 # Fit best model: No random, NB
 Shel_model <- MASS::glm.nb(MeanSH ~ Site * SurvCode, data = SH2)
@@ -486,7 +525,8 @@ Shel_cld_site_table <- as.data.frame(Shel_cld_site) %>%
     Group = .group
   )
 #
-left_join(Shel_site_table, Shel_cld_site_table) %>% gt()
+left_join(Shel_site_table, Shel_cld_site_table) %>% 
+  left_join(SH_Site_means) %>% gt()
 Shel_cld_site_table %>% gt()
 #
 Shel_cld_int <- multcomp::cld(
@@ -502,7 +542,8 @@ Shel_cld_int_table <- as.data.frame(Shel_cld_int) %>%
     Group = .group
   )
 #
-left_join(Shel_int_table, Shel_cld_int_table) %>% gt()
+left_join(Shel_int_table, Shel_cld_int_table) %>% 
+  left_join(SH_SiteMonth_means) %>% gt()
 Shel_cld_int_table %>% gt()
 #
 #
@@ -510,6 +551,7 @@ Shel_cld_int_table %>% gt()
 #
 ```
 
+<h1>--- Dermo analyses --- </h1>
 ```{r Dermo analyses}
 #
 #
@@ -522,6 +564,14 @@ Dermo2 <- Dermo_df %>%
             .groups = "drop") %>%
   mutate(DermoPrev = Infected/N) %>%
   arrange(Site, Station, AnalysisDate, time) 
+#
+Dermo_Site_means <- Dermo2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMeanInt = mean(Infected, na.rm = T),
+    RawMeanPct = mean(DermoPrev, na.rm = T))
+#
+#
 #
 ### Intensity:
 # Fit best model: No random, NB
@@ -590,7 +640,8 @@ DInt_cld_site_table <- as.data.frame(DInt_cld_site) %>%
     Group = .group
   )
 #
-left_join(DInt_site_table, DInt_cld_site_table) %>% gt()
+left_join(DInt_site_table, DInt_cld_site_table) %>% 
+  left_join(Dermo_Site_means) %>% dplyr::select(-RawMeanPct) %>% gt()
 DInt_cld_site_table %>% gt()
 #
 DInt_cld_int <- multcomp::cld(
@@ -606,7 +657,8 @@ DInt_cld_int_table <- as.data.frame(DInt_cld_int) %>%
     Group = .group
   )
 #
-left_join(DInt_int_table, DInt_cld_int_table) %>% gt()
+left_join(DInt_int_table, DInt_cld_int_table) %>% 
+  gt()
 DInt_cld_int_table %>% gt()
 #
 #
@@ -677,7 +729,8 @@ DPre_cld_site_table <- as.data.frame(DPre_cld_site) %>%
     Group = .group
   )
 #
-left_join(DPre_site_table, DPre_cld_site_table) %>% gt()
+left_join(DPre_site_table, DPre_cld_site_table) %>% 
+  left_join(Dermo_Site_means) %>% dplyr::select(-RawMeanInt) %>% gt()
 DPre_cld_site_table %>% gt()
 #
 DPre_cld_int <- multcomp::cld(
@@ -700,6 +753,7 @@ DPre_cld_int_table %>% gt()
 #
 ```
 
+<h1>--- Recruitment analyses --- </h1>
 ```{r Recruitment analyses}
 #
 #
@@ -711,7 +765,22 @@ Rcrt2 <- Rcrt_df %>%
   summarise(BottomMonth_mean = mean(BottomMonth, na.rm = T), .groups = "drop") %>%
   arrange(Site, Station, AnalysisDate, time)
 #
-### Intensity:
+Rcrt_Site_means <- Rcrt2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(BottomMonth_mean, na.rm = T))
+#
+Rcrt_Month_means <- Rcrt2 %>% 
+  group_by(AnalysisDate) %>% 
+  summarise(
+    RawMean = mean(BottomMonth_mean, na.rm = T))
+#
+Rcrt_SiteMonth_means <- Rcrt2 %>% 
+  group_by(AnalysisDate, Site) %>% 
+  summarise(
+    RawMean = mean(BottomMonth_mean, na.rm = T))
+#
+#
 # Fit best model: No random, NB
 Rcrt_model <- MASS::glm.nb(BottomMonth_mean ~ Site * AnalysisDate, data = Rcrt2)
 #
@@ -778,8 +847,11 @@ Rcrt_cld_site_table <- as.data.frame(Rcrt_cld_site) %>%
     Group = .group
   )
 #
-left_join(Rcrt_site_table, Rcrt_cld_site_table) %>% gt()
+left_join(Rcrt_site_table, Rcrt_cld_site_table) %>% 
+  left_join(Rcrt_Site_means) %>% gt()
 Rcrt_cld_site_table %>% gt()
+#
+Rcrt_Month_means %>% gt()
 #
 Rcrt_cld_int <- multcomp::cld(
   emmeans(Rcrt_model, ~ Site * AnalysisDate),
@@ -794,7 +866,8 @@ Rcrt_cld_int_table <- as.data.frame(Rcrt_cld_int) %>%
     Group = .group
   )
 #
-left_join(Rcrt_int_table, Rcrt_cld_int_table) %>% gt()
+left_join(Rcrt_int_table, Rcrt_cld_int_table) %>% 
+  left_join(Rcrt_SiteMonth_means) %>% gt()
 Rcrt_cld_int_table %>% gt()
 #
 #
@@ -802,11 +875,27 @@ Rcrt_cld_int_table %>% gt()
 #
 ```
 
+<h1>--- Salinity analyses --- </h1>
 ```{r Salinity analyses}
 #
 #
 Sal2 <- Sal_df %>% 
   arrange(Site, Station, AnalysisDate, time)
+#
+Sal_Site_means <- Sal2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(Sal, na.rm = T))
+#
+Sal_Month_means <- Sal2 %>% 
+  group_by(AnalysisDate) %>% 
+  summarise(
+    RawMean = mean(Sal, na.rm = T))
+#
+Sal_SiteMonth_means <- Sal2 %>% 
+  group_by(AnalysisDate, Site) %>% 
+  summarise(
+    RawMeanSH = mean(Sal, na.rm = T))
 #
 # Fit best model: No random, NB
 Sali_model <- MASS::glm.nb(Sal ~ Site * AnalysisDate, data = Sal2)
@@ -874,7 +963,8 @@ Sali_cld_site_table <- as.data.frame(Sali_cld_site) %>%
     Group = .group
   )
 #
-left_join(Sali_site_table, Sali_cld_site_table) %>% gt()
+left_join(Sali_site_table, Sali_cld_site_table) %>% 
+  left_join(Sal_Site_means) %>% gt()
 Sali_cld_site_table %>% gt()
 #
 Sali_cld_int <- multcomp::cld(
@@ -890,7 +980,10 @@ Sali_cld_int_table <- as.data.frame(Sali_cld_int) %>%
     Group = .group
   )
 #
-left_join(Sali_int_table, Sali_cld_int_table) %>% gt()
+Sal_Month_means %>% gt()
+#
+left_join(Sali_int_table, Sali_cld_int_table) %>% 
+  left_join(Sal_SiteMonth_means) %>% gt()
 Sali_cld_int_table %>% gt()
 #
 #
@@ -898,11 +991,27 @@ Sali_cld_int_table %>% gt()
 #
 ```
 
+<h1>--- Flow analyses --- </h1>
 ```{r Flow analyses}
 #
 #
 Flow2 <- flow_df %>% 
   arrange(Year, Site, AnalysisDate, time)
+#
+Flow_Site_means <- Flow2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(Flow, na.rm = T))
+#
+Flow_Year_means <- Flow2 %>% 
+  group_by(Year) %>% 
+  summarise(
+    RawMean = mean(Flow, na.rm = T))
+#
+Flow_SiteMonth_means <- Flow2 %>% 
+  group_by(Year, Site) %>% 
+  summarise(
+    RawMeanSH = mean(Flow, na.rm = T))
 #
 # Fit best model: No random, NB
 Flow_model <- MASS::glm.nb(Flow ~ Site * Year, data = Flow2)
@@ -970,7 +1079,8 @@ Flow_cld_site_table <- as.data.frame(Flow_cld_site) %>%
     Group = .group
   )
 #
-left_join(Flow_site_table, Flow_cld_site_table) %>% gt()
+left_join(Flow_site_table, Flow_cld_site_table) %>% 
+  left_join(Flow_Site_means) %>% gt()
 Flow_cld_site_table %>% gt()
 #
 Flow_cld_year <- multcomp::cld(
@@ -986,7 +1096,8 @@ Flow_cld_year_table <- as.data.frame(Flow_cld_year) %>%
     Group = .group
   )
 #
-left_join(Flow_surv_table, Flow_cld_year_table) %>% gt()
+left_join(Flow_surv_table, Flow_cld_year_table) %>% 
+  left_join(Flow_Year_means) %>% gt()
 Flow_cld_year_table %>% gt()
 #
 Flow_cld_int <- multcomp::cld(
@@ -1002,7 +1113,8 @@ Flow_cld_int_table <- as.data.frame(Flow_cld_int) %>%
     Group = .group
   )
 #
-left_join(Flow_int_table, Flow_cld_int_table) %>% gt()
+left_join(Flow_int_table, Flow_cld_int_table) %>% 
+  left_join(Flow_SiteMonth_means) %>% gt()
 Flow_cld_int_table %>% gt()
 #
 #
