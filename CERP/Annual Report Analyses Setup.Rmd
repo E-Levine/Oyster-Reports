@@ -1,0 +1,1003 @@
+---
+title: "Annual Report Analyses"
+author: "EWilliams"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  Start_date: "2024-10-01"
+  End_date:   "2025-09-30"
+  Excel_name: "CERP_2026"
+
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    input = inputFile, 
+    encoding = encoding,
+    output_file = paste0(substr(inputFile, 1, nchar(inputFile)-4), " - ", with(rmarkdown::yaml_front_matter(inputFile), paste(params$Excel_name)), '.html')
+    ) 
+      })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#
+Summary_Excel_file_name <- params$Excel_name
+Estuary_code <- c("CR", "SL", "LX")
+Start_date <- as.Date(params$Start_date)
+End_date <- as.Date(params$End_date)
+Flow_sites <- c("SL", "LX", "CR")
+sheet_lookup <- c(SL = "SLESum", LX = "LOXSum", CR = "S79")
+#
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx, readxl,        #Excel
+  lubridate, zoo,         #Dates
+  glmmTMB, purrr, emmeans, car, broom, multcomp, #Analyses
+  knitr, kableExtra, scales, gt, gtExtras,
+  install = TRUE)
+#
+#
+# Distributions to test:
+dists <- list(
+  nb  = nbinom2,
+  poi = poisson,
+  norm = gaussian
+)
+dists_Sal <- list(
+  nb  = nbinom2,
+  poi = poisson,
+  norm = gaussian,
+  Gamma = gamma,
+  Logn = lognormal
+)
+#
+#
+```
+
+```{r Formulas, include = FALSE}
+#
+# Function to handle formula construction, errors, and output of results
+fit_model <- function(model_formula, dist_name, dist_family, rand_name, rand_formula, data) {
+  
+  # Setup Defaults
+  model <- NULL
+  stat_val  <- NA_real_
+  df_val    <- NA_real_
+  p_val     <- NA_real_
+  conv_status <- FALSE # Default to failed
+  
+  # Formula and dispersion
+  rand_string <- if (rand_name == "none") {""} else {gsub("^~", "", deparse(rand_formula))}
+  
+  formula_text <- paste(model_formula, if (rand_string != "") paste("+", rand_string) else "")
+  
+  full_formula <- as.formula(formula_text)
+  
+  # Only use ~0 for Gaussian. For nbinom2/poisson, we MUST use ~1.
+  disp_form <- if (grepl("ar1", rand_name, ignore.case = TRUE) && dist_name == "gaussian") ~ 0 else ~ 1
+
+
+  tryCatch({
+    
+    model <- glmmTMB(
+      formula = full_formula,
+      family = dist_family,
+      data = data,
+      dispformula = disp_form,
+      REML = TRUE #to match SAS default
+    )
+
+    # Convergence Check (Crucial for Mixed Models) - Checks if the Hessian is positive definite
+    if (rand_name == "none") {
+      conv_status <- TRUE  # no random effects → treat as converged
+      } else if (!is.null(model$sdr) && model$sdr$pdHess) {
+        conv_status <- TRUE 
+      } else {
+      message(paste("NON-CONVERGENCE:", dist_name, rand_name))
+      }
+    
+    # SAS-Style Extraction (KR for Gaussian, Wald for others)
+    if (conv_status) {
+      if (dist_name == "gaussian") {
+        tests3 <- car::Anova(model, type = 3, test.statistic = "F")
+        chisq_val <- tests3[nrow(tests3), "F"]
+        kr_ddf <- tryCatch(glmmTMB::dof_KR(model), error = function(e) NULL)
+        df_val   <- if(!is.null(kr_ddf)) kr_ddf[length(kr_ddf)] else tests3[nrow(tests3), "Df"]
+        p_val    <- tests3[nrow(tests3), "Pr(>F)"]
+      } else {
+        tests3 <- car::Anova(model, type = 3, test.statistic = "Chisq")
+        chisq_val <- tests3[nrow(tests3), "Chisq"]
+        df_val   <- tests3[nrow(tests3), "Df"]
+        p_val    <- tests3[nrow(tests3), "Pr(>Chisq)"]
+      }
+    } 
+    
+    lsmeans <- tryCatch(
+      emmeans::emmeans(model, ~ Site * SurvCode, type = "response"),
+      error = function(e) NULL
+    )
+    
+    diffs <- tryCatch(
+      if (!is.null(lsmeans)) pairs(lsmeans) else NULL,
+      error = function(e) NULL
+    )
+    
+    list(
+      dist = dist_name,
+      random = rand_name,
+      model = model,
+      AIC = if(conv_status) AIC(model) else NA_real_,
+      BIC = if(conv_status) BIC(model) else NA_real_,
+      logLik = as.numeric(logLik(model)),
+      converged = conv_status,
+      statistic = if(conv_status) chisq_val else NA_real_, 
+      df = if(conv_status) df_val else NA_real_,
+      p.value = if(conv_status) p_val else NA_real_,       
+      tests3 = if(conv_status) tests3 else NA_real_,
+      lsmeans = lsmeans,
+      diffs = diffs
+    )
+    
+  }, error = function(e) {
+    
+    message(paste("FAILED:", dist_name, rand_name, "-", e$message))
+    
+    list(
+      dist = dist_name,
+      random = rand_name,
+      model = NULL,
+      AIC = NA_real_,
+      BIC = NA_real_,
+      logLik = NA_real_,
+      statistic = NA_real_,
+      df = NA_real_,
+      p.value = NA_real_,
+      tests3 = NULL,
+      lsmeans = NULL,
+      diffs = NULL
+    )
+  })
+}
+#
+## Work flow: 
+# Use fit_model to chose best distribution
+# Fit best model using lmer to get SAS style output
+#   If NB but no random - lme4::glm.nb
+#   If NB with random - MASS::glmer.nb
+#
+#
+```
+
+```{css}
+p {
+font-size: 12pt;
+}
+
+caption {
+  color: black;
+  font-weight: bold;
+  font-size: 14;
+  text-indent: 5%;
+} 
+
+h1 {
+font-size: 21pt;
+font-weight: bold;
+}
+
+h2 {
+font-size: 17pt;
+font-weight: bold;
+}
+
+h3 {
+font-size: 13pt;
+font-style: italic;
+text-decoration: underline;
+}
+
+h4 {
+  color: black;
+  font-weight: bold;
+  font-size: 17;
+  text-indent: 5%;
+}
+```
+
+```{r Data gather from raw data file, include = FALSE}
+#
+# Survey data set up:
+Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE, check.names = TRUE) %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate >= (Start_date) & RetDate <= (End_date)) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Remove TIG samples in Winter/Summer
+  filter(!(
+      grepl("Winter|Summer", Survey) &
+      Site %in% c("CR-E", "CR-W") &
+      Station %in% c(1, 4)
+    )) %>%
+  # Calculate Live/Dead per meter2
+  mutate(
+    Live = NumLive * 4,
+    Dead = NumDead * 4,
+    Total = case_when(grepl("Spring|Fall", Survey) ~ Live+Dead, TRUE ~ NA),
+    SurvCode = as.factor(case_when(
+      Survey == "Winter 2024" ~ 0.5,
+      Survey == "Spring 2025" ~ 1,
+      Survey == "Summer 2025" ~ 1.5,
+      Survey ==   "Fall 2025" ~ 2,
+      TRUE ~ NA))) %>%
+  # Make sure columns are factors
+  mutate(across(c(Site, Station), as.factor)) %>%
+  mutate(time = as.numeric(as.factor(SurvCode)),
+         DeadRatio = case_when(Total == 0 & Dead == 0 ~ 0, 
+                               Total == 0 ~ NA, 
+                               TRUE ~ Dead/Total)) %>%
+  mutate(Live = ifelse(Live < 0, NA, Live),
+         Dead = ifelse(Dead < 0, NA, Dead)) %>% 
+    arrange(Site, Station, SurvCode)
+#
+#
+## Srvy SHs
+SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>% mutate(RetDate = as.Date(RetDate, "%m/%d/%Y")) %>% 
+  subset(RetDate > (Start_date) & RetDate < (End_date)) %>%
+  mutate(across(ShellHeight, ~ replace_na(.x, -999))) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Remove TIG samples in Winter/Summer
+  filter(!(
+      str_detect(Survey %||% "", "Winter|Summer") &
+      Site %in% c("CR-E", "CR-W") &
+      Station %in% c(1, 4)
+    )) %>%
+  mutate(SurvCode = as.factor(case_when(
+    Survey == "Winter 2024" ~ 0.5,
+    Survey == "Spring 2025" ~ 1,
+    Survey == "Summer 2025" ~ 1.5,
+    Survey ==   "Fall 2025" ~ 2,
+    TRUE ~ NA_real_))) %>%
+  # Make sure columns are factors
+  mutate(across(c(Site, Station), as.factor)) %>%
+  mutate(ShellHeight = ifelse(ShellHeight < 0, NA, ShellHeight),
+         time = as.numeric(as.factor(SurvCode)))
+#
+#
+## Dermo
+Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.numeric(as.factor(AnalysisDate))) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Determine mean dermo and deamo presence
+  mutate(MeanDermo = rowMeans(across(c(DermoMantle, DermoGill)), na.rm = T),
+         DermoSum = rowSums(across(c(DermoMantle, DermoGill)), na.rm = T)) %>%
+  mutate(DermoSum = case_when(DermoSum > 0 ~ 1, 
+                              DermoSum == 0 ~ 0, 
+                              TRUE ~ NA)) %>%
+  mutate(across(c(Site, Station), as.factor))
+#
+#
+## Rcrt
+Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.numeric(as.factor(AnalysisDate))) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  # Remove spat for top and bottom shells
+  mutate(Bottom = case_when(grepl("SL|LX", Site) & Shell %in% c(1, 6, 7, 12) ~ NA_real_, 
+                            Site %in% c("CR-E", "CR-W") & Shell %in% c(1, 12) ~ NA_real_, 
+                            TRUE ~ NumBottom)) %>%
+  mutate(BottomMonth = Bottom/(DaysDeployed/28)) %>%
+  mutate(across(c(Site, Station, Rep, Shell), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## Salinity
+Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
+  dplyr::select(Year:Station, Sal) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.numeric(as.factor(AnalysisDate))) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% c("SL-N", "SL-C", "SL-S", "LX-N", "LX-S", "CR-E", "CR-W")) %>%
+  mutate(across(c(Site, Station), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## FLOW
+# Compile file names and load into one df
+files <- file.path("../DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
+flow_list <- map2(
+  files,
+  sheet_lookup[Flow_sites],
+  ~ read_excel(.x, sheet = .y)
+)
+flow_list_long <- imap(flow_list, ~
+  .x %>%
+    dplyr::select(-any_of(c("DBKEY", "Site", "Data_Station"))) %>%   # safely remove if present
+    pivot_longer(
+      cols = -c(Analysis_Date, Date, Estuary),
+      names_to = "Station",
+      values_to = "Flow"
+    )
+)
+flow_df <- bind_rows(flow_list_long) %>%
+  mutate(Year = format(Analysis_Date, format = "%Y"),
+         AnalysisDate = as.factor(update(Analysis_Date, mday = 15)),
+         time = as.numeric(as.factor(AnalysisDate))) %>%
+  filter(Station %in% c("SLESum", "LOXSum", "Flow")) %>%
+  rename("Site" = Estuary) %>%
+  mutate(across(c(Site, Station, Year), as.factor)) 
+
+#
+rm(files, flow_list, flow_list_long)
+#Data selection and cleaning follows below by type of data being assessed.
+```
+
+```{r Survey analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+# Limit to spring and fall
+Counts2 <- Counts_df %>% 
+  filter(!is.na(Total)) %>%
+  arrange(Site, Station, SurvCode)
+#
+### Live counts:
+# random structure formulas
+rand_structs <- list(
+  none = ~ 0,
+  station = ~ (1 | Site/Station),
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station),
+  extra = ~ Site * time + (1 + time | Site/Station) #Allows effect of SrvyCode to vary by station
+)
+#
+## Run all combinations to test
+Live_results <- cross_df(list(
+  dist_name = names(dists),
+  rand_name = names(rand_structs)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists[[.x]]),
+    rand_string = rand_structs[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("Live ~ Site * SurvCode", ..1, ..2, ..3, ..4, Counts2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Live_model_summary <- Live_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "extra" ~ "2 Random, w/o AR(1)",
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Live_best_aic <- min(Live_model_summary$ChiSq_df, na.rm = TRUE)
+Live_comparison_table <- Live_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Live_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Live_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Live_comparison_table %>% gt() %>% 
+  tab_header(title = "Live Counts") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+### Dead counts:
+## Run all combinations to test - only binomial dist since ratio
+Dead_results <- cross_df(list(
+  dist_name = "b",
+  rand_name = names(rand_structs)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ binomial),
+    rand_string = rand_structs[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("DeadRatio ~ Site * SurvCode", ..1, ..2, ..3, ..4, Counts2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Dead_model_summary <- Dead_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name
+  ) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+#
+Dead_best_aic <- min(Dead_model_summary$ChiSq_df, na.rm = TRUE)
+Dead_comparison_table <- Dead_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Dead_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Dead_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Dead_comparison_table %>% gt() %>% 
+  tab_header(title = "Dead Ratios") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+```
+
+```{r Survey SHs analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+# Limit to spring and fall
+SH2 <- SH_df %>% 
+  filter(SurvCode == 1 | SurvCode == 2) %>% droplevels() %>%
+  group_by(Site, time, SurvCode, Station, Quadrat) %>%
+  # Calculate mean SH per quadrat 
+  summarise(MeanSH = mean(ShellHeight, na.rm = T), .groups = "drop") %>%
+  arrange(Site, SurvCode, time, Station)
+#
+# random structure formulas
+rand_structs <- list(
+  none = ~ 0,
+  station = ~ (1 | Site/Station),
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station),
+  extra = ~ Site * time + (1|Site/Station)
+)
+#
+## Run all combinations to test
+SH_results <- cross_df(list(
+  dist_name = names(dists),
+  rand_name = names(rand_structs)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists[[.x]]),
+    rand_string = rand_structs[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("MeanSH ~ Site * SurvCode", ..1, ..2, ..3, ..4, SH2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+SH_model_summary <- SH_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+SH_best_aic <- min(SH_model_summary$ChiSq_df, na.rm = TRUE)
+SH_comparison_table <- SH_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == SH_best_aic, 1, 0),
+    Difference = round(ChiSq_df - SH_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+SH_comparison_table %>% gt() %>% 
+  tab_header(title = "Survey shell heights") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Dermo analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+#
+Dermo2 <- Dermo_df %>% 
+  # Calculate mean dermo per month per station
+  group_by(AnalysisDate, time, Site, Station) %>%
+  summarise(MeanDermo = mean(MeanDermo, na.rm = T),
+            Infected = sum(DermoSum),
+            N = n(),
+            .groups = "drop") %>%
+  mutate(DermoPrev = Infected/N) %>%
+  arrange(Site, Station, AnalysisDate, time)
+#
+### Dermo Intensity
+# random structure formulas
+rand_structs_D <- list(
+  none = ~ 0,
+  station = ~ (1 | Site/Station),
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station)
+)
+#
+## Run all combinations to test
+DInt_results <- cross_df(list(
+  dist_name = names(dists),
+  rand_name = names(rand_structs_D)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists[[.x]]),
+    rand_string = rand_structs_D[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("MeanDermo ~ Site * AnalysisDate", ..1, ..2, ..3, ..4, Dermo_df)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+DInt_model_summary <- DInt_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+DInt_best_aic <- min(DInt_model_summary$ChiSq_df, na.rm = TRUE)
+DInt_comparison_table <- DInt_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == DInt_best_aic, 1, 0),
+    Difference = round(ChiSq_df - DInt_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+DInt_comparison_table %>% gt() %>% 
+  tab_header(title = "Dermo Intensity") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+### Dermo Prevalence:
+## Run all combinations to test - only binomial dist since ratio
+DPre_results <- cross_df(list(
+  dist_name = "b",
+  rand_name = names(rand_structs_D)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ binomial),
+    rand_string = rand_structs_D[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("DermoPrev ~ Site * AnalysisDate", ..1, ..2, ..3, ..4, Dermo2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+DPre_model_summary <- DPre_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name
+  ) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+#
+DPre_best_aic <- min(DPre_model_summary$ChiSq_df, na.rm = TRUE)
+DPre_comparison_table <- DPre_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == DPre_best_aic, 1, 0),
+    Difference = round(ChiSq_df - DPre_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+DPre_comparison_table %>% gt() %>% 
+  tab_header(title = "Dermo Prevalence") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+```
+
+```{r Recruitment analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+Rcrt2 <- Rcrt_df %>% 
+  # Calculate mean per rep for each station 
+  group_by(AnalysisDate, time, Site, Station, Rep) %>%
+  # Calculate mean monthly recruitment
+  summarise(BottomMonth_mean = mean(BottomMonth, na.rm = T), .groups = "drop") %>%
+  arrange(Site, Station, AnalysisDate, time)
+#
+# random structure formulas
+#rand_structs_D
+#
+## Run all combinations to test
+Rcrt_results <- cross_df(list(
+  dist_name = names(dists),
+  rand_name = names(rand_structs_D)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists[[.x]]),
+    rand_string = rand_structs_D[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("BottomMonth_mean ~ Site * AnalysisDate", ..1, ..2, ..3, ..4, Rcrt2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Rcrt_model_summary <- Rcrt_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Rcrt_best_aic <- min(Rcrt_model_summary$ChiSq_df, na.rm = TRUE)
+Rcrt_comparison_table <- Rcrt_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Rcrt_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Rcrt_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Rcrt_comparison_table %>% gt() %>% 
+  tab_header(title = "Recruitment") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Salinity analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+Sal2 <- Sal_df %>% 
+  arrange(Site, Station, AnalysisDate, time)
+#
+# random structure formulas
+rand_structs_S <- list(
+  none = ~ 0)
+#
+## Run all combinations to test
+Sal_results <- cross_df(list(
+  dist_name = names(dists_Sal),
+  rand_name = names(rand_structs_S)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists_Sal[[.x]]),
+    rand_string = rand_structs_S[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("Sal ~ Site * AnalysisDate", ..1, ..2, ..3, ..4, Sal2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Sal_model_summary <- Sal_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Sal_best_aic <- min(Sal_model_summary$ChiSq_df, na.rm = TRUE)
+Sal_comparison_table <- Sal_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Sal_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Sal_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Sal_comparison_table %>% gt() %>% 
+  tab_header(title = "Salinity") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Flow analyses}
+#
+## Testing for differences between sites and months
+## Run all combinations of distributions and random statements, and select best option
+#
+Flow2 <- flow_df %>% 
+  arrange(Year, Site, AnalysisDate, time)
+#
+# random structure formulas
+rand_structs_S <- list(
+  none = ~ 0)
+#
+## Run all combinations to test
+Flow_results <- cross_df(list(
+  dist_name = names(dists_Sal),
+  rand_name = names(rand_structs_S)
+)) %>%
+  mutate(
+    dist_family = map(dist_name, ~ dists_Sal[[.x]]),
+    rand_string = rand_structs_S[rand_name]
+  ) %>%
+  mutate(
+    fit = pmap(
+  list(dist_name, dist_family, rand_name, rand_string),
+  ~ fit_model("Flow ~ Site * Year", ..1, ..2, ..3, ..4, Flow2)
+)
+  ) %>%
+  mutate(
+    chisq = map_dbl(fit, ~ .x$statistic),
+    df = map_dbl(fit, ~ .x$df),
+    p_val = map_dbl(fit, ~ .x$p.value)
+  )
+#
+Flow_model_summary <- Flow_results %>%
+  mutate(
+    AIC = map_dbl(fit, ~ .x$AIC),
+    BIC = map_dbl(fit, ~ .x$BIC),
+    logLik = map_dbl(fit, ~ .x$logLik)
+  ) %>%
+  mutate(
+    Factors = case_when(
+      rand_name == "both" ~ "2 Random",
+      rand_name == "station" ~ "Site Random",
+      rand_name == "ar1" ~ "Repeated",
+      rand_name == "none" ~ "No Random"
+    ),
+    Dist = dist_name) %>%
+  dplyr::select(Factors, Dist, AIC, BIC, logLik, chisq, df, p_val, rand_name) %>%
+  mutate(ChiSq_df = chisq/df) %>%
+  # Arrange in increasing AIC (decreasing model ranking)
+  arrange(ChiSq_df)
+#
+Flow_best_aic <- min(Flow_model_summary$ChiSq_df, na.rm = TRUE)
+Flow_comparison_table <- Flow_model_summary %>%
+  mutate(
+    Target = if_else(ChiSq_df == Flow_best_aic, 1, 0),
+    Difference = round(ChiSq_df - Flow_best_aic, 2)) %>%
+  dplyr::select(Factors, Dist, AIC, ChiSq_df, Target, Difference) %>%
+  arrange(Factors, Dist)
+#
+Flow_comparison_table %>% gt() %>% 
+  tab_header(title = "Flow") %>% 
+  cols_align(align = c("center"), columns = everything())
+#
+#
+#
+#
+```
+
+```{r Excel output, include = FALSE}
+#
+#
+file_path <- paste0("../CERP/", Summary_Excel_file_name, ".xlsx")
+bold_header_style <- createStyle(textDecoration = "Bold")
+
+# If file exists, load it; otherwise create a new workbook
+if (file.exists(file_path)) {
+  wb <- loadWorkbook(file_path)
+} else {
+  wb <- createWorkbook()
+}
+#
+## Survey Live counts
+sheet_name <- "Live"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Live_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Survey Dead Ratios
+sheet_name <- "Dead Ratio"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Dead_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Survey Shell Heights
+sheet_name <- "SH"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = SH_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Dermo Intensity
+sheet_name <- "DermoInt"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = DInt_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Dermo Prevalence
+sheet_name <- "DermoPrev"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = DPre_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Recruitment
+sheet_name <- "Rcrt"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Rcrt_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Salinity
+sheet_name <- "Salinity"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Sal_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+## Flow
+sheet_name <- "Flow"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Flow_comparison_table, startCol = 14, startRow = 4, headerStyle = bold_header_style)
+#
+#
+# Save workbook (overwrite = TRUE ensures updates)
+saveWorkbook(wb, file_path, overwrite = TRUE)
+#
+#
+```
