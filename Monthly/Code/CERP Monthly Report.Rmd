@@ -551,7 +551,7 @@ flextable(CR_Summary %>% dplyr::select(AnalysisDate_B, starts_with("3")) %>% ren
 \
 \
 \
-*The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](.l..).*
+*The following data updates the "CERPMonthlyReportData_Rio_Station (05-Present)" [Excel file](...).*
 \
 \
 Here is the data summary output for St. Lucie-Central station 1 on the "SLC_1" Excel sheet:
