@@ -10,7 +10,7 @@ params:
     Dermo: FALSE
     Cage: FALSE
     Rcrt: FALSE
-    Repro: TRUE
+    Repro: FALSE
     Sedi: FALSE
     Srvy: FALSE
     Raw_data: TRUE
@@ -25,11 +25,11 @@ If Raw_data = TRUE, raw data for updating grant manger data files will also be a
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine Williams") #Change to your name
-Database <- "Oysters_26-04-29"  #Set the local database to use
+Database <- "Oysters_26-01-28"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations sourced to repo Data folder.
 Start_date <- as.Date("2026-01-01")
-End_date <- as.Date("2026-03-30")
+End_date <- as.Date("2026-04-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
@@ -180,7 +180,8 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
          SP = round((Secchi/Depth) * 100, 2)) %>%
   #Filter data to desired columns needed for summary
-  dplyr::select(AnalysisDate, RetDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, PercentDissolvedOxygen, pH, Salinity, SP, Temperature, CollectionTime, SampleDepth, TurbidityYSI, TurbidityHach) %>% rename(DO = DissolvedOxygen, Pct = PercentDissolvedOxygen, Sal = Salinity, Temp = Temperature) %>%
+  dplyr::select(AnalysisDate, RetDate, SampleEventWQID, SampleEventID, FixedLocationID, DissolvedOxygen, PercentDissolvedOxygen, pH, Salinity, Secchi, SP, Temperature, CollectionTime, SampleDepth, TurbidityYSI, TurbidityHach, Comments) %>% 
+    rename(DO = DissolvedOxygen, Pct = PercentDissolvedOxygen, Sal = Salinity, Temp = Temperature) %>%
   #Arrange by station then date
   arrange(match(FixedLocationID, c(LocationID_order)), AnalysisDate),
   #Add simplified StationName 
@@ -191,10 +192,18 @@ WQ_combined <- left_join(rbind((hsdbSampleEventWQ %>% filter(DataStatus == "Proo
   filter(!if_all(c("DO", "Pct", "pH", "Sal", "SP", "Temp"), ~is.na(.)))
 #
 ##Raw data output
-WQ_raw_data <- WQ_combined %>% dplyr::select(RetDate, Site, StationName, CollectionTime, SampleDepth, Temp, Sal, pH, DO, Pct, SP, TurbidityYSI, TurbidityHach) %>% rename("Station" = StationName, "DOPct" = Pct, "Secchi" = SP) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), CollectionTime = str_c(str_sub(CollectionTime, 1, nchar(CollectionTime) - 2), ":", str_sub(CollectionTime, -2))) %>% mutate(ChlA = "Z", .before = TurbidityYSI) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
+WQ_raw_data <- WQ_combined %>% 
+  dplyr::select(RetDate, Site, StationName, CollectionTime, SampleDepth, Temp, Sal, pH, DO, Pct, Secchi, TurbidityYSI, TurbidityHach) %>% 
+  rename("Station" = StationName, "DOPct" = Pct) %>% 
+  mutate(RetDate = format(RetDate, "%m/%d/%Y"), 
+         Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), 
+         CollectionTime = str_c(str_sub(CollectionTime, 1, nchar(CollectionTime) - 2), ":", str_sub(CollectionTime, -2))) %>% 
+  mutate(ChlA = "Z", .before = TurbidityYSI) %>% 
+  mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), 
+         Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate")
 #
 if(params$WQ && !params$Raw_data){
-  WQ_combined <- WQ_combined
+  WQ_combined <- WQ_combined %>% dplyr::select(-Secchi)
   rm(WQ_raw_data)
 } else if(!params$WQ && params$Raw_data){
     WQ_raw_data <- WQ_raw_data
@@ -235,7 +244,19 @@ Cage_reps <- c("CR-E-B", "CR-E-R", "CR-E-Y", "CR-W-B", "CR-W-R", "CR-W-Y", "LX-N
 Cage_Sites <- c("CR-E", "CR-W", "LX-N", "SL-C")
 
 #Combined table of cage counts
-Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboCage %>% filter(DataStatus == "Proofed"))) %>%
+# Create empty fallback tables if objects do not exist
+hsdbCage_safe <- if (exists("hsdbCage")) {
+  hsdbCage %>% filter(DataStatus %in% c("Proofed", "Completed"))
+} else {
+  tibble()
+}
+dboCage_safe <- if (exists("dboCage")) {
+  dboCage %>% filter(DataStatus == "Proofed")
+} else {
+  tibble()
+}
+#
+Cage_combined <- left_join(rbind((hsdbCage_safe %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboCage_safe %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
   mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"),
          AnalysisDate = as.Date(floor_date(RetDate, unit = "month")),
@@ -249,7 +270,13 @@ Cage_combined <- left_join(rbind((hsdbCage %>% filter(DataStatus == "Proofed" | 
     mutate(StationName = paste0(Estuary, "-", SectionName, StationNumber),
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName)) %>% 
-  pivot_wider(names_from = DataType, values_from = TotalCount) %>% mutate(CageName = paste0(Site, "-", CageID), DeadPct = 100-((Retrieved/Deployed)*100))
+  pivot_wider(names_from = DataType, values_from = TotalCount) %>% 
+  mutate(Retrieved = if("Retrieved" %in% names(.)) Retrieved else NA_real_,
+         Deployed  = if("Deployed"  %in% names(.)) Deployed else NA_real_) %>%
+  mutate(CageName = paste0(Site, "-", CageID), 
+         DeadPct = case_when(
+           "Retrieved" %in% names(.) & "Deployed" %in% names(.) ~ 100 - ((Retrieved / Deployed) * 100),
+           TRUE ~ NA_real_))
 #
 CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Completed")), (dboCageSH %>% filter(DataStatus == "Proofed"))) %>%
   #Create date columns 
@@ -272,7 +299,18 @@ CageSH_combined <- left_join(rbind((hsdbCageSH %>% filter(DataStatus == "Complet
          CageName = paste0(Site, "-", CageID))
 
 ##Cage raw data
-Cage_counts_raw_data <- Cage_combined %>% dplyr::select(DeployedDate, RetDate, DaysDeployed, Site, StationName, CageName, Deployed, Retrieved, Comments) %>% rename("Station" = StationName, "Cage" = CageName) %>% mutate(DepJulian = as.numeric(as.Date(DeployedDate) - as.Date("2005-01-01")) + 1, .before = DaysDeployed) %>% mutate(RetJulian = as.numeric(RetDate - as.Date("2005-01-01")) + 1, .before = DaysDeployed) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), DeployedDate = format(as.Date(DeployedDate), "%m/%d/%Y"), Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), Cage = case_when(substr(Cage, nchar(Cage), nchar(Cage)) == "R" ~ "Red", substr(Cage, nchar(Cage), nchar(Cage)) == "Y" ~ "Yellow", substr(Cage, nchar(Cage), nchar(Cage)) == "B" ~ "Brown", TRUE ~ "Other")) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>% arrange(Year, Month, Site, Station, Cage)
+Cage_counts_raw_data <- Cage_combined %>% 
+  dplyr::select(DeployedDate, RetDate, DaysDeployed, Site, StationName, CageName, Deployed, Retrieved, Comments) %>%
+  rename("Station" = StationName, "Cage" = CageName) %>% 
+  mutate(DepJulian = as.numeric(as.Date(DeployedDate) - as.Date("2005-01-01")) + 1, .before = DaysDeployed) %>% 
+  mutate(RetJulian = as.numeric(RetDate - as.Date("2005-01-01")) + 1, .before = DaysDeployed) %>% 
+  mutate(RetDate = format(RetDate, "%m/%d/%Y"), 
+         DeployedDate = format(as.Date(DeployedDate), "%m/%d/%Y"), 
+         Station = as.numeric(substr(Station, nchar(Station), nchar(Station))), 
+         Cage = case_when(substr(Cage, nchar(Cage), nchar(Cage)) == "R" ~ "Red", substr(Cage, nchar(Cage), nchar(Cage)) == "Y" ~ "Yellow", substr(Cage, nchar(Cage), nchar(Cage)) == "B" ~ "Brown", TRUE ~ "Other")) %>% 
+  mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), 
+         Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "DeployedDate") %>% 
+  arrange(Year, Month, Site, Station, Cage)
 
 Cage_SH_raw_data <-full_join(CageSH_combined %>% dplyr::select(ShellHeightID, RetDate, CageID, DataType, ShellHeight, FixedLocationID) %>% filter(DataType == "Dep") %>% arrange(ShellHeightID) %>% rename("Dep" = ShellHeight) %>% mutate(CageID = case_when(CageID == "R" ~ "Red", CageID == "Y" ~ "Yellow", CageID == "B" ~ "Brown", TRUE ~ "Other"), ShellHeightID = gsub("_(B|R|Y|D)", "", ShellHeightID)) %>% dplyr::select(-DataType), CageSH_combined %>% dplyr::select(ShellHeightID, RetDate, CageID, DataType, ShellHeight) %>% filter(DataType == "Ret") %>% arrange(ShellHeightID) %>% rename("Ret" = ShellHeight) %>% mutate(CageID = case_when(CageID == "R" ~ "Red", CageID == "Y" ~ "Yellow", CageID == "B" ~ "Brown", TRUE ~ "Other"), ShellHeightID = gsub("_(B|R|Y|D)", "", ShellHeightID)) %>% dplyr::select(-DataType)) %>% rename("Cage" = CageID) %>% left_join(dboFixedLocations %>% mutate(Site = paste0(Estuary,"-",SectionName)) %>% dplyr::select(FixedLocationID, Site, "Station" = StationNumber)) %>% dplyr::select(-ShellHeightID, -FixedLocationID) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y")) %>% left_join(Cage_counts_raw_data %>% dplyr::select(DeployedDate:Cage), by = c("RetDate", "Cage", "Site", "Station")) %>% dplyr::select(DeployedDate, RetDate, DepJulian, RetJulian, DaysDeployed, Site, Station, Cage, Dep, Ret) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "DeployedDate") %>% arrange(Year, Month, Site, Station, Cage)
 #
@@ -303,7 +341,35 @@ if(!params$Raw_data){
 #
 ##Repro
 ##Raw data
-Repro_raw_data <- left_join(rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), (dboRepro  %>% filter(DataStatus == "Proofed"))) %>% mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), ReproStage = as.factor(ReproStage)) %>% dplyr::select(RetDate, OysterID, SampleEventID, FixedLocationID, Sex, ReproStage, Parasite, BadSlide) %>% arrange(match(FixedLocationID, c(LocationID_order))), dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% dplyr::select(FixedLocationID, Site, StationNumber)) %>% left_join(Dermo_combined %>% dplyr::select(OysterID, ShellHeight)) %>% mutate(SampleNumber = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))), OldStage = "Z", MSXPresent = "Z", MSXStage = "Z", M_F = case_when(Sex == "M/F" ~ "Yes", TRUE ~ "No"), BadSlide = case_when(BadSlide == "N" ~ "No", BadSlide == "Y" ~ "Yes", TRUE ~ "Other")) %>% dplyr::select(RetDate, Site, SampleNumber, StationNumber, ShellHeight, Sex, ReproStage, OldStage, MSXPresent, MSXStage, Parasite, M_F, BadSlide) %>% rename("Station" = StationNumber) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"), ReproStage = case_when(ReproStage == "M/F" ~ "Z", TRUE ~ ReproStage)) %>% mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>% filter(SampleNumber < 16) %>% arrange(Year, Month, Site, Station, SampleNumber)
+Repro_raw_data <- left_join(
+  rbind((hsdbRepro %>% dplyr::select(-OldSampleNumber) %>% filter(DataStatus == "Proofed" | DataStatus == "Completed")), 
+        (dboRepro  %>% filter(DataStatus == "Proofed"))) %>% 
+    mutate(RetDate = as.Date(substring(SampleEventID, 8, 15), format = "%Y%m%d"), 
+           ReproStage = as.factor(ReproStage)) %>% 
+    dplyr::select(RetDate, OysterID, SampleEventID, FixedLocationID, Sex, ReproStage, Parasite, BadSlide, Comments) %>%
+    arrange(match(FixedLocationID, c(LocationID_order))), 
+  dboFixedLocations %>% mutate(Site = paste0(Estuary, "-", SectionName)) %>% 
+    dplyr::select(FixedLocationID, Site, StationNumber)) %>% 
+  left_join(Dermo_combined %>% 
+              dplyr::select(OysterID, ShellHeight)) %>% 
+  mutate(SampleNumber = as.integer(substr(OysterID, nchar(OysterID)-1, nchar(OysterID))), 
+         OldStage = case_when(!is.na(Comments) & grepl("OldStage=", Comments) ~ stringr::str_extract(Comments, "(?<=OldStage=)[^;]+"),
+                              TRUE ~ "Z"), 
+         MSXPresent = "Z", 
+         MSXStage = "Z", 
+         M_F = case_when(Sex == "M/F" ~ "Yes", 
+                         TRUE ~ "No"), 
+         BadSlide = case_when(BadSlide == "N" ~ "No", 
+                              BadSlide == "Y" ~ "Yes", TRUE ~ "Other")) %>% 
+  dplyr::select(RetDate, Site, SampleNumber, StationNumber, ShellHeight, Sex, ReproStage, OldStage, MSXPresent, MSXStage, Parasite, M_F, BadSlide) %>% 
+  rename("Station" = StationNumber) %>% 
+  mutate(RetDate = format(RetDate, "%m/%d/%Y"), 
+         ReproStage = case_when(ReproStage == "M/F" ~ "Z", 
+                                TRUE ~ ReproStage)) %>% 
+  mutate(Year = year(as.Date(RetDate, format = "%m/%d/%Y")), 
+         Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>% 
+  filter(SampleNumber < 16) %>% 
+  arrange(Year, Month, Site, Station, SampleNumber)
 #
 if(params$Dermo && !params$Raw_data){
   Dermo_combined <- Dermo_combined
