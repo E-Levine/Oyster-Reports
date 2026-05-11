@@ -351,6 +351,7 @@ Any samples listed below were missing during the monitoring period:
 
 ```{r SLC Salinity Figure, fig.cap = "**Figure 2.**  Monthly salinity recorded in 2024 at stations in the St. Lucie-North (top), St. Lucie-South (middle), and St. Lucie-Central (bottom) study sites and the sum of the mean daily flow rate at S80, S97, S49, and Gordy Rd structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 #max(SLC_Flow_2$SLESum) - round to nearest divisible by 4
+flow_divide <- 4800
 ggarrange(
   #SLN
   ggplot() +
@@ -359,7 +360,7 @@ ggarrange(
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLN"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-North") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4600/40), name = "Flow (cfs)", breaks = seq(0,4600, 1150))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -373,7 +374,7 @@ ggarrange(
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLS"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-South") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfs)", breaks = seq(0,4800, 1200))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -387,7 +388,7 @@ ggarrange(
     geom_point(data = Sal_SLC_2 %>% filter(Site == "SLC"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "St. Lucie-Central") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(4800/40), name = "Flow (cfs)", breaks = seq(0,4800, 1200))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("4", "1", "2", "3")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = "white"), breaks = c("4", "1", "2", "3")) + 
@@ -435,6 +436,7 @@ ggarrange(
 
 ```{r CRE Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded in 2024 at stations in the Caloosahatchee-East (top) and Caloosahatchee-West (bottom) study sites and the mean daily flow rate at the S79 structures as downloaded from the South Florida Water Management District’s DBHydro site.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
 #max(CRE_Flow_2$Flow, na.rm = T) - round to nearest divisible by 4 - 12569 > 13000, 3250
+CR_flow_divide <- 13000
 ggarrange(
   #CRE plot
   ggplot() +
@@ -443,7 +445,7 @@ ggarrange(
     geom_point(data = Sal_CRE_2 %>% filter(Station != "3" & Station != "4"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Caloosahatchee-East") +
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(12000/40), name = "Flow (cfs)", breaks = seq(0,12000, 3000))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(CR_flow_divide/40), name = "Flow (cfs)", breaks = seq(0,CR_flow_divide, CR_flow_divide/4))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -456,7 +458,7 @@ ggarrange(
     geom_point(data = Sal_CRE_2 %>% filter(Station != "1" & Station != "2"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 2.75) +
     labs(title = "Caloosahatchee-West") + 
     scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(13000/40), name = "Flow (cfs)", breaks = seq(0,13000, 3250))) +
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(CR_flow_divide/40), name = "Flow (cfs)", breaks = seq(0,CR_flow_divide, CR_flow_divide/4))) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Peppertree Pointe", "2" = "Iona Cove", "3" = "Bird Island", "4" = "Kitchel Key", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 0, 228, maxColorValue = 255), "4" = rgb(245, 0, 0, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
