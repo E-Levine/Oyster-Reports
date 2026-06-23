@@ -14,13 +14,16 @@ source("DBHYDRO_Functions.R")
 #two-letter estuary code, _, station (with special characters removed), _, DBKey: i.e., SL_S80S_DJ238
 #
 ##### Set up parameters ----
-Data_type <- c("Flow") #Current options: "Flow"
-Estuary_code <- c("LX") #two-letter site code
-Site_code <- c(NA) #Is the data attributable to a specific site? If so then include code, otherwise (or if unsure) NA
-Station_name <- c("Gordy") #station ID with special characters removed
-Version <- "Adding" #"New" file or sheet started for the station, or "Adding" new data to an existing file
 #
+# List of stations:
 Stations <- read_xlsx("Shared_data/DBHYDRO_stations.xlsx")
+#
+Data_type <- c("Turb") #Current options: "Flow", "Rain", "Sali"
+Estuary_code <- c("LW") #two-letter site code
+Site_code <- c(NA) #Is the data attributable to a specific site? If so then include code, otherwise (or if unsure) NA
+Station_name <- c("LWL20") #station ID with special characters removed
+Version <- "New" #"New" file or sheet started for the station, or "Adding" new data to an existing file
+#
 # Filter to possible stations based on parameters set above. 
 #Check and update/filter more as needed to assign ID
 (Stations_f <- Stations %>%
@@ -45,7 +48,7 @@ if(is.na(Site_code)){
 (filename <- paste0("Local_data/", Estuary_code, "_", Station_name, "_", LoggerID, ".xlsx"))
 #
 Raw_df <- load_raw_data(file_name = filename, ID = LoggerID)
-#Check if any data has not been checked/revised - 0 rows = good
+#Check if any data has not been checked/revised - 0 rows = good, can still use data not checked
 Raw_df %>% filter(is.na(Revision_Date) | !(Revision_Date > Date))
 #
 #
@@ -57,27 +60,40 @@ Cleaned_df <- Raw_df %>%
   rename(!!Data_type := 'Data_Value', 
          Data_Station = any_of(c("Station", "STATION")),
          DBKEY = any_of(c("DBKEY", "TIMESERIESID"))) %>%
+  # Add Analysis_Date, Estuary, and Site columns
   mutate(Analysis_Date = as.Date(paste(substr(Date, 1, 4), substr(Date, 6, 7), "15", sep = "-"), format = "%Y-%m-%d"),
          Estuary = Estuary_code,
          Site = Site_code, .before = Data_Station) %>%
-  dplyr::select(Analysis_Date, Estuary, Site, Data_Station, DBKEY, Date, !!Data_type)
+  dplyr::select(Analysis_Date, Estuary, Site, Data_Station, DBKEY, Date, !!Data_type, any_of("Time"))
 # Check data makes sense
 head(Cleaned_df)
 # 
+## Additional cleaning as needed.
+(Cleaned_df <- Cleaned_df %>% 
+    group_by(across(!any_of(c(!!Data_type, "Time")))) %>%
+    #summarise(SumValue = sum(!!sym(Data_type), na.rm = TRUE), .groups = "drop") %>%
+    summarise(MeanValue = mean(!!sym(Data_type), na.rm = TRUE), .groups = "drop") %>%
+    #rename(!!Data_type := SumValue))
+    rename(!!Data_type := MeanValue))
 #
 #
 #
 #
 ##### Write cleaned data to shared file ----
 # Confirm shared file path
-(shared_file_path <- paste0("Shared_data/", Estuary_code, "_", Data_type,".xlsx"))
+if("Time" %in% colnames(Cleaned_df)){
+  (shared_file_path <- paste0("Shared_data/", Estuary_code, "_", Data_type,"_INST.xlsx"))
+} else {
+  (shared_file_path <- paste0("Shared_data/", Estuary_code, "_", Data_type,".xlsx"))
+}
+#
 # Write data. If adding, any date overlaps are over written, assumes more recently downloaded data has been checked/is more accurate
 output_shared_data(shared_file_path, Station_name)
 #
 #
 #
 #
-##### Summarize data if needed (SLE, LOX) ----
+##### Summarize data if needed ----
 #Can be run after data has been cleaned and added to the shared folder. Does not currently run from local files. 
 ##Can NOT be run without existing data file.
 #Continues from code above or can be run starting here.
@@ -86,9 +102,10 @@ output_shared_data(shared_file_path, Station_name)
 ##Check all possible sheets and dates available:
 date_range_check(shared_file_path)
 ##Use table to select stations by name and date range:
-Summarize_stations <- c("LOX", "S46") #List of all stations
-Date_range <- c(as.Date("2024-12-01"), as.Date("2025-12-31")) #Min and max dates inclusive
-Site_sum_name <- c("LOXSum") #Column name for summary data
+Summarize_stations <- c("LWL19", "LWL20") #List of all stations
+Date_range <- c(as.Date("2023-10-01"), as.Date("2026-05-31")) #Min and max dates inclusive
+Site_sum_name <- c("LWMean") #Column name for summary data
+Summ_type <- c("Mean") #Summarization type: Sum or Mean
 #
-data_summary_output(Summarize_stations, Date_range, Site_sum_name)
+data_summary_output(Summarize_stations, Date_range, Site_sum_name, Summ_type)
 #

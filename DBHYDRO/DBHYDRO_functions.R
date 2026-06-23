@@ -29,22 +29,44 @@ load_raw_data <- function(file_name, ID){
   }
   #Promote first row to column names if needed by checking first row, column value
   first_cell <- t[1,1]
-  if(first_cell %in% c("DBKEY", "TIMESTAMPID")){
+  if(first_cell %in% c("DBKEY", "TIMESTAMPID", "TIMESERIESID")){
     Raw_data <- Raw_data %>% slice(-1) %>% setNames(unlist(Raw_data[1,]))
   } else {
     Raw_data <- Raw_data
   }
+  
+  #Make sure any 'logi' columns are converted to type 'text'
+  for (col in names(Raw_data)) {
+    if (is.logical(Raw_data[[col]])) {
+      Raw_data[[col]] <- as.character(Raw_data[[col]])
+    }
+  }
+  #Check for times in data
+  parsed_datetime <- parse_date_time(Raw_data$TIMESTAMP, orders = c("ymd HMS", "ymd HM", "mdy HMS", "mdy HM", "ymd", "mdy"))
+  has_time <- any(hour(parsed_datetime) != 0 | minute(parsed_datetime) != 0 | second(parsed_datetime) != 0, na.rm = TRUE)
+  #
   #Remove columns of NAs, make sure data is only for desired DBKey
   Raw_data_t <- Raw_data %>% 
-    dplyr::select(where(~ !all(is.na(.))), any_of(c('Data Value', 'VALUE'))) %>% 
+    # Select all columns that have some data (not all NA) and necessary columns for summarizing
+    dplyr::select(where(~ !all(is.na(.))), any_of(c('Data Value', 'VALUE', "Revision Date", "REVISION_DATE"))) %>% 
+    # Remove rows without station or dat info
     filter(if_any(any_of(c("DBKEY", "TIMESERIESID")), ~ . == ID)) %>% 
+    # Rename columns
     rename(Date = any_of(c("'Daily Date'", "TIMESTAMP")), 
            Data_Value = any_of(c("Data Value", "VALUE")), 
            Revision_Date = any_of(c("Revision Date", "REVISION_DATE"))) %>%
-    #Read dates and remove any timestamps, make sure measurements as numeric
-    mutate(Date = as.Date(parse_date_time(Date, orders = c("ymd", "mdy"))),
+    # Read dates and extract any timestamps, make sure measurements are numeric
+    mutate(Full_DateTime = parse_date_time(Date, orders = c("ymd HMS", "ymd HM", "mdy HMS", "mdy HM", "ymd", "mdy")),
+           Date = as.Date(Full_DateTime),
+           Time = if (has_time) format(Full_DateTime, "%H:%M:%S") else NA_character_,
            Data_Value = as.numeric(Data_Value),
-           Revision_Date = as.Date(parse_date_time(Revision_Date, orders = c("ymd HM", "mdy HM"))))
+           Revision_Date = as.Date(parse_date_time(Revision_Date, orders = c("ymd HM", "mdy HM")))) %>%
+    # Remove the temporary datetime column, and drop Time if it wasn't needed
+    dplyr::select(-Full_DateTime, -if (!has_time) "Time" else NULL)
+  #
+  if (has_time) {
+    message("Time found in Date information. Separate column created for time information.")
+  }
   #
   return(Raw_data_t)
 }
@@ -150,7 +172,8 @@ date_range_check <- function(file_path){
 }
 #
 #Create summary data, add to workbook, create sheet as needed. 
-data_summary_output <- function(Station_list, Dates, Summary_sheet_name){
+data_summary_output <- function(Station_list, Dates, Summary_sheet_name, Summ_type){
+  
   ## Read all sheets into a list of data frames and name sheets, name list elements with sheet names
   sheets_data <- lapply(Summarize_stations, function(sheet) {
     read.xlsx(shared_file_path, sheet = sheet) %>% 
@@ -172,10 +195,23 @@ data_summary_output <- function(Station_list, Dates, Summary_sheet_name){
   #
   # Merge all data frames
   merged_data <- Reduce(function(x, y) merge(x, y, by = c("Analysis_Date", "Estuary", "Date"), all = TRUE), sheets_data)
-  Summarized_data <- merged_data %>% mutate(SUMM = rowSums(select(., 4:ncol(.)), na.rm = TRUE)) %>%
-    rename(!!Site_sum_name := SUMM)
   #
-  #Check if wb curreently loaded. Remove and reload to make sure correct data.
+  # Summarize data
+  summ_type_clean <- tolower(Summ_type)
+  if(summ_type_clean == "sum"){
+    Summarized_data <- merged_data %>% 
+      mutate(SUMM = rowSums(select(., 4:ncol(.)), na.rm = TRUE)) %>%
+      rename(!!Site_sum_name := SUMM)
+  } else if (summ_type_clean == "mean"){
+    Summarized_data <- merged_data %>% 
+      mutate(MEAN = rowMeans(select(., 4:ncol(.)), na.rm = TRUE)) %>%
+      rename(!!Site_sum_name := MEAN)
+  } else {
+    stop(paste0("Error: Unknown Summ_type '", Summ_type, "'. Expected 'Mean' or 'Sum'."))
+  }
+  
+  #
+  #Check if wb currently loaded. Remove and reload to make sure correct data.
   options(warn = -1)
   if(exists("wb")){rm(wb)}
   if(exists("existing_data")){rm(existing_data)}
