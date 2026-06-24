@@ -50,7 +50,10 @@ Data/*Raw*.xlsx
 Presentations/*.xlsx
 
 
-
 #DBHydro files
 DBHYDRO/Local_data/*
 !DBHYDRO/Local_data//.gitkeep
+
+#PBC files
+PBC/Data/*.*
+!PBC/Data/*.xlsx
