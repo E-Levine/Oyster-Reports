@@ -7,6 +7,7 @@ pacman::p_load(odbc, DBI, dbplyr,
                lubridate, zoo,         #Dates
                slider, #rolling flow
                minpack.lm, #curve fit
+               sf,  #mapping
                glmmTMB, purrr, emmeans, car, broom, multcomp, #Analyses
                knitr, kableExtra, scales, gt, gtExtras,
                install = TRUE)
@@ -157,7 +158,9 @@ rm(hsdbSampleEventWQ, hsdbSedi, dboFixedLocations, dboSampleEventWQ, dboSedi, co
 #
 #
 #
-## Clean and combine
+#
+#### Clean and combine ----
+#
 Salinity <- bind_rows(Sali_raw %>% 
                         dplyr::select(-LWMean) %>%
                         pivot_longer(cols = c(LWL20_Sali, LWL19_Sali),
@@ -184,23 +187,28 @@ Turbidity <- bind_rows(Turb_raw %>%
 #
 #
 #
+#
 #### Station map ----
 #
+FL_outline <- st_read("PBC/Data/FL_Outlines/FL_Outlines.shp")
+#
+Stations_sf <- st_as_sf(Stations, 
+                  coords = c("Long", "Lat"), 
+                  crs = 4326) # Start with WGS 84
+#
 ggplot()+
-  #geom_sf(data = Site_area, fill = "#99CCFF")+
-  #geom_sf(data = Site_Grid, fill = NA)+
-  #geom_sf(data = FL_outline)+
+  geom_sf(data = FL_outline)+
   #Individual station points if grouping:
-  #geom_point(data = salinity_raw, aes(Longitude, Latitude),  color = "#666666", shape = 8, size = 4)+
-  geom_point(data = Stations, aes(Long, Lat,  color = Source, shape = Source), alpha = 0.8, size = 4)+
+  geom_sf(data = Stations_sf, aes(color = Source, shape = Source), alpha = 0.8, size = 4)+
   theme_classic()+
   scale_color_manual(values = c("#333333", "#D55E00"))+
   scale_shape_manual(values = c(16, 15))+
   theme(panel.border = element_rect(color = "black", fill = NA), 
         axis.title = element_text(size = 12, color = "black"), 
         axis.text =  element_text(size = 10, color = "black"))+
-  coord_sf(xlim = c(st_bbox(Site_area)["xmin"]-0.05, st_bbox(Site_area)["xmax"]+0.15),
-           ylim = c(st_bbox(Site_area)["ymin"]-0.05, st_bbox(Site_area)["ymax"]+0.05))
+  coord_sf(xlim = c(-80.15, -79.95),
+           ylim = c(26.5, 26.85),  
+           crs = 4326)
 #
 #
 #
@@ -222,7 +230,7 @@ fit_flow_models <- function(flow_data, associated_data, flow_col = "Mean_Flow", 
   # Initialize a list to store results
   results <- list()
   data_lookup <- list()
-  browser()
+  
   # Loop over each combination
   for (other_station in other_stations) {
     for (flow_station in flow_stations) {
@@ -304,58 +312,122 @@ models <- fit_flow_models(flow_data = Flow_df,
 names(models$models)
 #
 #
-ggplot_hyperbolic_fit <- function(resultsdf, results, model_name, flow_col = "Flow", value_col = "Other", 
-                                  Other_min = NULL, Other_max = NULL, Flow_min = NULL, Flow_max = NULL) {
-  df <- resultsdf[[model_name]]
-  # Check if the model exists and is successful
+ggplot_hyperbolic_fit <- function(resultsdf, 
+                                  results, 
+                                  model_name,
+                                  flow_col = "Flow",
+                                  value_col = "Salinity",
+                                  Salinity_min = NULL, Salinity_max = NULL,
+                                  Flow_min = NULL, Flow_max = NULL) {
+  #
+  #
+  make_plot <- function(model_name) {
+    #
+    fit <- results[[model_name]]
+    #
+    if (!(model_name %in% names(resultsdf))) {
+      stop("Model name not found in results.")
+    }
+    # Skip models that failed to fit
+    if (!inherits(fit, "summary.nls")) {
+      message("Skipping ", model_name, " (fit unsuccessful).")
+      return(NULL)
+    }
+    #
+    df <- resultsdf[[model_name]]
+    
+    if (!all(c(flow_col, value_col) %in% names(df)))
+      return(NULL)
+    
+    p <- coef(fit)
+    y0 <- p[1]
+    a  <- p[2]
+    b  <- p[3]
+    
+    xseq <- seq(min(df[[flow_col]]),
+                max(df[[flow_col]]),
+                length.out = 300)
+    
+    pred_df <- data.frame(
+      flow = xseq,
+      fitted = y0 + (a * b)/(b + xseq)
+    ) %>%
+      rename(!!flow_col := flow)
+    
+    ggplot(df,
+           aes(x = .data[[flow_col]],
+               y = .data[[value_col]])) +
+      {if(!is.null(Salinity_min) && !is.null(Salinity_max))
+        annotate("rect",
+                 xmin=-Inf,xmax=Inf,
+                 ymin=Salinity_min,ymax=Salinity_max,
+                 alpha=.6,fill="#B8FFB8")} +
+      {if(!is.null(Flow_min) && !is.null(Flow_max))
+        annotate("rect",
+                 xmin=Flow_min,xmax=Flow_max,
+                 ymin=-Inf,ymax=Inf,
+                 alpha=.6,fill="#97FFFF")} +
+      geom_point(color="gray30", size=2) +
+      geom_line(data=pred_df,
+                aes(x=.data[[flow_col]], y=fitted),
+                color="blue",
+                linewidth=1.2) +
+      scale_y_continuous(expand=c(.005,.1)) +
+      scale_x_continuous(expand=c(.005,.1)) +
+      labs(
+        title=model_name,
+        subtitle=paste0(
+          "y = ", round(y0,2),
+          " + (", round(a,2),
+          " × ", round(b,2),
+          ")/(", round(b,2), " + x)"
+        ),
+        x=flow_col,
+        y=value_col
+      ) +
+      theme_classic()
+  }
+  #
+  ## HANDLE "all" FIRST
+  ## =========================
+  ## Return a grid of all models
+  if (tolower(model_name) == "all") {
+    
+    plots <- lapply(names(resultsdf), make_plot)
+    
+    ## remove failed models
+    plots <- plots[!sapply(plots, is.null)]
+    
+    n <- length(plots)
+    
+    if (n == 0)
+      stop("No successful models to plot.")
+    
+    ncol <- ceiling(sqrt(n))
+    nrow <- ceiling(n / ncol)
+    
+    return(
+      patchwork::wrap_plots(
+        plots,
+        ncol = ncol,
+        nrow = nrow
+      )
+    )
+  }
+  
+  ## SINGLE MODEL PATH
+  ## =========================
   if (!(model_name %in% names(resultsdf))) {
     stop("Model name not found in results.")
   }
-  fit <- results[[model_name]]
-  # Input validation
-  if (!all(c(flow_col, value_col) %in% names(df))) {
-    stop("Data frame must contain the specified flow and value columns.")
-  }
-  coefs <- coef(fit)
-  if (!is.numeric(df[[flow_col]]) || !is.numeric(df[[value_col]])) {
-    stop("Specified columns must be numeric.")
-  }
-  # Extract parameters
-  p <- coef(fit)
-  y0 <- p[1]
-  a  <- p[2]
-  b  <- p[3]
   
-  # Build prediction grid
-  xseq <- seq(min(df[[flow_col]]), max(df[[flow_col]]), length.out = 300)
-  pred <- y0 + (a * b) / (b + xseq)
-  
-  pred_df <- data.frame(
-    flow = xseq,
-    fitted = pred
-  ) %>% rename(!!flow_col := flow)
-  
-  ggplot(df, aes(x = .data[[flow_col]], y = .data[[value_col]])) +
-    {if(!is.null(Other_min) && !is.null(Other_max)) annotate("rect", xmin=-Inf, xmax=Inf, ymin=Other_min, ymax=Other_max, alpha=0.6, fill="#B8FFB8")}+
-    {if(!is.null(Flow_min) && !is.null(Flow_max)) annotate("rect", xmin=Flow_min, xmax=Flow_max, ymin=-Inf, ymax=Inf, alpha=0.6, fill="#97FFFF")}+
-    geom_point(color = "gray30", size = 2) +
-    geom_line(data = pred_df,
-              aes(x = .data[[flow_col]], y = fitted),
-              color = "blue", linewidth = 1.2) +
-    scale_y_continuous(expand = c(0.005,0.1))+ scale_x_continuous(expand = c(0.005,0.1))+
-    labs(
-      x = flow_col,
-      y = value_col,
-      title = paste(model_name),
-      subtitle = paste0("Hyperbolic Fit: y =",round(y0,2), " + (", round(a,2), "*", round(b,2), ")/(",round(b,2)," + x)", collapse = "")
-    ) +
-    theme_classic()
+  make_plot(model_name)
 }
 #
 #
 ggplot_hyperbolic_fit(resultsdf = models$data_lookup,
                       results = models$models,
-                      model_name = "LW-R4_S155",
+                      model_name = "all",
                       flow_col = "Flow",
                       value_col = "Sal")
 #
