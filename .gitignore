@@ -57,3 +57,4 @@ DBHYDRO/Local_data/*
 #PBC files
 PBC/Data/*.*
 !PBC/Data/*.xlsx
+PBC/Output/*
