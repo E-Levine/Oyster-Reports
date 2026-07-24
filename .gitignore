@@ -58,3 +58,6 @@ DBHYDRO/Local_data/*
 PBC/Data/*.*
 !PBC/Data/*.xlsx
 PBC/Output/*
+
+#Any R workspace image files
+*_working.*
