@@ -6,7 +6,7 @@ pacman::p_load(odbc, DBI, dbplyr,
                DT, openxlsx, readxl,        #Excel
                lubridate, zoo,         #Dates
                slider, #rolling flow
-               minpack.lm, #curve fit
+               minpack.lm, quantreg, #curve fit
                sf, shadowtext, extrafont, #mapping
                glmmTMB, purrr, emmeans, car, broom, multcomp, #Analyses
                knitr, kableExtra, scales, gt, gtExtras,
@@ -24,6 +24,7 @@ Server <- "localhost\\ERICALOCALSQL" #Set the local Server to use
 Estuaries <- c("LW")
 #
 loadfonts(device = "win")
+runANDsavePlots <- c("N")
 #
 #
 #### Data files ----
@@ -277,7 +278,7 @@ ggplot()+
   coord_sf(xlim = c(-80.15, -79.95),
            ylim = c(26.5, 26.85),  
            crs = 4326)
-#1100 8 ##
+#1100 * ##
 #
 #
 #
@@ -348,7 +349,7 @@ scales_cont <- list(
 )
 #
 #
-#
+# Hyperbolic model
 fit_flow_models <- function(flow_data, associated_data, flow_col = "Mean_Flow", other_col = "Mean_Salinity"){
   # Assumptions:
   # - flow_data: data frame with columns for Date, Station, and specified flow_col
@@ -435,6 +436,101 @@ fit_flow_models <- function(flow_data, associated_data, flow_col = "Mean_Flow", 
   #assign("Model_data", results_data, envir = .GlobalEnv)
   return(list(models = results,
               data_lookup = data_lookup))
+}
+# Linear model
+fit_flow_turb_models <- function(flow_data,
+                                 associated_data,
+                                 flow_col = "Mean_Flow",
+                                 other_col = "Mean_Turbidity") {
+  
+  library(quantreg)
+  
+  station_col <- "Station"
+  time_col <- "Date"
+  
+  # Get unique station IDs
+  other_stations <- unique(associated_data[[station_col]])
+  flow_stations  <- unique(flow_data[[station_col]])
+  
+  # Initialize lists
+  results <- list()
+  data_lookup <- list()
+  
+  # Loop over each station combination
+  for (other_station in other_stations) {
+    for (flow_station in flow_stations) {
+      
+      # Subset associated data
+      other_sub <- associated_data %>%
+        dplyr::filter(.data[[station_col]] == other_station) %>%
+        dplyr::select(all_of(time_col), !!other_col := all_of(other_col))
+      
+      # Subset flow data
+      flow_sub <- flow_data %>%
+        dplyr::filter(.data[[station_col]] == flow_station) %>%
+        dplyr::select(all_of(time_col), !!flow_col := all_of(flow_col))
+      
+      # Merge by date
+      combined <- suppressWarnings(dplyr::inner_join(other_sub, flow_sub, by = time_col) %>%
+        tidyr::drop_na() %>%
+        mutate(logFlow = log10(.data[[flow_col]] + 1),
+               logOther = log10(.data[[other_col]] + 1)))
+      
+      # Model name
+      model_name <- paste(
+        stringr::str_replace_all(other_station, "_", ""),
+        stringr::str_replace_all(flow_station, "_", ""),
+        sep = "_"
+      )
+      
+      # Store merged data
+      if (nrow(combined) > 0) {
+        data_lookup[[model_name]] <- combined
+      }
+      
+      # Need at least 2 observations to fit a linear model
+      if (nrow(combined) >= 2) {
+        
+        # Fit model
+        fit <- try(
+          rq(logOther ~ logFlow + I(logFlow^2), tau = 0.95, data = combined),#lm(logOther ~ logFlow, data = combined),#lm(logOther ~ poly(logFlow, 2, raw = TRUE), data = combined),
+          silent = TRUE
+        )
+        
+        if (!inherits(fit, "try-error")) {
+          results[[model_name]] <- summary(fit)
+        } else {
+          results[[model_name]] <- paste(
+            "Fit failed for data station",
+            other_station,
+            "and flow station",
+            flow_station,
+            ":",
+            attr(fit, "condition")$message
+          )
+        }
+        
+      } else {
+        
+        results[[model_name]] <- paste(
+          "Insufficient data for data station",
+          other_station,
+          "and flow station",
+          "(only",
+          nrow(combined),
+          "matching time points)"
+        )
+      }
+    }
+  }
+  
+  print("Models attempted (otherStation_flowStation):")
+  print(names(results))
+  
+  return(list(
+    models = results,
+    data_lookup = data_lookup
+  ))
 }
 # Update models:
 filter_models <- function(results, models, mode = c("keep", "remove")) {
@@ -589,6 +685,124 @@ ggplot_hyperbolic_fit <- function(resultsdf,
   make_plot(model_name)
 }
 #
+#
+ggplot_quad_fit <- function(resultsdf, 
+                            results, 
+                            model_name,
+                            flow_col = "Flow",
+                            value_col = "Turbidity",
+                            Value_min = NULL, Value_max = NULL,
+                            Flow_min = NULL, Flow_max = NULL) {
+  #
+  #
+  make_plot <- function(model_name) {
+    #
+    fit <- results[[model_name]]
+    #
+    if (!(model_name %in% names(resultsdf))) {
+      stop("Model name not found in results.")
+    }
+    # Skip models that failed to fit
+    if (!inherits(fit, "summary.rq")) {
+      message("Skipping ", model_name, " (fit unsuccessful).")
+      return(NULL)
+    }
+    #
+    df <- resultsdf[[model_name]]
+    df <- df %>%
+      mutate(logFlow = log10(.data[[flow_col]] + 1),
+             logOther = log10(.data[[value_col]] + 1))
+    
+    if (!all(c("logFlow", "logOther") %in% names(df)))#if (!all(c(flow_col, value_col) %in% names(df)))
+      return(NULL)
+    
+    # Extract coefficients
+    p <- coef(fit)
+    y0 <- p[1]
+    a  <- p[2]
+    b  <- p[3]
+    
+    # Range of original data
+    xseq <- seq(min(df[[flow_col]], na.rm = T),
+                max(df[[flow_col]], na.rm = T),
+                length.out = 1000)
+    log_x <- log10(xseq + 1)
+    
+    # Predict on log+1 scale
+    pred_df <- data.frame(
+      Flow = xseq,
+      logFlow = log_x,
+      fittedLog = y0 + a * log_x + b * log_x^2 #fitted = y0 + (a * b)/(b + xseq)
+    ) %>%
+      mutate(Other = (10^fittedLog) - 1)
+    
+    ggplot(df,
+           aes(x = .data[[flow_col]],
+               y = .data[[value_col]])) +
+      {if(!is.null(Value_min) && !is.null(Value_max))
+        annotate("rect",
+                 xmin=-Inf,xmax=Inf,
+                 ymin=Value_min,ymax=Value_max,
+                 alpha=.6,fill="#B8FFB8")} +
+      {if(!is.null(Flow_min) && !is.null(Flow_max))
+        annotate("rect",
+                 xmin=Flow_min,xmax=Flow_max,
+                 ymin=-Inf,ymax=Inf,
+                 alpha=.6,fill="#97FFFF")} +
+      geom_point(color="gray30", size=2) +
+      geom_line(data=pred_df,
+                aes(x=Flow, y=Other),#.data[[flow_col]], y=fitted),
+                color="blue",
+                linewidth=1.2) +
+      scale_y_continuous(expand=expansion(mult=c(0,0.05))) +
+      scale_x_continuous(expand=expansion(mult=c(0,0.05))) +
+      labs(
+        title=model_name,
+        subtitle=paste0("y = 10^[", round(y0, 2)," + (", round(a, 2), "*log(x))"," + (", round(b, 2), "*log(x)^2)] - 1"), #Normal scale
+        #paste0("log(y) = ", round(y0,2)," + (", round(a,2),"*log(x)) + (", round(b,2), "*log(x)^2)"), #Log scale
+        x=flow_col,
+        y=value_col
+      ) +
+      theme_classic()
+  }
+  #
+  ## HANDLE "all" FIRST
+  ## =========================
+  ## Return a grid of all models
+  if (tolower(model_name) == "all") {
+    
+    plots <- lapply(names(resultsdf), make_plot)
+    
+    ## remove failed models
+    plots <- plots[!sapply(plots, is.null)]
+    
+    n <- length(plots)
+    
+    if (n == 0)
+      stop("No successful models to plot.")
+    
+    ncol <- ceiling(sqrt(n))
+    nrow <- ceiling(n / ncol)
+    
+    return(
+      patchwork::wrap_plots(
+        plots,
+        ncol = ncol,
+        nrow = nrow
+      )
+    )
+  }
+  
+  ## SINGLE MODEL PATH
+  ## =========================
+  if (!(model_name %in% names(resultsdf))) {
+    stop("Model name not found in results.")
+  }
+  
+  make_plot(model_name)
+}
+#
+#
 # Calculate flow at specified salinity (from HSM curves)
 flow_at_salinity_hyp2 <- function(results, target_sal, data_lookup) {
   # results: output from fit_salinity_flow_models (list of summaries or error messages)
@@ -694,7 +908,7 @@ extract_model_coefficients <- function(models, sep = "_") {
 }
 #
 #
-#### Curves ----
+#### Curves F vs salinity ----
 #
 ### Flow vs salinity
 #
@@ -708,8 +922,6 @@ models_fs_d <- fit_flow_models(flow_data = flow_t,
                           associated_data = sal_t,
                           flow_col = "Flow",
                           other_col = "Sali")
-#
-names(models_fs_d$models)
 #Limit to desired models
 models_fs_d <- filter_models(models_fs_d, c("LWL20_S41", "LWL19_S44"), mode = "remove")
 #Plot models
@@ -719,26 +931,32 @@ models_fs_d <- filter_models(models_fs_d, c("LWL20_S41", "LWL19_S44"), mode = "r
                       flow_col = "Flow",
                       value_col = "Sali"))
 #
-ggsave(
-  filename = paste0("PBC/Output/Flow/FLow_salinity_daily_curves.png"),
-  plot = p, width = 9, height = 5, units = "in", dpi = 300)
-#
-for (m_name in names(models_fs_d$models)) {
-  
-  p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d$data_lookup,
-                      results = models_fs_d$models,
-                      model_name = m_name,
-                      flow_col = "Flow",
-                      value_col = "Sali")
-  plot2 <- p2 + 
-    base_theme +
-    scales_cont +
-    labs(x = "Flow (cfs)",
-         y = "Salinity")
-  
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
   ggsave(
-    filename = paste0("PBC/Output/Flow/FLow_salinity_daily_",m_name,".png"),
-    plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+    filename = paste0("PBC/Output/Flow/FLow_salinity_daily_curves_",Sys.Date(),".png"),
+    plot = p, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_fs_d$models)) {
+    
+    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d$data_lookup,
+                                results = models_fs_d$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/FLow_salinity_daily_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
 }
 #
 #Optimal flow ranges & model formulas
@@ -747,6 +965,410 @@ fs_daily_range <- rbind(
   flow_at_salinity_hyp2(models_fs_d$models, 25, models_fs_d$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
   left_join(
     extract_model_coefficients(models_fs_d$models))
+#
+fs_daily_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+#
+#
+##
+##
+#
+#
+## 7day and 14day flow vs daily salinity
+flow_t7 <- Flow_df %>% 
+  dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155) %>%
+  pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155), names_to = "Station", values_to = "Flow")
+models_fs_d7 <- fit_flow_models(flow_data = flow_t7, 
+                               associated_data = sal_t,
+                               flow_col = "Flow",
+                               other_col = "Sali")
+#Plot models
+(p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d7$data_lookup,
+                            results = models_fs_d7$models,
+                            model_name = "all",
+                            flow_col = "Flow",
+                            value_col = "Sali"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_salinity_7d_14d_curves_",Sys.Date(),".png"),
+    plot = p2, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fs_d7$models)) {
+    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d7$data_lookup,
+                                results = models_fs_d7$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_salinity_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_714_range <- rbind(
+  flow_at_salinity_hyp2(models_fs_d7$models, 10, models_fs_d7$data_lookup) %>% mutate(Sal = "min", Flow = "max"), 
+  flow_at_salinity_hyp2(models_fs_d7$models, 25, models_fs_d7$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
+  left_join(
+    extract_model_coefficients(models_fs_d7$models))
+#
+fs_714_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+#
+#
+##
+##
+#
+#
+## Monthly flow vs monthly salinity
+flow_tm <- Flow_df %>% 
+  dplyr::select(Analysis_Date, Estuary, S155_Flow, S41_Flow, S44_Flow) %>%
+  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>%
+    group_by(Analysis_Date, Station) %>%
+  summarise(Flow = sum(Flow, na.rm = T)) %>%
+  rename(Date = Analysis_Date)
+sal_tm <- MeanSalinity %>%
+  pivot_longer(cols = c(-AnalysisDate, -Estuary), names_to = c("Station"), values_to = "Sali") %>%
+  rename(Date = AnalysisDate) 
+models_fs_m <- fit_flow_models(flow_data = flow_tm, 
+                                associated_data = sal_tm,
+                                flow_col = "Flow",
+                                other_col = "Sali")
+#Limit to desired models
+models_fs_m <- filter_models(models_fs_m, c("LW-R4_S44", "LWL19_S155","LWL20_S155", "LW-L1_S155",
+                                            "LW-L2_S155", "LW-L3_S155", "LW-R2_S155", "LW-R3_S155",
+                                            "LW-R4_S155", "SC_S155", "NC_S155", "LW-L3_S41",
+                                            "NC_S44", "SC_S41"), 
+                             mode = "keep")
+#Plot models
+(p3 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
+                            results = models_fs_m$models,
+                            model_name = "all",
+                            flow_col = "Flow",
+                            value_col = "Sali"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_salinity_monthly_curves_",Sys.Date(),".png"),
+    plot = p3, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fs_m$models)) {
+    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
+                                results = models_fs_m$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_salinity_monthly_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_m_range <- rbind(
+  flow_at_salinity_hyp2(models_fs_m$models, 10, models_fs_m$data_lookup) %>% mutate(Sal = "min", Flow = "max"), 
+  flow_at_salinity_hyp2(models_fs_m$models, 25, models_fs_m$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
+  left_join(
+    extract_model_coefficients(models_fs_m$models))
+#
+fs_m_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+#
+#
+#
+#
+#
+#### Curves F vs turbidity ----
+#
+### Flow vs turbidity
+#
+## Daily flow vs daily turbidity
+head(flow_t)
+#flow_t <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow) %>% pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+turb_t <- Turb_raw %>% dplyr::select(-LWMean) %>%
+  pivot_longer(cols = c(LWL20_Turb, LWL19_Turb), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+#
+left_join(flow_t %>% filter(Station == "S155") %>% group_by(Date) %>% summarise(Flow = sum(Flow, na.rm = T)), 
+          turb_t %>% filter(Station == "LWL19")%>% group_by(Date) %>% summarise(Turb = mean(Turb, na.rm = T))) %>%
+  ggplot(aes(Flow, Turb))+ geom_point()
+#
+models_ft_d <- fit_flow_turb_models(flow_data = flow_t, 
+                               associated_data = turb_t,
+                               flow_col = "Flow",
+                               other_col = "Turb")
+#Limit to desired models
+models_ft_d <- filter_models(models_ft_d, c("LWL20_S41", "LWL20_S44", "LWL19_S41", "LWL19_S44"), mode = "remove")
+names(models_ft_d$models)
+#Plot models
+(p4 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
+                       results = models_ft_d$models,
+                       model_name = "all",
+                       flow_col = "Flow",
+                       value_col = "Turb"))
+#
+ft_daily_model <- extract_model_coefficients(models_ft_d$models)
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_daily_curves_",Sys.Date(),".png"),
+    plot = p4, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_ft_d$models)) {
+    
+    p2 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
+                                results = models_ft_d$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Turb")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Turbidity (NTU)")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_turbidity_daily_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+##
+##
+#
+#
+## Daily flow lag1 and lag2 vs daily turbidity
+flow_tlag <- flow_t %>% 
+  mutate(Flow1 = lag(Flow, n = 1),
+         Flow2 = lag(Flow, n = 2))
+head(turb_t)
+#turb_t <- Turb_raw %>% dplyr::select(-LWMean) %>% pivot_longer(cols = c(LWL20_Turb, LWL19_Turb), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+#
+#
+models_ft_dlag <- fit_flow_turb_models(flow_data = flow_tlag %>% drop_na(), 
+                                    associated_data = turb_t,
+                                    flow_col = "Flow1",
+                                    other_col = "Turb")
+#Limit to desired models
+models_ft_dlag <- filter_models(models_ft_dlag, c("LWL20_S41", "LWL20_S44", "LWL19_S41", "LWL19_S44"), mode = "remove")
+names(models_ft_dlag$models)
+#Plot models
+(p5 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
+                       results = models_ft_dlag$models,
+                       model_name = "all",
+                       flow_col = "Flow1",
+                       value_col = "Turb"))
+#
+ft_dayLag1_model <- extract_model_coefficients(models_ft_dlag$models)
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag1_curves_",Sys.Date(),".png"),
+    plot = p5, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_ft_dlag$models)) {
+    
+    p2 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
+                          results = models_ft_dlag$models,
+                          model_name = m_name,
+                          flow_col = "Flow1",
+                          value_col = "Turb")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow lag 1 day(cfs)",
+           y = "Turbidity (NTU)")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag1_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+models_ft_d2lag <- fit_flow_turb_models(flow_data = flow_tlag %>% drop_na(), 
+                                       associated_data = turb_t,
+                                       flow_col = "Flow2",
+                                       other_col = "Turb")
+#Limit to desired models
+models_ft_d2lag <- filter_models(models_ft_d2lag, c("LWL20_S41", "LWL20_S44", "LWL19_S41", "LWL19_S44"), mode = "remove")
+names(models_ft_d2lag$models)
+#Plot models
+(p6 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
+                       results = models_ft_d2lag$models,
+                       model_name = "all",
+                       flow_col = "Flow2",
+                       value_col = "Turb"))
+#
+ft_dayLag2_model <- extract_model_coefficients(models_ft_d2lag$models)
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag2_curves_",Sys.Date(),".png"),
+    plot = p6, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_ft_d2lag$models)) {
+    
+    p2 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
+                          results = models_ft_d2lag$models,
+                          model_name = m_name,
+                          flow_col = "Flow2",
+                          value_col = "Turb")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow lag 2 day(cfs)",
+           y = "Turbidity (NTU)")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag2_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+##
+##
+#
+#
+## 7day and 14day flow vs daily salinity
+head(flow_t7)
+#flow_t7 <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155) %>% pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155), names_to = "Station", values_to = "Flow")
+models_ft_d7 <- fit_flow_models_linear(flow_data = flow_t7, 
+                                associated_data = turb_t,
+                                flow_col = "Flow",
+                                other_col = "Turb")
+#Plot models 
+##### WORKING - STOPPING POINT - "no successful plots"
+(p7 <- ggplot_quad_fit(resultsdf = models_ft_d7$data_lookup,
+                       results = models_ft_d7$models,
+                       model_name = "all",
+                       flow_col = "Flow",
+                       value_col = "Turb"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_salinity_7d_14d_curves_",Sys.Date(),".png"),
+    plot = p2, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_ft_d7$models)) {
+    p2 <- ggplot_hyperbolic_fit(resultsdf = models_ft_d7$data_lookup,
+                                results = models_ft_d7$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_salinity_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_714_range <- extract_model_coefficients(models_ft_d7$models)
+#
+#
+##
+##
+#
+#
+## Monthly flow vs monthly salinity
+flow_tm <- Flow_df %>% 
+  dplyr::select(Analysis_Date, Estuary, S155_Flow, S41_Flow, S44_Flow) %>%
+  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>%
+  group_by(Analysis_Date, Station) %>%
+  summarise(Flow = sum(Flow, na.rm = T)) %>%
+  rename(Date = Analysis_Date)
+sal_tm <- MeanSalinity %>%
+  pivot_longer(cols = c(-AnalysisDate, -Estuary), names_to = c("Station"), values_to = "Sali") %>%
+  rename(Date = AnalysisDate) 
+models_fs_m <- fit_flow_models(flow_data = flow_tm, 
+                               associated_data = sal_tm,
+                               flow_col = "Flow",
+                               other_col = "Sali")
+#Limit to desired models
+models_fs_m <- filter_models(models_fs_m, c("LW-R4_S44", "LWL19_S155","LWL20_S155", "LW-L1_S155",
+                                            "LW-L2_S155", "LW-L3_S155", "LW-R2_S155", "LW-R3_S155",
+                                            "LW-R4_S155", "SC_S155", "NC_S155", "LW-L3_S41",
+                                            "NC_S44", "SC_S41"), 
+                             mode = "keep")
+#Plot models
+(p3 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
+                             results = models_fs_m$models,
+                             model_name = "all",
+                             flow_col = "Flow",
+                             value_col = "Sali"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_salinity_monthly_curves_",Sys.Date(),".png"),
+    plot = p3, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fs_m$models)) {
+    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
+                                results = models_fs_m$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot2 <- p2 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_salinity_monthly_",m_name,"_",Sys.Date(),".png"),
+      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_m_range <- rbind(
+  flow_at_salinity_hyp2(models_fs_m$models, 10, models_fs_m$data_lookup) %>% mutate(Sal = "min", Flow = "max"), 
+  flow_at_salinity_hyp2(models_fs_m$models, 25, models_fs_m$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
+  left_join(
+    extract_model_coefficients(models_fs_m$models))
+#
+fs_m_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+#
+#
 #
 #
 #
@@ -757,8 +1379,23 @@ fs_daily_range <- rbind(
 wb <- createWorkbook()
 
 # Add each data frame to its own worksheet
-addWorksheet(wb, "Flow_sal_daily")
-writeData(wb, "Flow_sal_daily", fs_daily_range)
+addWorksheet(wb, "F_sal_daily")
+writeData(wb, "F_sal_daily", fs_daily_range)
+
+addWorksheet(wb, "F_sal_7d14d")
+writeData(wb, "F_sal_7d14d", fs_m_range)
+
+addWorksheet(wb, "F_sal_monthly")
+writeData(wb, "F_sal_monthly", fs_m_range)
+
+addWorksheet(wb, "F_turb_daily")
+writeData(wb, "F_turb_daily", ft_daily_model)
+
+addWorksheet(wb, "F_turb_lag1")
+writeData(wb, "F_turb_lag1", ft_dayLag1_model)
+
+addWorksheet(wb, "F_turb_lag2")
+writeData(wb, "F_turb_lag2", ft_dayLag2_model)
 
 # Save workbook
 saveWorkbook(
