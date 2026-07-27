@@ -296,9 +296,8 @@ PBC_Sal_temp <- WQ_Sal_PBC %>% dplyr::select(contains("Sal")) %>% gather(Station
 
 ## Report summary
 This data summary was compiled on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for the **PBC** quarterly report from `r format(Start_date, "%B %Y")` through `r format(End_date, "%B %Y")`.\
-
-<h1>`r paste("PBC Quarterly Report")`</h1>
 Minimum and maximum values observed during the quarter and data ordered by increasing values.
+
 <h3> Station common names</h3>
 Natural reef station 1 (LWL1)  -- Audubon Island\
 Natural reef station 2 (LWL2)  -- John’s Island\
@@ -308,7 +307,11 @@ Restored reef station 3 (LWR3) -- Snook Island\
 Restored reef station 4 (LWR4) -- Tarpon Cove\
 \
 \
-<h3> `r paste("Survey summary")` </h3>
+
+## PBC Quarterly Report {.tabset}
+
+### Survey summary
+
 `r PBC_count %>% tab_caption(caption = "Monthly PBC live oyster counts")`
 Live Counts range: `r PBC_Counts_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(1) %>% pull(Value)` \
 Live counts Mid-range: `r PBC_Counts_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Counts_temp %>% slice(2) %>% pull(Value)`
@@ -330,14 +333,16 @@ Survey summary table:
 \
 \
 \
-\
-<h3> `r paste("Repro summary")` </h3>
+
+### Repro summary
+
 `r if(!is.null(PBC_repro)  & !is.character(PBC_repro)){PBC_repro %>% tab_caption(caption = "Monthly PBC reproductive stages")} else {paste0("Repro data is not available for the quarter specified.")}`
 \
 \
 \
-\
-<h3> `r paste("Dermo summary")` </h3>
+
+### Dermo summary
+
 `r Dermo_PBC %>% dplyr::select(RetDate, contains("Mean")) %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_dermo %>% tab_caption(caption = "Monthly PBC dermo intensity and prevalence")`
 Intensity range: `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% min(na.rm = T)` - `r Dermo_PBC %>% dplyr::select(contains("Mean")) %>% unlist() %>% max(na.rm = T)`\
@@ -349,7 +354,8 @@ Summary by reef type:
 \
 \
 \
-<h3> `r paste("Recruitment summary")` </h3>
+### Recruitment summary
+
 `r Rcrt_PBC %>% gather(Station, Mean, -RetDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(Mean)) %>% dplyr::select(-Mean) %>% group_by(Station) %>%  gt() %>% tab_caption(caption = "Missing samples")`
 `r PBC_rcrt %>% tab_caption(caption = "Monthly PBC recruitment rates")`
 Recruitment range: `r PBC_Rcrt_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Rcrt_temp %>% slice(1) %>% pull(Value)`\
@@ -360,8 +366,9 @@ Summary by reef type:
 \
 \
 \
-\
-<h3> `r paste("Sediment summary")` </h3>
+
+### Sediment summary
+
 `r Rate_sta %>% gather(Station, RateMean, -AnalysisDate) %>% mutate(Station = substr(Station, 1, 5)) %>% filter(is.na(RateMean)) %>% dplyr::select(-RateMean) %>% group_by(Station) %>% gt() %>% tab_caption(caption = "Missing samples")`
 `r Sta_Rates %>% tab_caption(caption = "Monthly sedimentation rate by station")`
 *Sedimentation rate range: Overall-*`r Rate_sta %>% dplyr::select(contains("Mean")) %>% unlist() %>% setdiff(., NA) %>% min(na.rm = T)` - `r Rate_sta %>% dplyr::select(contains("Mean")) %>% unlist()  %>% setdiff(., NA) %>% max(na.rm = T)`
@@ -407,13 +414,15 @@ Sediment trap summary tables:
 \
 \
 \
-\
-<h3> `r paste("Water Quality summary")` </h3>
+
+### Water quality summary
+
 Salintiy and Secchi measurements observed during the quarter.
 `r PBC_Sal %>% tab_caption(caption = "Monthly PBC salinity measurements")`
 Salinity range: `r PBC_Sal_temp %>% slice(n()) %>% pull(Value)` - `r PBC_Sal_temp %>% slice(1) %>% pull(Value)`\
 Salinity Mid-range: `r PBC_Sal_temp %>% slice(n()-1) %>% pull(Value)` - `r PBC_Sal_temp %>% slice(2) %>% pull(Value)`\
 `r PBC_Sec %>% tab_caption(caption = "Monthly PBC secchi measurements")`
 Secchi range: `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% min(na.rm = T)` - `r WQ_Sec_PBC %>% dplyr::select(contains("SP")) %>% unlist() %>% max(na.rm = T)`\
-
 \
+
+## {-}
