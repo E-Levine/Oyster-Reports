@@ -7,8 +7,8 @@ output:
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
 params:
-  Start_date: "2025-10-01" #Start date of reporting quarter
-  End_date: "2025-12-30"   #End date of reporting quarter
+  Start_date: "2026-04-01" #Start date of reporting quarter
+  End_date: "2026-06-30"   #End date of reporting quarter
 ---
 
 ```{r setup, include=FALSE}
@@ -411,7 +411,7 @@ East_Rcrt_list <- list()
 for(i in seq_along(East_sites)){
   #
   Working_site <- paste(East_sites[i])
-  df_temp <- Rcrt_East_2 %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Rcrt_East_2 %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)) %>% filter(RetDate >= (Start_date %m-% months(9)))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -443,7 +443,7 @@ West_Rcrt_list <- list()
 for(i in seq_along(West_Sites)){
   #
   Working_site <- paste(West_Sites[i])
-  df_temp <- Rcrt_West %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Rcrt_West %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)) %>% filter(RetDate >= (Start_date %m-% months(9)))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #

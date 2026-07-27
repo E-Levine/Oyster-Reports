@@ -309,7 +309,7 @@ Rcrt_list <- list()
 for(i in seq_along(PBC_sites)){
   #
   Working_site <- paste(PBC_sites[i])
-  df_temp <- Recruits %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Recruits %>% filter(grepl(Working_site, SiteStation)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)) %>% filter(RetDate >= (Start_date %m-% months(9)))
   df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
   max_upper <- ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10 #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
   #
@@ -338,7 +338,7 @@ Sedi_list <- list()
 for(i in seq_along(PBC_sites)){
   #
   Working_site <- paste(PBC_sites[i])
-  df_temp <- Sed_sta_rate %>% filter(grepl(Working_site, Site)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp <- Sed_sta_rate %>% filter(grepl(Working_site, Site)) %>% rowwise() %>% mutate(Upper = sum(Mean, SD, na.rm = TRUE)) %>% filter(RetDate >= (Start_date %m-% months(9)))
   df_temp$HelperLocation <- (ceiling(max(df_temp$Upper, na.rm = T)*1.05)/5)
   max_upper <- ceiling(max(df_temp$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
   #
