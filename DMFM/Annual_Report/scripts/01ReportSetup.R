@@ -28,7 +28,7 @@ ReportEnd <- as.Date(paste0(ReportYear, "-12-31"))
 Estuaries <- c("AB")
 
 # Set data ranges
-Years_WQ <- seq(2015, ReportYear)
+Years_WQ <- seq(2015, ReportYear) # Need to revisit this, not accurate for DEP, USGS, and  NOAA data
 Years_Survey <- seq(2015, ReportYear)
 Years_Recruitment <- seq(2015, ReportYear)
 Years_OyHealth <- seq(2016, ReportYear)

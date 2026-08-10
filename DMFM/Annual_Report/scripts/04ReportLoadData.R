@@ -8,6 +8,16 @@
 ###########
 ###########
 ###########
+# Temp, Sal, DO data download from DEP cannot be automated. Follow instructions in /data/README.md 
+# Identify the TSDO file
+file_DEP <- list.files(path = "DMFM/Annual_Report/data/",
+                       pattern = "TSDO_*",
+                       full.names = TRUE)
+# Import the data
+TSDO <- read.csv(file_DEP)
+TSDO_AccessedDate <- as.Date(substring(file_DEP, 30, 37), # saves the accessed date for future use
+                             format = "%Y%m%d")
+rm(file_DEP) # remove value once it is not needed
 
 # Load Database Data
 # Connect to Local database server and pull all necessary data, then close connection 
