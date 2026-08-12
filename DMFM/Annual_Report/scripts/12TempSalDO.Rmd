@@ -6,9 +6,38 @@ output: html_document
 # Perform basic analyses, output figures and tables for Temperature, Salinity, Dissolved Oxygen data
 
 ``` {r BasicStats}
+# Temperature
+Temp_daily <- TSDO_clean %>%
+  mutate(Date = as.Date(DateTimeStamp)) %>%
+  group_by(StationCode, Date) %>%
+  summarise(
+    Temp_mean = if (all(is.na(Temp))) NA_real_ else mean(Temp, na.rm = TRUE),
+    Temp_min  = if (all(is.na(Temp))) NA_real_ else min(Temp, na.rm = TRUE),
+    Temp_max  = if (all(is.na(Temp))) NA_real_ else max(Temp, na.rm = TRUE),
+    .groups = "drop"
+  )
 
+# Salinity
+Sal_daily <- TSDO_clean %>%
+  mutate(Date = as.Date(DateTimeStamp)) %>%
+  group_by(StationCode, Date) %>%
+  summarise(
+    Sal_mean = if (all(is.na(Sal))) NA_real_ else mean(Sal, na.rm = TRUE),
+    Sal_min  = if (all(is.na(Sal))) NA_real_ else min(Sal, na.rm = TRUE),
+    Sal_max  = if (all(is.na(Sal))) NA_real_ else max(Sal, na.rm = TRUE),
+    .groups = "drop"
+  )
 
-
+# Dissolved Oxygen
+DO_pct_daily <- TSDO_clean %>%
+  mutate(Date = as.Date(DateTimeStamp)) %>%
+  group_by(StationCode, Date) %>%
+  summarise(
+    DO_pct_mean = if (all(is.na(DO_pct))) NA_real_ else mean(DO_pct, na.rm = TRUE),
+    DO_pct_min  = if (all(is.na(DO_pct))) NA_real_ else min(DO_pct, na.rm = TRUE),
+    DO_pct_max  = if (all(is.na(DO_pct))) NA_real_ else max(DO_pct, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 
 

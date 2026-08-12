@@ -34,6 +34,65 @@ rm(dboFixedLocations)
 ###########
 ###########
 
+### Temperature, Salinity, Dissolved Oxygen
+TSDO_clean <- TSDO %>% # Setting Temps to NA if there are error codes
+  mutate(Temp = case_when(
+    str_detect(F_Temp, fixed("<-5>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<-4>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<-3>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<-2>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<-1>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<0>")) ~ Temp,
+    str_detect(F_Temp, fixed("<1>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<2>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<3>")) ~ NA_real_,
+    str_detect(F_Temp, fixed("<4>")) ~ Temp,
+    str_detect(F_Temp, fixed("<5>")) ~ Temp,
+    TRUE ~ Temp
+  )) %>%
+  mutate(Sal = case_when( # Setting Salinity to NA if there are error codes
+    str_detect(F_Sal, fixed("<-5>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<-4>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<-3>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<-2>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<-1>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<0>")) ~ Sal,
+    str_detect(F_Sal, fixed("<1>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<2>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<3>")) ~ NA_real_,
+    str_detect(F_Sal, fixed("<4>")) ~ Sal,
+    str_detect(F_Sal, fixed("<5>")) ~ Sal,
+    TRUE ~ Sal
+  )) %>%
+  mutate(DO_pct = case_when( # Setting DO to NA if there are error codes
+    str_detect(F_DO_pct, fixed("<-5>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<-4>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<-3>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<-2>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<-1>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<0>")) ~ DO_pct,
+    str_detect(F_DO_pct, fixed("<1>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<2>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<3>")) ~ NA_real_,
+    str_detect(F_DO_pct, fixed("<4>")) ~ DO_pct,
+    str_detect(F_DO_pct, fixed("<5>")) ~ DO_pct,
+    TRUE ~ DO_pct
+  )) %>%
+  mutate(DateTimeStamp = mdy_hm(DateTimeStamp)) %>% # change timestamp from string to POSIX
+  select(StationCode,
+         DateTimeStamp,
+         Temp,
+         Sal,
+         DO_pct)
+  
+# remove intermediate data frames
+rm(TSDO)
+  
+
+
+
+
+
 ###
 
 
