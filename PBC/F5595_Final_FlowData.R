@@ -16,10 +16,10 @@ pacman::p_load(odbc, DBI, dbplyr,
 #
 #### Set up ----
 #
-Flow_date <- as.Date("2023-09-01")
-Start_date <- as.Date("2023-10-01") #Start 13 days prior for rolling sum, then limit data when cleaning
-End_date <- as.Date("2026-09-30")
-Database <- "Oysters_26-06-01"  #Set the local database to use
+Flow_date <- as.Date("2023-09-01") # Date to start flow data (includes 13 days)
+Start_date <- as.Date("2023-10-01") # Report start date. Start 13 days prior for rolling sum, then limit data when cleaning
+End_date <- as.Date("2026-09-30") # Report end date
+Database <- "Oysters_26-08-11"  #Set the local database to use
 Server <- "localhost\\ERICALOCALSQL" #Set the local Server to use
 Estuaries <- c("LW")
 #
@@ -316,7 +316,7 @@ saveWorkbook(
   overwrite = TRUE
 )
 #
-rm(wb, Flow_raw, Turb_raw, Salinity, Sedi_raw, Sediment, WQ_raw)
+rm(wb, Flow_raw, Salinity, Sedi_raw, WQ_raw)
 #
 #
 #
@@ -908,6 +908,8 @@ extract_model_coefficients <- function(models, sep = "_") {
 }
 #
 #
+#
+#
 #### Curves F vs salinity ----
 #
 ### Flow vs salinity
@@ -1260,15 +1262,15 @@ if(runANDsavePlots == "Y"){
 ##
 #
 #
-## 7day and 14day flow vs daily salinity
+## 7day and 14day flow vs daily turbidity 
 head(flow_t7)
 #flow_t7 <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155) %>% pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155), names_to = "Station", values_to = "Flow")
-models_ft_d7 <- fit_flow_models_linear(flow_data = flow_t7, 
+models_ft_d7 <- fit_flow_turb_models(flow_data = flow_t7, 
                                 associated_data = turb_t,
                                 flow_col = "Flow",
                                 other_col = "Turb")
+#
 #Plot models 
-##### WORKING - STOPPING POINT - "no successful plots"
 (p7 <- ggplot_quad_fit(resultsdf = models_ft_d7$data_lookup,
                        results = models_ft_d7$models,
                        model_name = "all",
@@ -1277,7 +1279,7 @@ models_ft_d7 <- fit_flow_models_linear(flow_data = flow_t7,
 #
 if(runANDsavePlots == "Y"){
   ggsave(
-    filename = paste0("PBC/Output/Flow/Flow_salinity_7d_14d_curves_",Sys.Date(),".png"),
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_7d_14d_curves_",Sys.Date(),".png"),
     plot = p2, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_ft_d7$models)) {
@@ -1285,14 +1287,14 @@ if(runANDsavePlots == "Y"){
                                 results = models_ft_d7$models,
                                 model_name = m_name,
                                 flow_col = "Flow",
-                                value_col = "Sali")
+                                value_col = "Turb")
     plot2 <- p2 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
-           y = "Salinity")
+           y = "Turbidity (NTU)")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_salinity_",m_name,"_",Sys.Date(),".png"),
+      filename = paste0("PBC/Output/Flow/Flow_turbidity_",m_name,"_",Sys.Date(),".png"),
       plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
@@ -1300,13 +1302,13 @@ if(runANDsavePlots == "Y"){
 }
 #
 #Optimal flow ranges & model formulas
-fs_714_range <- extract_model_coefficients(models_ft_d7$models)
+ft_714_range <- extract_model_coefficients(models_ft_d7$models)
 #
 #
 ##
 ##
 #
-#
+###### WORKING - STOPPING POINT 
 ## Monthly flow vs monthly salinity
 flow_tm <- Flow_df %>% 
   dplyr::select(Analysis_Date, Estuary, S155_Flow, S41_Flow, S44_Flow) %>%
@@ -1396,6 +1398,9 @@ writeData(wb, "F_turb_lag1", ft_dayLag1_model)
 
 addWorksheet(wb, "F_turb_lag2")
 writeData(wb, "F_turb_lag2", ft_dayLag2_model)
+
+addWorksheet(wb, "F_turb_7d14d")
+writeData(wb, "F_turb_7d14d", ft_714_range)
 
 # Save workbook
 saveWorkbook(
