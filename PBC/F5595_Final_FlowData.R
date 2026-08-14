@@ -24,7 +24,7 @@ Server <- "localhost\\ERICALOCALSQL" #Set the local Server to use
 Estuaries <- c("LW")
 #
 loadfonts(device = "win")
-runANDsavePlots <- c("N")
+runANDsavePlots <- c("Y")
 #
 #
 #### Data files ----
@@ -37,7 +37,9 @@ Flow_raw <- readWorkbook("DBHYDRO/Shared_data/LW_Flow.xlsx", sheet = paste0(Estu
   filter(Date >= Flow_date & Date <= End_date)
 # Clean flow, add 7-day rolling sum & 14-day
 Flow_df <- Flow_raw %>% 
-  #dplyr::select(LWSum) %>%
+  #Get North and South total flows
+  mutate(North_Flow = rowSums(dplyr::select(., S155_Flow, S44_Flow), na.rm = T),
+         South_Flow = rowSums(dplyr::select(., S155_Flow, S41_Flow), na.rm = T)) %>%
   #pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>% group_by(Station) %>%
   mutate(Sum7 = slide_index_dbl(.x = LWSum, .i = Date, .f = sum, 
                                 .before = days(6)), # Current day + 6 days prior = 7 days total
@@ -54,7 +56,23 @@ Flow_df <- Flow_raw %>%
          Sum21_155 = slide_index_dbl(.x = S155_Flow, .i = Date, .f = sum, 
                                  .before = days(20)),
          Sum28_155 = slide_index_dbl(.x = S155_Flow, .i = Date, .f = sum, 
-                                 .before = days(28))
+                                 .before = days(28)),
+         Sum7_North = slide_index_dbl(.x = North_Flow, .i = Date, .f = sum, 
+                                    .before = days(6)), # Current day + 6 days prior = 7 days total
+         Sum14_North = slide_index_dbl(.x = North_Flow, .i = Date, .f = sum, 
+                                     .before = days(13)), # Current day + 13 days prior = 14 days total
+         Sum21_North = slide_index_dbl(.x = North_Flow, .i = Date, .f = sum, 
+                                     .before = days(20)),
+         Sum28_North = slide_index_dbl(.x = North_Flow, .i = Date, .f = sum, 
+                                     .before = days(28)),
+         Sum7_South = slide_index_dbl(.x = South_Flow, .i = Date, .f = sum, 
+                                    .before = days(6)), # Current day + 6 days prior = 7 days total
+         Sum14_South = slide_index_dbl(.x = South_Flow, .i = Date, .f = sum, 
+                                     .before = days(13)), # Current day + 13 days prior = 14 days total
+         Sum21_South = slide_index_dbl(.x = South_Flow, .i = Date, .f = sum, 
+                                     .before = days(20)),
+         Sum28_South = slide_index_dbl(.x = South_Flow, .i = Date, .f = sum, 
+                                     .before = days(28))
   ) %>%
   #ungroup() %>%
   dplyr::filter(Date >= Start_date & Date <= End_date)
@@ -312,7 +330,7 @@ writeData(wb, "Sediment_sec", Sediment_sec)
 # Save workbook
 saveWorkbook(
   wb,
-  file = "LWL_WQ_Data.xlsx",
+  file = "PBC/Data/LWL_WQ_Data.xlsx",
   overwrite = TRUE
 )
 #
@@ -895,11 +913,9 @@ extract_model_coefficients <- function(models, sep = "_") {
   coef_df <- purrr::imap_dfr(models, function(model_info, model_name) {
     
     # Extract actual model ----
-    # New structure: list(model = fit, summary = summary(fit))
     if (is.list(model_info) && "model" %in% names(model_info)) {
       model <- model_info$model
     } else {
-      # Allow old structure where model itself was stored
       model <- model_info
     }
     #
@@ -913,6 +929,7 @@ extract_model_coefficients <- function(models, sep = "_") {
     model_type <- dplyr::case_when(
       inherits(model, "rq") ~ "quantile",
       inherits(model, "lm") ~ "linear",
+      inherits(model, "nls") ~ "nls",
       TRUE ~ class(model)[1]
     )
     #
@@ -943,15 +960,29 @@ extract_model_coefficients <- function(models, sep = "_") {
       loss_null <- sum(
         rho(y - yhat_null, tau))
       
-      R2 <- 1 - loss_model / loss_null
+      fit_stat <- 1 - loss_model / loss_null
+      fit_stat_type <- "pseudo-R2"
       
     } else if (inherits(model, "lm")) {
+      # Ordinary linear regression R2
       tau <- NA_real_
-      R2 <- summary(model)$r.squared
+      fit_stat <- summary(model)$r.squared
+      fit_stat_type <- "R2"
+      
+    } else if (inherits(model, "nls")) {
+      # Nonlinear least-squares R2-like statistic
+      tau <- NA_real_
+      y <- model$m$resid() + model$m$fitted()
+      yhat <- model$m$fitted()
+      fit_stat <- 1 - sum((y - yhat)^2) /
+        sum((y - mean(y, na.rm = TRUE))^2)
+      
+      fit_stat_type <- "R2-like"
       
     } else {
       tau <- NA_real_
-      R2 <- NA_real_
+      fit_stat <- NA_real_
+      fit_stat_type <- NA_character_
       
     }
     # Convert coefficient vector to one-row data frame
@@ -962,13 +993,14 @@ extract_model_coefficients <- function(models, sep = "_") {
       flow_station = flow_station,
       model_type = model_type,
       tau = tau,
-      psu_or_R2 = R2
+      fit_stat = fit_stat,
+      fit_stat_type = fit_stat_type
     ) %>%
       dplyr::bind_cols(coef_df)
     #
   })
   
-  coef_df
+  coef_df %>% dplyr::select(where(~ !all(is.na(.))))
 }
 #
 #
@@ -980,8 +1012,8 @@ extract_model_coefficients <- function(models, sep = "_") {
 #
 ## Daily flow vs daily salinity
 flow_t <- Flow_df %>% 
-  dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow) %>%
-  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+  dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow) %>%
+  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
 sal_t <- Sali_raw %>%
   pivot_longer(cols = c(LWL20_Sali, LWL19_Sali), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
 models_fs_d <- fit_flow_models(flow_data = flow_t, 
@@ -989,7 +1021,7 @@ models_fs_d <- fit_flow_models(flow_data = flow_t,
                           flow_col = "Flow",
                           other_col = "Sali")
 #Limit to desired models
-models_fs_d <- filter_models(models_fs_d, c("LWL20_S41", "LWL19_S44"), mode = "remove")
+models_fs_d <- filter_models(models_fs_d, c("LWL20_S41", "LWL20_South", "LWL19_S44", "LWL19_North"), mode = "remove")
 #Plot models
 (p <- ggplot_hyperbolic_fit(resultsdf = models_fs_d$data_lookup,
                       results = models_fs_d$models,
@@ -1000,26 +1032,26 @@ models_fs_d <- filter_models(models_fs_d, c("LWL20_S41", "LWL19_S44"), mode = "r
 if(runANDsavePlots == "Y"){
   # Save combined plot:
   ggsave(
-    filename = paste0("PBC/Output/Flow/FLow_salinity_daily_curves_",Sys.Date(),".png"),
+    filename = paste0("PBC/Output/Flow/Flow_salinity_daily_curves_",Sys.Date(),".png"),
     plot = p, width = 9, height = 5, units = "in", dpi = 300)
   #
   # Save indivudal plots:
   for (m_name in names(models_fs_d$models)) {
     
-    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d$data_lookup,
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d$data_lookup,
                                 results = models_fs_d$models,
                                 model_name = m_name,
                                 flow_col = "Flow",
                                 value_col = "Sali")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Salinity")
     
     ggsave(
-      filename = paste0("PBC/Output/Flow/FLow_salinity_daily_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_salinity_daily_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1034,6 +1066,11 @@ fs_daily_range <- rbind(
 #
 fs_daily_range %>% 
   dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+fs_daily_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
 #
 #
 ##
@@ -1042,12 +1079,15 @@ fs_daily_range %>%
 #
 ## 7day and 14day flow vs daily salinity
 flow_t7 <- Flow_df %>% 
-  dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155) %>%
-  pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155), names_to = "Station", values_to = "Flow")
+  dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155, Sum7_North, Sum14_North, Sum7_South, Sum14_South) %>%
+  pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155, Sum7_North, Sum14_North, Sum7_South, Sum14_South), names_to = "Station", values_to = "Flow")
 models_fs_d7 <- fit_flow_models(flow_data = flow_t7, 
                                associated_data = sal_t,
                                flow_col = "Flow",
                                other_col = "Sali")
+#Limit to desired models
+models_fs_d7 <- filter_models(models_fs_d7, c("LWL20_Sum7South", "LWL20_Sum14South", "LWL19_Sum7North", "LWL19_Sum14North"), mode = "remove")
+#
 #Plot models
 (p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d7$data_lookup,
                             results = models_fs_d7$models,
@@ -1061,19 +1101,19 @@ if(runANDsavePlots == "Y"){
     plot = p2, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_fs_d7$models)) {
-    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d7$data_lookup,
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_fs_d7$data_lookup,
                                 results = models_fs_d7$models,
                                 model_name = m_name,
                                 flow_col = "Flow",
                                 value_col = "Sali")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Salinity")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_salinity_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_salinity_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1088,6 +1128,11 @@ fs_714_range <- rbind(
 #
 fs_714_range %>% 
   dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+fs_714_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
 #
 #
 ##
@@ -1096,8 +1141,8 @@ fs_714_range %>%
 #
 ## Monthly flow vs monthly salinity
 flow_tm <- Flow_df %>% 
-  dplyr::select(Analysis_Date, Estuary, S155_Flow, S41_Flow, S44_Flow) %>%
-  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>%
+  dplyr::select(Analysis_Date, Estuary, S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow) %>%
+  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>%
     group_by(Analysis_Date, Station) %>%
   summarise(Flow = sum(Flow, na.rm = T)) %>%
   rename(Date = Analysis_Date)
@@ -1112,7 +1157,8 @@ models_fs_m <- fit_flow_models(flow_data = flow_tm,
 models_fs_m <- filter_models(models_fs_m, c("LW-R4_S44", "LWL19_S155","LWL20_S155", "LW-L1_S155",
                                             "LW-L2_S155", "LW-L3_S155", "LW-R2_S155", "LW-R3_S155",
                                             "LW-R4_S155", "SC_S155", "NC_S155", "LW-L3_S41",
-                                            "NC_S44", "SC_S41"), 
+                                            "LW-L1_North", "LW-L2_North", "LW-L3_South", "LW-R2_South", "LW-R3_South", "LW-R4_North",
+                                            "NC_S44", "SC_S41", "NC_North", "SC_South"), 
                              mode = "keep")
 #Plot models
 (p3 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
@@ -1127,19 +1173,19 @@ if(runANDsavePlots == "Y"){
     plot = p3, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_fs_m$models)) {
-    p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_fs_m$data_lookup,
                                 results = models_fs_m$models,
                                 model_name = m_name,
                                 flow_col = "Flow",
                                 value_col = "Sali")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Salinity")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_salinity_monthly_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_salinity_monthly_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1154,6 +1200,11 @@ fs_m_range <- rbind(
 #
 fs_m_range %>% 
   dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+fs_m_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
 #
 #
 #
@@ -1163,7 +1214,7 @@ fs_m_range %>%
 #
 ### Flow vs turbidity
 #
-## Daily flow vs daily turbidity
+## Daily flow vs daily mean turbidity
 head(flow_t)
 #flow_t <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow) %>% pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
 turb_t <- Turb_raw %>% dplyr::select(-LWMean) %>%
@@ -1178,7 +1229,7 @@ models_ft_d <- fit_flow_turb_models(flow_data = flow_t,
                                flow_col = "Flow",
                                other_col = "Turb")
 #Limit to desired models
-models_ft_d <- filter_models(models_ft_d, c("LWL20_S41", "LWL20_S44", "LWL19_S41", "LWL19_S44"), mode = "remove")
+models_ft_d <- filter_models(models_ft_d, c("LWL20_S41", "LWL19_S44", "LWL20_South", "LWL19_North"), mode = "remove")
 names(models_ft_d$models)
 #Plot models
 (p4 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
@@ -1188,6 +1239,11 @@ names(models_ft_d$models)
                        value_col = "Turb"))
 #
 ft_daily_model <- extract_model_coefficients(models_ft_d$models)
+ft_daily_model %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
 #
 if(runANDsavePlots == "Y"){
   # Save combined plot:
@@ -1198,20 +1254,20 @@ if(runANDsavePlots == "Y"){
   # Save indivudal plots:
   for (m_name in names(models_ft_d$models)) {
     
-    p2 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
                                 results = models_ft_d$models,
                                 model_name = m_name,
                                 flow_col = "Flow",
                                 value_col = "Turb")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Turbidity (NTU)")
     
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_turbidity_daily_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_turbidity_daily_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1220,11 +1276,13 @@ if(runANDsavePlots == "Y"){
 #
 #
 ##
+###
 ##
 #
 #
 ## Daily flow lag1 and lag2 vs daily turbidity
 flow_tlag <- flow_t %>% 
+  group_by(Station) %>%
   mutate(Flow1 = lag(Flow, n = 1),
          Flow2 = lag(Flow, n = 2))
 head(turb_t)
@@ -1236,16 +1294,21 @@ models_ft_dlag <- fit_flow_turb_models(flow_data = flow_tlag %>% drop_na(),
                                     flow_col = "Flow1",
                                     other_col = "Turb")
 #Limit to desired models
-models_ft_dlag <- filter_models(models_ft_dlag, c("LWL20_S41", "LWL20_S44", "LWL19_S41", "LWL19_S44"), mode = "remove")
+models_ft_dlag <- filter_models(models_ft_dlag, c("LWL20_S41", "LWL19_S44", "LWL20_South", "LWL19_North"), mode = "remove")
 names(models_ft_dlag$models)
 #Plot models
 (p5 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
                        results = models_ft_dlag$models,
                        model_name = "all",
-                       flow_col = "Flow1",
+                       flow_col = "Flow",
                        value_col = "Turb"))
 #
 ft_dayLag1_model <- extract_model_coefficients(models_ft_dlag$models)
+ft_dayLag1_model %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
 #
 if(runANDsavePlots == "Y"){
   # Save combined plot:
@@ -1256,12 +1319,12 @@ if(runANDsavePlots == "Y"){
   # Save indivudal plots:
   for (m_name in names(models_ft_dlag$models)) {
     
-    p2 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
                           results = models_ft_dlag$models,
                           model_name = m_name,
                           flow_col = "Flow1",
                           value_col = "Turb")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow lag 1 day(cfs)",
@@ -1269,7 +1332,7 @@ if(runANDsavePlots == "Y"){
     
     ggsave(
       filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag1_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1281,7 +1344,7 @@ models_ft_d2lag <- fit_flow_turb_models(flow_data = flow_tlag %>% drop_na(),
                                        flow_col = "Flow2",
                                        other_col = "Turb")
 #Limit to desired models
-models_ft_d2lag <- filter_models(models_ft_d2lag, c("LWL20_S41", "LWL20_S44", "LWL19_S41", "LWL19_S44"), mode = "remove")
+models_ft_d2lag <- filter_models(models_ft_d2lag, c("LWL20_S41", "LWL19_S44", "LWL20_South", "LWL19_North"), mode = "remove")
 names(models_ft_d2lag$models)
 #Plot models
 (p6 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
@@ -1291,6 +1354,11 @@ names(models_ft_d2lag$models)
                        value_col = "Turb"))
 #
 ft_dayLag2_model <- extract_model_coefficients(models_ft_d2lag$models)
+ft_dayLag2_model %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
 #
 if(runANDsavePlots == "Y"){
   # Save combined plot:
@@ -1301,12 +1369,12 @@ if(runANDsavePlots == "Y"){
   # Save indivudal plots:
   for (m_name in names(models_ft_d2lag$models)) {
     
-    p2 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
                           results = models_ft_d2lag$models,
                           model_name = m_name,
                           flow_col = "Flow2",
                           value_col = "Turb")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow lag 2 day(cfs)",
@@ -1314,7 +1382,7 @@ if(runANDsavePlots == "Y"){
     
     ggsave(
       filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag2_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1326,13 +1394,17 @@ if(runANDsavePlots == "Y"){
 ##
 #
 #
-## 7day and 14day flow vs daily turbidity 
+## 7day and 14day flow vs daily mean turbidity 
 head(flow_t7)
 #flow_t7 <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155) %>% pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155), names_to = "Station", values_to = "Flow")
 models_ft_d7 <- fit_flow_turb_models(flow_data = flow_t7, 
                                 associated_data = turb_t,
                                 flow_col = "Flow",
                                 other_col = "Turb")
+#
+#Limit to desired models
+models_ft_d7 <- filter_models(models_ft_d7, c("LWL20_Sum7South" , "LWL20_Sum14South", "LWL19_Sum7North",  "LWL19_Sum14North"), mode = "remove")
+names(models_ft_d7$models)
 #
 #Plot models 
 (p7 <- ggplot_quad_fit(resultsdf = models_ft_d7$data_lookup,
@@ -1344,22 +1416,22 @@ models_ft_d7 <- fit_flow_turb_models(flow_data = flow_t7,
 if(runANDsavePlots == "Y"){
   ggsave(
     filename = paste0("PBC/Output/Flow/Flow_turbidity_7d_14d_curves_",Sys.Date(),".png"),
-    plot = p2, width = 9, height = 5, units = "in", dpi = 300)
+    plot = p7, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_ft_d7$models)) {
-    p2 <- ggplot_hyperbolic_fit(resultsdf = models_ft_d7$data_lookup,
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_ft_d7$data_lookup,
                                 results = models_ft_d7$models,
                                 model_name = m_name,
                                 flow_col = "Flow",
                                 value_col = "Turb")
-    plot2 <- p2 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Turbidity (NTU)")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_turbidity_",m_name,"_",Sys.Date(),".png"),
-      plot = plot2, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_turbidity_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1367,6 +1439,12 @@ if(runANDsavePlots == "Y"){
 #
 #Optimal flow ranges & model formulas
 ft_714_range <- extract_model_coefficients(models_ft_d7$models)
+ft_714_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
 #
 #
 ##
@@ -1382,8 +1460,8 @@ head(Sediment_sec)
 head(Sediment_sta)
 #
 flow_d <- Flow_df %>% 
-  dplyr::select(Analysis_Date, Estuary, Date, Sum7:Sum28, Sum7_155:Sum28_155) %>%
-  pivot_longer(cols = c(Sum7:Sum28_155), names_to = "Station", values_to = "Flow")
+  dplyr::select(Analysis_Date, Estuary, Date, Sum7:Sum28, Sum7_155:Sum28_South) %>%
+  pivot_longer(cols = c(Sum7:Sum28_South), names_to = "Station", values_to = "Flow")
 #
 sed_st <- Sediment_sta %>%
   ungroup() %>%
@@ -1402,6 +1480,15 @@ models_fds_d7 <- fit_flow_turb_models(flow_data = flow_d,
                                      flow_col = "Flow",
                                      other_col = "RateMean")
 #
+#Limit to desired models
+models_fds_d7 <- filter_models(models_fds_d7, c("LW-R4_Sum7South",  "LW-R4_Sum14South", "LW-R4_Sum21South", "LW-R4_Sum28South",
+                                            "LW-R3_Sum7North",  "LW-R3_Sum14North", "LW-R3_Sum21North", "LW-R3_Sum28North",
+                                            "LW-R2_Sum7North",  "LW-R2_Sum14North", "LW-R2_Sum21North", "LW-R2_Sum28North",
+                                            "LW-L3_Sum7North",  "LW-L3_Sum14North", "LW-L3_Sum21North", "LW-L3_Sum28North",
+                                            "LW-L2_Sum7South",  "LW-L2_Sum14South", "LW-L2_Sum21South","LW-L2_Sum28South",
+                                            "LW-L1_Sum7South",  "LW-L1_Sum14South", "LW-L1_Sum21South", "LW-L1_Sum28South"), 
+                             mode = "remove")
+#
 #Plot models 
 (p8 <- ggplot_quad_fit(resultsdf = models_fds_d7$data_lookup,
                        results = models_fds_d7$models,
@@ -1410,6 +1497,12 @@ models_fds_d7 <- fit_flow_turb_models(flow_data = flow_d,
                        value_col = "RateMean"))
 #Optimal flow ranges & model formulas
 fd_s_range <- extract_model_coefficients(models_fds_d7$models)
+fd_s_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>% 
+  print(n = 75)
 #
 if(runANDsavePlots == "Y"){
   ggsave(
@@ -1417,18 +1510,18 @@ if(runANDsavePlots == "Y"){
     plot = p8, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_fds_d7$models)) {
-    p8 <- ggplot_quad_fit(resultsdf = models_fds_d7$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_fds_d7$data_lookup,
                           results = models_fds_d7$models,
                           model_name = m_name,
                           flow_col = "Flow",
                           value_col = "RateMean")
-    plot8 <- p8 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Sedimentation rate")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_sedimentation_",m_name,"_",Sys.Date(),".png"),
+      filename = paste0("PBC/Output/Flow/Individual/Flow_sedimentation_",m_name,"_",Sys.Date(),".png"),
       plot = plot8, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
@@ -1443,6 +1536,10 @@ models_fdn_d7 <- fit_flow_turb_models(flow_data = flow_d,
                                       associated_data = sed_ns,
                                       flow_col = "Flow",
                                       other_col = "RateMean")
+#Limit to desired models
+models_fdn_d7 <- filter_models(models_fdn_d7, c("NC_Sum7South",  "NC_Sum14South", "NC_Sum21South", "NC_Sum28South",
+                                                "SC_Sum7North",  "SC_Sum14North", "SC_Sum21North", "SC_Sum28North"), 
+                               mode = "remove")
 #
 #Plot models 
 (p9 <- ggplot_quad_fit(resultsdf = models_fdn_d7$data_lookup,
@@ -1452,6 +1549,12 @@ models_fdn_d7 <- fit_flow_turb_models(flow_data = flow_d,
                        value_col = "RateMean"))
 #Optimal flow ranges & model formulas
 fd_n_range <- extract_model_coefficients(models_fdn_d7$models)
+fd_n_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>%
+  print(n=25)
 #
 if(runANDsavePlots == "Y"){
   ggsave(
@@ -1459,19 +1562,19 @@ if(runANDsavePlots == "Y"){
     plot = p9, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_fdn_d7$models)) {
-    p9 <- ggplot_quad_fit(resultsdf = models_fdn_d7$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_fdn_d7$data_lookup,
                           results = models_fdn_d7$models,
                           model_name = m_name,
                           flow_col = "Flow",
                           value_col = "RateMean")
-    plot9 <- p9 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Sedimentation rate")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_sedimentation_",m_name,"_",Sys.Date(),".png"),
-      plot = plot9, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_sedimentation_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1507,7 +1610,16 @@ models_fdo_d7 <- fit_flow_turb_models(flow_data = flow_d,
                                       flow_col = "Flow",
                                       other_col = "OrgWtMean")
 #
-#Plot models 
+#Limit to desired models
+models_fdo_d7 <- filter_models(models_fdo_d7, c("LW-R4_Sum7South",  "LW-R4_Sum14South", "LW-R4_Sum21South", "LW-R4_Sum28South",
+                                                "LW-R3_Sum7North",  "LW-R3_Sum14North", "LW-R3_Sum21North", "LW-R3_Sum28North",
+                                                "LW-R2_Sum7North",  "LW-R2_Sum14North", "LW-R2_Sum21North", "LW-R2_Sum28North",
+                                                "LW-L3_Sum7North",  "LW-L3_Sum14North", "LW-L3_Sum21North", "LW-L3_Sum28North",
+                                                "LW-L2_Sum7South",  "LW-L2_Sum14South", "LW-L2_Sum21South","LW-L2_Sum28South",
+                                                "LW-L1_Sum7South",  "LW-L1_Sum14South", "LW-L1_Sum21South", "LW-L1_Sum28South"), 
+                               mode = "remove")
+
+##Plot models 
 (p10 <- ggplot_quad_fit(resultsdf = models_fdo_d7$data_lookup,
                        results = models_fdo_d7$models,
                        model_name = "all",
@@ -1515,6 +1627,12 @@ models_fdo_d7 <- fit_flow_turb_models(flow_data = flow_d,
                        value_col = "OrgWtMean"))
 #Optimal flow ranges & model formulas
 fo_s_range <- extract_model_coefficients(models_fdo_d7$models)
+fo_s_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>%
+  print(n=75)
 #
 if(runANDsavePlots == "Y"){
   ggsave(
@@ -1522,19 +1640,19 @@ if(runANDsavePlots == "Y"){
     plot = p10, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_fdo_d7$models)) {
-    p10 <- ggplot_quad_fit(resultsdf = models_fdo_d7$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_fdo_d7$data_lookup,
                           results = models_fdo_d7$models,
                           model_name = m_name,
                           flow_col = "Flow",
                           value_col = "OrgWtMean")
-    plot10 <- p10 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Organic weight (g)")
     ggsave(
-      filename = paste0("PBC/Output/Flow/Flow_organicwt_",m_name,"_",Sys.Date(),".png"),
-      plot = plot10, width = 9, height = 5, units = "in", dpi = 300)
+      filename = paste0("PBC/Output/Flow/Individual/Flow_organicwt_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1549,6 +1667,11 @@ models_fon_d7 <- fit_flow_turb_models(flow_data = flow_d,
                                       flow_col = "Flow",
                                       other_col = "OrgWtMean")
 #
+#Limit to desired models
+models_fon_d7 <- filter_models(models_fon_d7, c("NC_Sum7South",  "NC_Sum14South", "NC_Sum21South", "NC_Sum28South",
+                                                "SC_Sum7North",  "SC_Sum14North", "SC_Sum21North", "SC_Sum28North"), 
+                               mode = "remove")
+
 #Plot models 
 (p11 <- ggplot_quad_fit(resultsdf = models_fon_d7$data_lookup,
                        results = models_fon_d7$models,
@@ -1557,6 +1680,12 @@ models_fon_d7 <- fit_flow_turb_models(flow_data = flow_d,
                        value_col = "OrgWtMean"))
 #Optimal flow ranges & model formulas
 fo_n_range <- extract_model_coefficients(models_fon_d7$models)
+fo_n_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>%
+  print(n= 25)
 #
 if(runANDsavePlots == "Y"){
   ggsave(
@@ -1564,19 +1693,19 @@ if(runANDsavePlots == "Y"){
     plot = p11, width = 9, height = 5, units = "in", dpi = 300)
   #
   for (m_name in names(models_fon_d7$models)) {
-    p11 <- ggplot_quad_fit(resultsdf = models_fon_d7$data_lookup,
+    p0 <- ggplot_quad_fit(resultsdf = models_fon_d7$data_lookup,
                           results = models_fon_d7$models,
                           model_name = m_name,
                           flow_col = "Flow",
                           value_col = "OrgWtMean")
-    plot11 <- p11 + 
+    plot0 <- p0 + 
       base_theme +
       scales_cont +
       labs(x = "Flow (cfs)",
            y = "Oragnic weight (g)")
     ggsave(
       filename = paste0("PBC/Output/Flow/Flow_organicwt_",m_name,"_",Sys.Date(),".png"),
-      plot = plot11, width = 9, height = 5, units = "in", dpi = 300)
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
   }
 } else {
   message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
@@ -1630,6 +1759,143 @@ writeData(wb, "F_orwt_sec", fo_n_range)
 # Save workbook
 saveWorkbook(
   wb,
-  file = "LWL_Flow_Summary.xlsx",
+  file = "PBC/Output/LWL_Flow_Summary.xlsx",
   overwrite = TRUE
+)
+
+#### Output figures ####
+#
+#
+##### WORKING
+flow_logger <- "LWL20"
+model_names <- names(models_fs_d$models)
+selected_models <- model_names[
+  grepl(paste0("^", flow_logger, "_"), model_names)
+]
+selected_models
+#
+plots <- lapply(selected_models, function(model_name) {
+  
+  # Extract model and raw data
+  fit <- models_fs_d$models[[model_name]]$model
+  df  <- models_fs_d$data_lookup[[model_name]]
+  
+  # ---------------------------------------------
+  # Extract variable names from model
+  # ---------------------------------------------
+  
+  response_var <- all.vars(formula(fit))[1]
+  
+  predictor_var <- if (inherits(fit, "rq") ||
+                       inherits(fit, "lm")) {
+    "logFlow"
+  } else {
+    all.vars(formula(fit))[2]
+  }
+  
+  # ---------------------------------------------
+  # Determine original x/y variables
+  # ---------------------------------------------
+  
+  if (inherits(fit, "rq") || inherits(fit, "lm")) {
+    
+    # logFlow/logOther models
+    x_var <- names(df)[
+      grepl("flow", names(df), ignore.case = TRUE)
+    ][1]
+    
+    y_var <- names(df)[
+      grepl("turb|other", names(df), ignore.case = TRUE)
+    ][1]
+    
+    # Flow range
+    xseq <- seq(
+      min(df[[x_var]], na.rm = TRUE),
+      max(df[[x_var]], na.rm = TRUE),
+      length.out = 1000
+    )
+    
+    # Prediction data
+    pred_df <- data.frame(
+      logFlow = log10(xseq + 1)
+    )
+    
+    pred_df$logOther <- predict(
+      fit,
+      newdata = pred_df
+    )
+    
+    # Back-transform
+    pred_df[[x_var]] <- xseq
+    pred_df[[y_var]] <- 10^pred_df$logOther - 1
+    
+  } else if (inherits(fit, "nls")) {
+    
+    # Original-scale nonlinear model
+    
+    # Predictor is the variable appearing in the formula
+    # after the ~, excluding model parameters
+    formula_vars <- all.vars(formula(fit))
+    
+    # Find the variable in the model that is actually
+    # present in the raw data
+    model_data_vars <- intersect(formula_vars, names(df))
+    
+    y_var <- model_data_vars[1]
+    x_var <- model_data_vars[2]
+    
+    # Flow range
+    xseq <- seq(
+      min(df[[x_var]], na.rm = TRUE),
+      max(df[[x_var]], na.rm = TRUE),
+      length.out = 1000
+    )
+    
+    pred_df <- data.frame(
+      x = xseq
+    )
+    
+    names(pred_df) <- x_var
+    
+    pred_df[[y_var]] <- predict(
+      fit,
+      newdata = pred_df
+    )
+  }
+  
+  # ---------------------------------------------
+  # Plot
+  # ---------------------------------------------
+  
+  ggplot(
+    df,
+    aes(
+      x = .data[[x_var]],
+      y = .data[[y_var]]
+    )
+  ) +
+    geom_point(
+      color = "gray30",
+      size = 2
+    ) +
+    geom_line(
+      data = pred_df,
+      aes(
+        x = .data[[x_var]],
+        y = .data[[y_var]]
+      ),
+      color = "blue",
+      linewidth = 1.2
+    ) +
+    labs(
+      title = model_name,
+      x = x_var,
+      y = y_var
+    ) +
+    theme_classic()
+})
+
+patchwork::wrap_plots(
+  plots,
+  ncol = ceiling(sqrt(length(plots)))
 )
