@@ -42,3 +42,360 @@ DO_pct_daily <- TSDO_clean %>%
 
 
 ```
+
+``` {r WQ figures}
+
+# Temperature
+ggplot(Temp_daily %>% filter(StationCode == "Cat Point", year(Date) == ReportYear), 
+       aes(x = Date, color = StationCode, fill = StationCode)) +
+  geom_ribbon(
+    aes(ymin = Temp_min, ymax = Temp_max),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = Temp_mean),
+    linewidth = 1
+  ) +
+  labs(
+    x = "Date",
+    y = "Temperature",
+    color = "Station",
+    fill = "Station"
+  ) +
+  theme_classic()
+
+ggplot(Temp_daily %>% filter(StationCode == "Dry Bar", year(Date) == ReportYear), 
+       aes(x = Date, color = StationCode, fill = StationCode)) +
+  geom_ribbon(
+    aes(ymin = Temp_min, ymax = Temp_max),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = Temp_mean),
+    linewidth = 1
+  ) +
+  labs(
+    x = "Date",
+    y = "Temperature",
+    color = "Station",
+    fill = "Station"
+  ) +
+  theme_classic()
+
+# Salinity
+ggplot(Sal_daily %>% filter(StationCode == "Cat Point", year(Date) == ReportYear), 
+       aes(x = Date, color = StationCode, fill = StationCode)) +
+  geom_ribbon(
+    aes(ymin = Sal_min, ymax = Sal_max),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = Sal_mean),
+    linewidth = 1
+  ) +
+  labs(
+    x = "Date",
+    y = "Salinity",
+    color = "Station",
+    fill = "Station"
+  ) +
+  theme_classic()
+
+ggplot(Sal_daily %>% filter(StationCode == "Dry Bar", year(Date) == ReportYear), 
+       aes(x = Date, color = StationCode, fill = StationCode)) +
+  geom_ribbon(
+    aes(ymin = Sal_min, ymax = Sal_max),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = Sal_mean),
+    linewidth = 1
+  ) +
+  labs(
+    x = "Date",
+    y = "Salinity",
+    color = "Station",
+    fill = "Station"
+  ) +
+  theme_classic()
+
+# Dissolved oxygen
+ggplot(DO_pct_daily %>% filter(StationCode == "Cat Point", year(Date) == ReportYear), 
+       aes(x = Date, color = StationCode, fill = StationCode)) +
+  geom_ribbon(
+    aes(ymin = DO_pct_min, ymax = DO_pct_max),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = DO_pct_mean),
+    linewidth = 1
+  ) +
+  labs(
+    x = "Date",
+    y = "Dissolved oxygen %",
+    color = "Station",
+    fill = "Station"
+  ) +
+  theme_classic()
+
+ggplot(DO_pct_daily %>% filter(StationCode == "Dry Bar", year(Date) == ReportYear), 
+       aes(x = Date, color = StationCode, fill = StationCode)) +
+  geom_ribbon(
+    aes(ymin = DO_pct_min, ymax = DO_pct_max),
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_line(
+    aes(y = DO_pct_mean),
+    linewidth = 1
+  ) +
+  labs(
+    x = "Date",
+    y = "Dissolved oxygen %",
+    color = "Station",
+    fill = "Station"
+  ) +
+  theme_classic()
+
+
+```
+
+``` {r TempSalDO models}
+### Calculate monthly historical means and variability
+
+## Temperature
+Temp_monthly <- TSDO_clean %>%
+  mutate(
+    Date = as.Date(DateTimeStamp),
+    Year = year(Date),
+    Month = month(Date)
+  ) %>%
+  group_by(StationCode, Year, Month) %>%
+  summarise(
+    Temp_mean = if (all(is.na(Temp))) NA_real_ else mean(Temp, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# calculate the historical distribution for each station and month, excluding ReportYear. 
+# This gives us the typical monthly HISTORICAL conditions
+Temp_historical <- Temp_monthly %>%
+  filter(Year >= 2002, Year <= ReportYear - 1) %>%
+  group_by(StationCode, Month) %>%
+  summarise(
+    Historical_mean = mean(Temp_mean, na.rm = TRUE),
+    Historical_sd = sd(Temp_mean, na.rm = TRUE),
+    Historical_low = quantile(Temp_mean, 0.10, na.rm = TRUE),
+    Historical_high = quantile(Temp_mean, 0.90, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Isolate ReportYear value
+Temp_current <- Temp_monthly %>%
+  filter(Year == ReportYear) %>%
+  select(StationCode, Month, Temp_current = Temp_mean)
+
+# combine the two tables
+Temp_comparison <- Temp_historical %>%
+  left_join(Temp_current, by = c("StationCode", "Month")) %>%
+  mutate(
+    Difference = Temp_current - Historical_mean,
+    Anomaly = Difference / Historical_sd
+  )
+
+# Salinity Figure
+TempFigure <- ggplot(Temp_comparison, aes(x = Month)) +
+  geom_ribbon(
+    aes(
+      ymin = Historical_low,
+      ymax = Historical_high
+    ),
+    alpha = 0.2) +
+  
+  geom_line(
+    aes(y = Historical_mean),
+    linewidth = 1) +
+  
+  geom_line(
+    aes(y = Temp_current),
+    linewidth = 1.2) +
+  
+  geom_point(
+    aes(y = Temp_current),
+    size = 2) +
+  
+  facet_wrap(~ StationCode) +
+  
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb) +
+  
+  labs(
+    x = "Month",
+    y = "Temperature (°C)",
+    title = "2025 Temperature Compared with Historical Conditions",
+    subtitle = "Historical period: 2002–2024; shaded area represents the 10th–90th percentile") +
+  
+  theme_classic()
+
+## Salinity
+Sal_monthly <- TSDO_clean %>%
+  mutate(
+    Date = as.Date(DateTimeStamp),
+    Year = year(Date),
+    Month = month(Date)
+  ) %>%
+  group_by(StationCode, Year, Month) %>%
+  summarise(
+    Sal_mean = if (all(is.na(Sal))) NA_real_ else mean(Sal, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# calculate the historical distribution for each station and month, excluding ReportYear. 
+# This gives us the typical monthly HISTORICAL conditions
+Sal_historical <- Sal_monthly %>%
+  filter(Year >= 2002, Year <= ReportYear - 1) %>%
+  group_by(StationCode, Month) %>%
+  summarise(
+    Historical_mean = mean(Sal_mean, na.rm = TRUE),
+    Historical_sd = sd(Sal_mean, na.rm = TRUE),
+    Historical_low = quantile(Sal_mean, 0.10, na.rm = TRUE),
+    Historical_high = quantile(Sal_mean, 0.90, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Isolate ReportYear value
+Sal_current <- Sal_monthly %>%
+  filter(Year == ReportYear) %>%
+  select(StationCode, Month, Sal_current = Sal_mean)
+
+# combine the two tables
+Sal_comparison <- Sal_historical %>%
+  left_join(Sal_current, by = c("StationCode", "Month")) %>%
+  mutate(
+    Difference = Sal_current - Historical_mean,
+    Anomaly = Difference / Historical_sd
+  )
+
+# Salinity Figure
+SalinityFiguer <- ggplot(Sal_comparison, aes(x = Month)) +
+  geom_ribbon(
+    aes(
+      ymin = Historical_low,
+      ymax = Historical_high
+    ),
+    alpha = 0.2) +
+  
+  geom_line(
+    aes(y = Historical_mean),
+    linewidth = 1) +
+  
+  geom_line(
+    aes(y = Sal_current),
+    linewidth = 1.2) +
+  
+  geom_point(
+    aes(y = Sal_current),
+    size = 2) +
+  
+  facet_wrap(~ StationCode) +
+  
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb) +
+  
+  labs(
+    x = "Month",
+    y = "Salinity (psu)",
+    title = "2025 Salinity Compared with Historical Conditions",
+    subtitle = "Historical period: 2002–2024; shaded area represents the 10th–90th percentile") +
+  
+  theme_classic()
+
+## Disolved oxygen
+DO_monthly <- TSDO_clean %>%
+  mutate(
+    Date = as.Date(DateTimeStamp),
+    Year = year(Date),
+    Month = month(Date)
+  ) %>%
+  group_by(StationCode, Year, Month) %>%
+  summarise(
+    DO_mean = if (all(is.na(DO_pct))) NA_real_ else mean(DO_pct, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# calculate the historical distribution for each station and month, excluding ReportYear. 
+# This gives us the typical monthly HISTORICAL conditions
+DO_historical <- DO_monthly %>%
+  filter(Year >= 2002, Year <= ReportYear - 1) %>%
+  group_by(StationCode, Month) %>%
+  summarise(
+    Historical_mean = mean(DO_mean, na.rm = TRUE),
+    Historical_sd = sd(DO_mean, na.rm = TRUE),
+    Historical_low = quantile(DO_mean, 0.10, na.rm = TRUE),
+    Historical_high = quantile(DO_mean, 0.90, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Isolate ReportYear value
+DO_current <- DO_monthly %>%
+  filter(Year == ReportYear) %>%
+  select(StationCode, Month, DO_current = DO_mean)
+
+# combine the two tables
+DO_comparison <- DO_historical %>%
+  left_join(DO_current, by = c("StationCode", "Month")) %>%
+  mutate(
+    Difference = DO_current - Historical_mean,
+    Anomaly = Difference / Historical_sd
+  )
+
+# DO Figure
+DOFigure <- ggplot(DO_comparison, aes(x = Month)) +
+  geom_ribbon(
+    aes(
+      ymin = Historical_low,
+      ymax = Historical_high
+    ),
+    alpha = 0.2) +
+  
+  geom_line(
+    aes(y = Historical_mean),
+    linewidth = 1) +
+  
+  geom_line(
+    aes(y = DO_current),
+    linewidth = 1.2) +
+  
+  geom_point(
+    aes(y = DO_current),
+    size = 2) +
+  
+  facet_wrap(~ StationCode) +
+  
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb) +
+  
+  labs(
+    x = "Month",
+    y = "Dissolved oxygen saturation (%)",
+    title = "2025 Dissolved Oxygen Saturation Compared with Historical Conditions",
+    subtitle = "Historical period: 2002–2024; shaded area represents the 10th–90th percentile") +
+  
+  theme_classic()
+
+TempFigure
+SalinityFiguer
+DOFigure
+
+
+WQ_current <- TSDO_clean %>%
+  mutate(Year = year(as.Date(DateTimeStamp))) %>%
+  filter(Year == ReportYear)
+```

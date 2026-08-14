@@ -79,6 +79,19 @@ TSDO_clean <- TSDO %>% # Setting Temps to NA if there are error codes
     TRUE ~ DO_pct
   )) %>%
   mutate(DateTimeStamp = mdy_hm(DateTimeStamp)) %>% # change timestamp from string to POSIX
+  mutate(DO_pct = if_else( # If DO percent is over 140% exclude, regardless if it has been flagged or not.
+    DO_pct > 140.0,
+    NA_real_,
+    DO_pct)) %>%
+  mutate(StationCode = case_when( # Make stationCode readable
+    str_detect(StationCode, "apadbwq") ~ "Dry Bar",
+    str_detect(StationCode, "apacpwq") ~ "Cat Point",
+    TRUE ~ StationCode
+  )) %>%
+  mutate(StationCode = factor(
+    StationCode,
+    levels = c("Dry Bar", "Cat Point")
+  )) %>%
   select(StationCode,
          DateTimeStamp,
          Temp,
