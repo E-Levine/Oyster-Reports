@@ -421,7 +421,10 @@ fit_flow_models <- function(flow_data, associated_data, flow_col = "Mean_Flow", 
         results[[model_name]] <- combined
         # Store the summary if fit succeeded, otherwise store an error message
         if (!inherits(fit, "try-error")) {
-          results[[model_name]] <- summary(fit)
+          results[[model_name]] <- list(
+            model = fit,
+            summary = summary(fit)
+          )
         } else {
           results[[model_name]] <- paste("Fit failed for data station", other_station, "and flow station", flow_station, ":", attr(fit, "condition")$message)
         }
@@ -498,7 +501,10 @@ fit_flow_turb_models <- function(flow_data,
         )
         
         if (!inherits(fit, "try-error")) {
-          results[[model_name]] <- summary(fit)
+          results[[model_name]] <- list(
+            model = fit,
+            summary = summary(fit)
+          )
         } else {
           results[[model_name]] <- paste(
             "Fit failed for data station",
@@ -584,7 +590,7 @@ ggplot_hyperbolic_fit <- function(resultsdf,
   #
   make_plot <- function(model_name) {
     #
-    fit <- results[[model_name]]
+    fit <- results[[model_name]]$summary
     #
     if (!(model_name %in% names(resultsdf))) {
       stop("Model name not found in results.")
@@ -697,7 +703,7 @@ ggplot_quad_fit <- function(resultsdf,
   #
   make_plot <- function(model_name) {
     #
-    fit <- results[[model_name]]
+    fit <- results[[model_name]]$summary
     #
     if (!(model_name %in% names(resultsdf))) {
       stop("Model name not found in results.")
@@ -886,22 +892,80 @@ flow_at_salinity_hyp2 <- function(results, target_sal, data_lookup) {
 #
 extract_model_coefficients <- function(models, sep = "_") {
 
-  coef_df <- imap_dfr(models, function(model, model_name) {
+  coef_df <- purrr::imap_dfr(models, function(model_info, model_name) {
     
-    # Split model name
+    # Extract actual model ----
+    # New structure: list(model = fit, summary = summary(fit))
+    if (is.list(model_info) && "model" %in% names(model_info)) {
+      model <- model_info$model
+    } else {
+      # Allow old structure where model itself was stored
+      model <- model_info
+    }
+    #
+    # Split model name -----
     stations <- strsplit(model_name, sep, fixed = TRUE)[[1]]
-
-    # Convert coefficient vector to one-row data frame
-    coefs <- as.data.frame(model$coefficients) %>% rownames_to_column()
     
-    
-    bind_cols(
-      tibble(
-        salinity_station = stations[1],
-        flow_station = stations[2]
-      ),
-      coefs
+    other_station <- stations[1]
+    flow_station <- stations[2]
+    #
+    # Determine model type -----
+    model_type <- dplyr::case_when(
+      inherits(model, "rq") ~ "quantile",
+      inherits(model, "lm") ~ "linear",
+      TRUE ~ class(model)[1]
     )
+    #
+    # Extract coefficents ------
+    coefs <- coef(model)
+    coef_df <- tibble::as_tibble(as.list(coefs))
+    #
+    # Calculate R2 / pseudo-R2 ----
+    if (inherits(model, "rq")) {
+      tau <- model$tau
+      dat <- model$model
+      y <- model.response(dat)
+      yhat <- predict(model)
+      rho <- function(u, tau) {
+        u * (tau - (u < 0))
+        }
+      
+      loss_model <- sum(
+        rho(y - yhat, tau))
+      
+      yhat_null <- rep(
+        quantile(
+          y,
+          probs = tau,
+          na.rm = TRUE),
+        length(y))
+      
+      loss_null <- sum(
+        rho(y - yhat_null, tau))
+      
+      R2 <- 1 - loss_model / loss_null
+      
+    } else if (inherits(model, "lm")) {
+      tau <- NA_real_
+      R2 <- summary(model)$r.squared
+      
+    } else {
+      tau <- NA_real_
+      R2 <- NA_real_
+      
+    }
+    # Convert coefficient vector to one-row data frame
+    #coefs <- as.data.frame(model$coefficients) %>% rownames_to_column()
+    coef_df <- tibble::tibble(
+      model_name = model_name,
+      other_station = other_station,
+      flow_station = flow_station,
+      model_type = model_type,
+      tau = tau,
+      psu_or_R2 = R2
+    ) %>%
+      dplyr::bind_cols(coef_df)
+    #
   })
   
   coef_df
