@@ -25,10 +25,10 @@ If Raw_data = TRUE, raw data for updating grant manger data files will also be a
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine Williams") #Change to your name
-Database <- "Oysters_26-07-21"  #Set the local database to use
+Database <- "Oysters_26-08-11"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations sourced to repo Data folder.
-Start_date <- as.Date("2026-04-01")
+Start_date <- as.Date("2024-04-01")
 End_date <- as.Date("2026-06-30")
 
 #Packages
@@ -886,6 +886,16 @@ Sedi_combined <- left_join(rbind((hsdbSedi %>% filter(DataStatus == "Proofed" | 
            Site = paste0(Estuary, "-", SectionName)) %>%
     dplyr::select(FixedLocationID, Site, StationName)) %>% filter(Site %in% Sedi_Sites)
 
+##Sediment raw data
+Sedi_raw_data <- Sedi_combined %>%
+       mutate(DaysDeployed = as.numeric(RetDate - DeployedDate), 
+              Year = year(as.Date(RetDate, format = "%m/%d/%Y")), 
+         Month = month(as.Date(RetDate, format = "%m/%d/%Y")), .before = "RetDate") %>%
+       dplyr::select(AnalysisDate, Month, Year, RetDate, DaysDeployed, Site, StationName, "Rep" = CupSampleID, TotalDW, OrganicWt, PctOrganic) %>%
+       mutate(StationName = sub("-", "", StationName),
+              Rep = substr(Rep, 9, 12))
+
+
 ##Sediment output summary
 Sedi_out <- Sedi_combined %>% group_by(StationName, AnalysisDate) %>% summarise(Mean = round(mean(TotalDW, na.rm = T),2)) %>% pivot_wider(names_from = StationName, values_from = Mean)
 
@@ -1077,6 +1087,9 @@ Cage_counts_new <- Cage_counts_raw_data %>% distinct() %>% arrange(Year, Month, 
   Cage_SH_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'CageSHs', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("Date","Site","Cage", "ShellHeightID")), ~as.numeric(.x))) %>% mutate(DeployedDate = format(DeployedDate, "%m/%d/%Y"), RetDate = format(RetDate, "%m/%d/%Y"))
 Cage_SH_new <- Cage_SH_raw_data %>% distinct() %>% arrange(Year, Month, Site, Cage) %>% filter(!RetDate %in% unique(Cage_SH_raw$RetDate))
 #
+  Sedi_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Sediment', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("Date","Site","Rep", "Comments")), ~as.numeric(.x))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"))
+Sedi_new <- Sedi_raw_data %>% distinct() %>% arrange(Year, Month, Site, StationName, Rep) %>% filter(!RetDate %in% unique(Sedi_raw$RetDate))
+#
   Rcrt_raw <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE) %>% mutate(across(contains("Date"), ~as.Date(.x, format = "%m/%d/%Y")), across(!contains(c("Date","Site","Cage", "Comments")), ~as.numeric(.x))) %>% mutate(RetDate = format(RetDate, "%m/%d/%Y"))
 Rcrt_new <- Rcrt_raw_data %>% distinct() %>% arrange(Year, Month, Site, Station, Rep, Shell) %>% filter(!RetDate %in% unique(Rcrt_raw$RetDate))
 #
@@ -1096,6 +1109,7 @@ Srvy_SH_new <- Srvy_SH_raw_data %>% distinct() %>% arrange(Year, Month, Site, St
   writeData(Raw_data_wb, "Dermo", Dermo_new, startRow = nrow(Dermo_raw)+2, colNames = FALSE)
   writeData(Raw_data_wb, "CageCounts", Cage_counts_new, startRow = nrow(Cage_counts_raw)+2, colNames = FALSE)
   writeData(Raw_data_wb, "CageSHs", Cage_SH_new, startRow = nrow(Cage_SH_raw)+2, colNames = FALSE)
+  writeData(Raw_data_wb, "Sediment", Sedi_new, startRow = nrow(Sedi_raw)+2, colNames = FALSE)
   writeData(Raw_data_wb, "Rcrt", Rcrt_new, startRow = nrow(Rcrt_raw)+2, colNames = FALSE)
   writeData(Raw_data_wb, "Repro", Repro_new, startRow = nrow(Repro_raw)+2, colNames = FALSE)
   writeData(Raw_data_wb, "SrvyCounts", Srvy_counts_new, startRow = nrow(Srvy_counts_raw)+2, colNames = FALSE)
@@ -1110,7 +1124,7 @@ Srvy_SH_new <- Srvy_SH_raw_data %>% distinct() %>% arrange(Year, Month, Site, St
 #Report Text in area below
 ```
 ## Report summary
-This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites from `r format(Start_date, "%d %B %Y")` through `r format(End_date, "%d %B %Y")` . Mean values are shown.\
+This data summary was compiled by `r Author` on `r format(Sys.Date(), "%d %B %Y")` and summarizes data for **CERP** and **PBC** sites from `r format(Start_date, "%d %B %Y")` through `r format(End_date, "%d %B %Y")`. Mean values are shown.\
 
 
 ## Water Quality summary

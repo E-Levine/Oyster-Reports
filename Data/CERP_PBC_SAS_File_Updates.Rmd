@@ -1,0 +1,989 @@
+---
+title: "Quarterly_datafile_updates"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  Carmen: ##
+---
+
+~~~{=comment}
+This file appends raw data to the existing SAS Results data files. Data is appended to the end of existing data within the files, it does NOT overwrite existing data. 
+~~~
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+## Dates based on ret dates
+Start_date <- as.Date("2024-04-01")
+End_date <- as.Date("2026-06-30")
+
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx, readxl,        #Excel
+  lubridate, zoo,         #Dates
+  knitr, 
+  install = TRUE)
+
+Root_folder <- c("Oysters/SAS Data Analysis/SAS Data/")
+# Create Backups folder if it doesn't already exist
+if (!dir.exists("Backups")) {
+  dir.create("Backups", recursive = TRUE)
+}
+
+#
+```
+
+```{r Update Water quality}
+#
+fileName <- paste0(params$Carmen, Root_folder, "WaterQualitySAS.xlsx")
+#
+# Load raw data file:
+WQ_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+WQ_SAS <- read_excel(fileName, sheet = "WQ", col_types = c("text", "date", "numeric", "numeric", "date", "text", "text", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/WaterQualitySAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/WaterQualitySAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+WQ_Raw_df <- WQ_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                "Date" = RetDate,
+                Site,
+                Station, 
+                "Time" = CollectionTime,
+                "Depth" = SampleDepth,
+                Temp,
+                "Salinity" = Sal,
+                pH,
+                DO,
+                DOPct,
+                Secchi,
+                "Chla" = ChlA) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(AnalysisDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  # Column formats
+  mutate(Date = as.Date(Date, "%m/%d/%Y"),
+         Station = as.character(Station),
+         Chla = as.numeric(Chla)) %>%
+  # Order cols same as SAS file
+  dplyr::select(Project, AnalysisDate, Month, Year, Date, Site, Station, Time, Depth, Temp, Salinity, pH, DO, DOPct, Secchi, Chla)
+#
+#
+WQ_updated <- bind_rows(WQ_SAS %>% 
+                          mutate(Date = as.Date(as.numeric(Date), origin = "1899-12-30")) %>%
+                          mutate_at(vars(Depth, Temp, Salinity, pH, DO, DOPct, Secchi, Chla), as.numeric), 
+                        WQ_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB","LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station) %>%
+  # Preserve text formatting
+  mutate(
+    AnalysisDate = paste0(as.integer(format(AnalysisDate, "%m")), "/", as.integer(format(AnalysisDate, "%d")), "/", format(AnalysisDate, "%Y")),
+    Date = paste0(as.integer(format(Date, "%m")), "/", as.integer(format(Date, "%d")), "/", format(Date, "%Y")),
+    Site = as.character(Site),
+    across(where(is.numeric), ~replace_na(., -999)))
+# 
+#
+# Load original wb for formatting:
+WQ_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  WQ_SAS_wb,
+  sheet = "WQ",
+  cols = 1:ncol(WQ_SAS),
+  rows = 1:(nrow(WQ_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  WQ_SAS_wb,
+  sheet = "WQ",
+  x = WQ_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  WQ_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/WaterQualitySAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Water quality data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Dermo}
+#
+fileName <- paste0(params$Carmen, Root_folder, "DermoSAS.xlsx")
+#
+# Load raw data file:
+Dermo_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+Dermo_SAS <- read_excel(fileName, sheet = "Dermo", 
+                        col_types = c("text", "date", "numeric", "numeric", "date", "text", "text", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/DermoSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/DermoSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+Dermo_Raw_df <- Dermo_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                "Date" = RetDate,
+                Site,
+                "SampleNum" = SampleNumber,
+                Station, 
+                "SH" = ShellHeight,
+                "TotalWt" = TotalWeight,
+                "ShellWetWt" = ShellWetWeight,
+                DermoMantle,
+                DermoGill) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(AnalysisDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  mutate(Section = "-999", .before = SampleNum) %>%
+  mutate(SL = -999, .after = SH) %>%
+  mutate(SW = -999, .before = TotalWt) %>%
+  # Column formats
+  mutate(Date = as.Date(Date, "%m/%d/%Y"),
+         Station = as.character(Station)) %>%
+  # Order columns by SAS file
+  dplyr::select(Project, AnalysisDate, Month, Year, Date, Site, Section, SampleNum, Station, SH, SL, SW, TotalWt, ShellWetWt, DermoMantle, DermoGill)
+#
+#
+Dermo_updated <- bind_rows(Dermo_SAS %>%
+                             mutate_at(vars(SH, SL, SW, TotalWt, ShellWetWt, DermoMantle, DermoGill), as.numeric), 
+                           Dermo_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB","LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station, SampleNum) %>%
+  # Preserve text formatting
+  mutate(
+    AnalysisDate = paste0(as.integer(format(AnalysisDate, "%m")), "/", as.integer(format(AnalysisDate, "%d")), "/", format(AnalysisDate, "%Y")),
+    Date = paste0(as.integer(format(Date, "%m")), "/", as.integer(format(Date, "%d")), "/", format(Date, "%Y")),
+    Site = as.character(Site),
+    across(where(is.numeric), ~replace_na(., -999)))
+# 
+#
+# Load original wb for formatting:
+Dermo_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  Dermo_SAS_wb,
+  sheet = "Dermo",
+  cols = 1:ncol(Dermo_SAS),
+  rows = 1:(nrow(Dermo_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  Dermo_SAS_wb,
+  sheet = "Dermo",
+  x = Dermo_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  Dermo_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/DermoSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Dermo data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Repro}
+#
+fileName <- paste0(params$Carmen, Root_folder, "ReproSAS.xlsx")
+#
+# Load raw data file:
+Repro_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'Repro', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+Repro_SAS <- read_excel(fileName, sheet = "Repro", col_types = c("text", "date", "numeric", "numeric", "date", "text", "text", "numeric", "text", "numeric", "text", "text", "text"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/ReproSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/ReproSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+# Backup version
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+Repro_Raw_df <- Repro_Raw %>%
+  mutate(Sex = case_when(BadSlide == "Yes" ~ "Z", TRUE ~ Sex),
+         ReproStage = case_when(BadSlide == "Yes" ~ "Z", TRUE ~ ReproStage)) %>%
+  dplyr::select(Month, 
+                Year, 
+                "Date" = RetDate,
+                Site,
+                "Sample" = SampleNumber,
+                Station, 
+                "SH" = ShellHeight,
+                Sex,
+                "StageNew" = ReproStage,
+                "StageOld" =  OldStage) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(AnalysisDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  mutate(Section = "-999", .before = Sample) %>%
+  # Column formats
+  mutate(Date = as.Date(Date, "%m/%d/%Y"),
+         Station = as.character(Station)) %>%
+  # Order columns same as SAS file
+  dplyr::select(Project, AnalysisDate, Month, Year, Date, Site, Section, Sample, Station, SH, Sex, StageNew, StageOld)
+#
+#
+Repro_updated <- bind_rows(Repro_SAS, 
+                           Repro_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB", "LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station, Sample) %>%
+  # Preserve text formatting
+  mutate(
+    AnalysisDate = paste0(as.integer(format(AnalysisDate, "%m")), "/", as.integer(format(AnalysisDate, "%d")), "/", format(AnalysisDate, "%Y")),
+    Date = paste0(as.integer(format(Date, "%m")), "/", as.integer(format(Date, "%d")), "/", format(Date, "%Y")),
+    Site = as.character(Site))
+# 
+#
+# Load original wb for formatting:
+Repro_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  Repro_SAS_wb,
+  sheet = "Repro",
+  cols = 1:ncol(Repro_SAS),
+  rows = 1:(nrow(Repro_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  Repro_SAS_wb,
+  sheet = "Repro",
+  x = Repro_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  Repro_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/ReproSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Repro data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Recruitment}
+#
+fileName <- paste0(params$Carmen, Root_folder, "Recruitment2015-currentSAS.xlsx")
+#
+# Load raw data file:
+Rcrt_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+Rcrt_SAS <- read_excel(fileName, sheet = "Spat", 
+                       col_types = c("text", "date", "numeric", "numeric", "date", "numeric", "numeric", "numeric", "text", "text", "numeric", "numeric", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/Recruitment2015-currentSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/Recruitment2015-currentSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+Rcrt_Raw_df <- Rcrt_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                RetDate,
+                "JulRet" = RetJulian,
+                "JulDep" = DepJulian,
+                "NumDays" = DaysDeployed,
+                Site,
+                Station, 
+                Rep,
+                Shell, 
+                "Bottom" = NumBottom,
+                "Top" = NumTop) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(AnalysisDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  # Column formats
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         Station = as.character(Station)) %>%
+  # Order cols same as SAS file
+  dplyr::select(Project, AnalysisDate, Month, Year, RetDate, JulRet, JulDep, NumDays, Site, Station, Rep, Shell, Bottom, Top)
+#
+#
+Rcrt_updated <- bind_rows(Rcrt_SAS, 
+                          Rcrt_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB", "LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station, Rep, Shell) %>%
+  # Preserve text formatting
+  mutate(
+    AnalysisDate = paste0(as.integer(format(AnalysisDate, "%m")), "/", as.integer(format(AnalysisDate, "%d")), "/", format(AnalysisDate, "%Y")),
+    RetDate = paste0(as.integer(format(RetDate, "%m")), "/", as.integer(format(RetDate, "%d")), "/", format(RetDate, "%Y")),
+    Site = as.character(Site),
+    across(where(is.numeric), ~replace_na(., -999)))
+# 
+#
+# Load original wb for formatting:
+Rcrt_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  Rcrt_SAS_wb,
+  sheet = "Spat",
+  cols = 1:ncol(Rcrt_SAS),
+  rows = 1:(nrow(Rcrt_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  Rcrt_SAS_wb,
+  sheet = "Spat",
+  x = Rcrt_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  Rcrt_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/Recruitment2015-currentSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Recruitment data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Survey counts}
+#
+fileName <- paste0(params$Carmen, Root_folder, "SurveyCountsSAS.xlsx")
+#
+# Load raw data file:
+Srvy_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+Srvy_SAS <- read_excel(fileName, sheet = "Counts", 
+                       col_types = c("text", "date", "numeric", "numeric", "text", "text", "text", "text", "date", "text", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/SurveyCountsSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/SurveyCountsSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+Srvy_Raw_df <- Srvy_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                Survey,
+                Site, 
+                "Date" = RetDate,
+                Station, 
+                "Quadrat" = QuadratID,
+                "LiveQtr" = NumLive,
+                "DeadQtr" = NumDead) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(SurveyDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  mutate(StationName = "Z", .before = Survey) %>%
+  mutate(Season = substr(Survey, 1, 3), .before = Survey) %>%
+  mutate(Survey = if_else(
+    str_detect(Survey, "Winter|Spring|Summer|Fall"),
+    str_replace(Survey, "(\\d{2})\\d{2}$", "\\1"),
+    Survey
+  )) %>% 
+  mutate(Section = "Z", .before = Station) %>%
+  mutate(Live = LiveQtr*4,
+         Dead = DeadQtr*4,
+         Volume = -999,
+         Weight = -999) %>%
+  # Column formats
+  mutate(Date = as.Date(Date, "%m/%d/%Y"),
+         Station = as.character(Station)) %>%
+  # Order columns
+  dplyr::select(Project, SurveyDate, Month, Year, StationName, Season, Survey, Site, Date, Section, Station, Quadrat, LiveQtr, DeadQtr, Live, Dead, Volume, Weight)
+#
+#
+Srvy_updated <- bind_rows(Srvy_SAS, 
+                          Srvy_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB", "LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station, Quadrat) %>%
+  # Preserve text formatting
+  mutate(
+    SurveyDate = paste0(as.integer(format(SurveyDate, "%m")), "/", as.integer(format(SurveyDate, "%d")), "/", format(SurveyDate, "%Y")),
+    Date = paste0(as.integer(format(Date, "%m")), "/", as.integer(format(Date, "%d")), "/", format(Date, "%Y")),
+    Site = as.character(Site),
+    across(where(is.numeric), ~replace_na(., -999)))
+
+# 
+#
+# Load original wb for formatting:
+Srvy_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  Srvy_SAS_wb,
+  sheet = "Counts",
+  cols = 1:ncol(Srvy_SAS),
+  rows = 1:(nrow(Srvy_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  Srvy_SAS_wb,
+  sheet = "Counts",
+  x = Srvy_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  Srvy_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/SurveyCountsSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Survey count data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Survey SHs}
+#
+fileName <- paste0(params$Carmen, Root_folder, "SurveySH2015-currentSAS.xlsx")
+#
+# Load raw data file:
+SSH_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+SSH_SAS <- read_excel(fileName, sheet = "SH", 
+                      col_types = c("text", "date", "numeric", "numeric", "text", "text", "text", "text", "date", "text", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/SurveySH2015-currentSASSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/SurveySH2015-currentSASSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file, 
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+SSH_Raw_df <- SSH_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                Survey,
+                Site, 
+                "Date" = RetDate,
+                Station, 
+                Quadrat,
+                "SH" = ShellHeight) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(SurveyDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  mutate(StationName = "Z", .before = Survey) %>%
+  mutate(Season = substr(Survey, 1, 3), .before = Survey) %>%
+  mutate(Survey = if_else(
+    str_detect(Survey, "Winter|Spring|Summer|Fall"),
+    str_replace(Survey, "(\\d{2})\\d{2}$", "\\1"),
+    Survey
+  )) %>%
+  # Column formats
+  mutate(Date = as.Date(Date, "%m/%d/%Y"),
+         Station = as.character(Station)) %>%
+  # Order columns
+  dplyr::select(Project, SurveyDate, Month, Year, StationName, Season, Survey, Site, Date, Station, Quadrat, SH)
+#
+#
+SSH_updated <- bind_rows(SSH_SAS, 
+                         SSH_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB", "LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station, Quadrat) %>%
+  # Preserve text formatting
+  mutate(
+    SurveyDate = paste0(as.integer(format(SurveyDate, "%m")), "/", as.integer(format(SurveyDate, "%d")), "/", format(SurveyDate, "%Y")),
+    Date = paste0(as.integer(format(Date, "%m")), "/", as.integer(format(Date, "%d")), "/", format(Date, "%Y")),
+    Site = as.character(Site),
+    across(where(is.numeric), ~replace_na(., -999)))
+
+# 
+#
+# Load original wb for formatting:
+SSH_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  SSH_SAS_wb,
+  sheet = "SH",
+  cols = 1:ncol(SSH_SAS),
+  rows = 1:(nrow(SSH_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  SSH_SAS_wb,
+  sheet = "SH",
+  x = SSH_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  SSH_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/SurveySH2015-currentSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Survey shell height data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Cage}
+#
+fileName <- paste0(params$Carmen, Root_folder, "GrowthSAS.xlsx")
+#
+# Load raw data file:
+Cage_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'CageCounts', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+Cage_SAS <- read_excel(fileName, sheet = "2015-current", 
+                       col_types = c("date", "numeric", "numeric", "date", "date", "numeric", "numeric", "numeric", "text", "text", "text", "text", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/GrowthSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/GrowthSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+Cage_Raw_df <- Cage_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                "DepDate" = DeployedDate,
+                RetDate,
+                DepJulian, 
+                RetJulian,
+                "Days" = DaysDeployed,
+                Site,
+                Station, 
+                Cage,
+                "DepSH" = Deployed,
+                "RetSH" = Retrieved) %>%
+  # Add AnalysisDate and SiteSta columns
+  mutate(AnalysisDateRet = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  mutate(SiteSta = paste(Site, Station, sep = " "), .before = Station) %>%
+  # Column formats
+  mutate(DepDate = as.Date(DepDate, "%m/%d/%Y"),
+         RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         Station = as.character(Station)) %>%
+  # Order columns
+  dplyr::select(AnalysisDateRet, Month, Year, DepDate, RetDate, DepJulian, RetJulian, Days, Site, SiteSta, Station, Cage, DepSH, RetSH)
+#
+#
+Cage_updated <- bind_rows(Cage_SAS, 
+                          Cage_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("SL-C", "LX-N", "CR-E", "CR-W")),
+    Cage = factor(Cage, levels = c("Red", "Brown", "Yellow"))) %>% 
+  arrange(Year, Month, Site, Station, Cage) %>%
+  # Preserve text formatting
+  mutate(
+    AnalysisDateRet = paste0(as.integer(format(AnalysisDateRet, "%m")), "/", as.integer(format(AnalysisDateRet, "%d")), "/", format(AnalysisDateRet, "%Y")),
+    DepDate = paste0(as.integer(format(DepDate, "%m")), "/", as.integer(format(DepDate, "%d")), "/", format(DepDate, "%Y")),
+    RetDate = paste0(as.integer(format(RetDate, "%m")), "/", as.integer(format(RetDate, "%d")), "/", format(RetDate, "%Y")),
+    Site = as.character(Site),
+    Cage = as.character(Cage),
+    across(where(is.numeric), ~replace_na(., -999)))
+
+# 
+#
+# Load original wb for formatting:
+Cage_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  Cage_SAS_wb,
+  sheet = "2015-current",
+  cols = 1:ncol(Cage_SAS),
+  rows = 1:(nrow(Cage_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  Cage_SAS_wb,
+  sheet = "2015-current",
+  x = Cage_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  Cage_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/GrowthSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Cage data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```
+
+```{r Update Sediment}
+#
+fileName <- paste0(params$Carmen, Root_folder, "SedimentTrapSAS.xlsx")
+#
+# Load raw data file:
+Sedi_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'Sediment', detectDates = TRUE) %>%
+  filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
+#
+#
+# Load file to update:
+Sedi_SAS <- read_excel(fileName, sheet = "Sediment", 
+                       col_types = c("text", "date", "numeric", "numeric", "date", "numeric", "text", "text", "text", "numeric", "numeric", "numeric"))
+#
+#
+# Backup version
+Backup_file <- paste0(
+  "Backups/SedimentTrapSAS_backup_",
+  format(Sys.time(), "%Y%m%d_%H%M%S"),
+  ".xlsx"
+)
+# Temp version
+Temp_file <- paste0("Backups/SedimentTrapSAS_updated_",
+                    format(Sys.time(), "%Y%m%d_%H%M%S"),
+                    ".xlsx")
+#
+cat("<br>Backup copy created:")
+file.copy(
+  fileName,
+  Backup_file,
+  overwrite = TRUE
+)
+#
+#
+# Clean and append new data:
+Sedi_Raw_df <- Sedi_Raw %>%
+  dplyr::select(Month, 
+                Year, 
+                "Date" = RetDate,
+                "NumDays" = DaysDeployed,
+                Site,
+                "Station" = StationName, 
+                Rep,
+                TotalDW, 
+                OrganicWeight, 
+                PctOrganic) %>%
+  # Add Project and AnalysisDate columns
+  mutate(Project = factor(case_when(Site == "LW-R" | Site == "LW-L" ~ "Palm Beach County", 
+                                    Site == "LW" & (Year = 2015 & Month >= 9) ~ "Palm Beach County",
+                                    Site == "AB" ~ "Disaster",
+                                    Site == "TB" & Year >= 2016 ~ "Monitoring",
+                                    Site == "SL-MC" | Site == "MC" ~ "Martin County",
+                                    Site == "SL-LE" ~ "ARRA",
+                                    (Site == "CR-E" | Site == "CR-W" | Site == "CR") & Year <= 2016 ~ "CERP-FGCU", 
+                                    TRUE ~ "CERP"),
+                          levels = c("Palm Beach County", "CERP", "Disaster", "Monitoring", "ARRA", "Martin County")), .before = Month) %>%
+  mutate(AnalysisDate = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
+  # Column formats
+  mutate(Date = as.Date(Date, "%m/%d/%Y")) %>%
+  # Order columns
+  dplyr::select(Project, AnalysisDate, Month, Year, Date, NumDays, Site, Station, Rep, TotalDW, OrganicWeight, PctOrganic)
+#
+#
+Sedi_updated <- bind_rows(Sedi_SAS, 
+                          Sedi_Raw_df) %>%
+  distinct() %>%
+  mutate(
+    Site = factor(Site, levels = c("AB", "LW", "LW-L", "LW-R", "LX-N", "LX-S", "LX-R", "SL-C", "SL-N", "SL-S", "SL-R", "SL-MC", "MC", "SL-LE", "CR", "CR-E", "CR-W", "BB", "ML", "SR", "TB"))) %>% 
+  arrange(Year, Month, Project, Site, Station, Rep) %>%
+  # Preserve text formatting
+  mutate(
+    AnalysisDate = paste0(as.integer(format(AnalysisDate, "%m")), "/", as.integer(format(AnalysisDate, "%d")), "/", format(AnalysisDate, "%Y")),
+    Date = paste0(as.integer(format(Date, "%m")), "/", as.integer(format(Date, "%d")), "/", format(Date, "%Y")),
+    Site = as.character(Site),
+    across(where(is.numeric), ~replace_na(., -999)))
+
+# 
+#
+# Load original wb for formatting:
+Sedi_SAS_wb <- loadWorkbook(fileName)
+#
+#
+# Remove existing data:
+deleteData(
+  Sedi_SAS_wb,
+  sheet = "Sediment",
+  cols = 1:ncol(Sedi_SAS),
+  rows = 1:(nrow(Sedi_SAS) + 1),
+  gridExpand = TRUE
+)
+# Write data:
+writeData(
+  Sedi_SAS_wb,
+  sheet = "Sediment",
+  x = Sedi_updated,
+  startRow = 1,
+  startCol = 1
+)
+
+# Save updated workbook:
+saveWorkbook(
+  Sedi_SAS_wb,
+  Temp_file,
+  overwrite = TRUE
+)
+#
+#
+cat("<br><br>Backup file saved to: Data/Backups/SedimentTrapSAS_backup.xlsx\n",
+    paste("Updated file saved to:", Temp_file,"\n"),
+    paste("Sediment data file updated with data from retrieved date of",Start_date, "through", End_date,"\n\n")
+)
+#
+#
+#
+```

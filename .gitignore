@@ -46,6 +46,7 @@ PBC/*.xlsx
 !Quarterly/*SOP.docx
 !Monthly/*SOP.docx
 Data/*Raw*.xlsx
+Data/Backups/**
 !Data/.gitkeep
 Presentations/*.xlsx
 
