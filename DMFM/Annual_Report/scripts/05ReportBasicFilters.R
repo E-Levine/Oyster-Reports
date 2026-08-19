@@ -29,10 +29,19 @@ rm(dboFixedLocations)
 ###########
 ###########
 ###########
-# Space holder for doing that for WQ, drought, and flow data
+# Space holder for doing that for drought, and flow data
 ###########
 ###########
 ###########
+
+### Flow data
+Flow_Data <- Flow_Data_raw %>%
+  mutate(StationCode = "Apalachicola River NR Sumatra, FL") %>% # make StationCode readable
+  select(StationCode, # limit to fields in use
+         monitoring_location_id,
+         time,
+         value) %>%
+  st_drop_geometry() # needed to drop "sticky" location column
 
 ### Temperature, Salinity, Dissolved Oxygen
 TSDO_clean <- TSDO %>% # Setting Temps to NA if there are error codes

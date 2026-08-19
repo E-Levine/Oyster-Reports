@@ -1,0 +1,86 @@
+---
+title: "Flow"
+output: html_document
+---
+
+
+``` {r Flow models}
+## Flow
+Flow_monthly <- Flow_Data %>%
+  mutate(
+    Date = as.Date(time),
+    Year = year(Date),
+    Month = month(Date)
+  ) %>%
+  group_by(StationCode, Year, Month) %>%
+  summarise(
+    Flow_mean = if (all(is.na(value))) NA_real_ else mean(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# calculate the historical distribution for each station and month, excluding ReportYear. 
+# This gives us the typical monthly HISTORICAL conditions
+Flow_historical <- Flow_monthly %>%
+  filter(Year >= 1977, Year <= ReportYear - 1) %>%
+  group_by(StationCode, Month) %>%
+  summarise(
+    Historical_mean = mean(Flow_mean, na.rm = TRUE),
+    Historical_sd = sd(Flow_mean, na.rm = TRUE),
+    Historical_low = quantile(Flow_mean, 0.10, na.rm = TRUE),
+    Historical_high = quantile(Flow_mean, 0.90, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Isolate ReportYear value
+Flow_current <- Flow_monthly %>%
+  filter(Year == ReportYear) %>%
+  select(StationCode, Month, Flow_current = Flow_mean)
+
+# combine the two tables
+Flow_comparison <- Flow_historical %>%
+  left_join(Flow_current, by = c("StationCode", "Month")) %>%
+  mutate(
+    Difference = Flow_current - Historical_mean,
+    Anomaly = Difference / Historical_sd
+  )
+
+# Flow Figure
+FlowFigure <- ggplot(Flow_comparison, aes(x = Month)) +
+  geom_ribbon(
+    aes(
+      ymin = Historical_low,
+      ymax = Historical_high
+    ),
+    alpha = 0.2) +
+  
+  geom_line(
+    aes(y = Historical_mean),
+    linewidth = 1) +
+  
+  geom_line(
+    aes(y = Flow_current),
+    linewidth = 1.2) +
+  
+  geom_point(
+    aes(y = Flow_current),
+    size = 2) +
+  
+  facet_wrap(~ StationCode) +
+  
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = month.abb) +
+  
+  labs(
+    x = "Month",
+    y = "Stream Flow (ft³/s)",
+    title = "2025 Stream Flow Compared with Historical Conditions",
+    subtitle = "Historical period: 1977–2024; shaded area represents the 10th–90th percentile") +
+  
+  theme_classic()
+
+FlowFigure
+
+
+
+```

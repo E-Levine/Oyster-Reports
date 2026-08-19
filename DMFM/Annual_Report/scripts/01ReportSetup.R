@@ -2,6 +2,7 @@
 
 # Load necessary R packages
 library(tidyverse) # Loads a number of very useful packages
+library(dataRetrieval) # Necessary for loading USGS flow data
 library(odbc) # Necessary for loading data from SQL Server
 library(DBI) # Necessary for loading data from SQL Server
 library(dbplyr) # Necessary for loading data from SQL Server

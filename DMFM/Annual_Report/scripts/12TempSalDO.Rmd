@@ -207,7 +207,7 @@ Temp_comparison <- Temp_historical %>%
     Anomaly = Difference / Historical_sd
   )
 
-# Salinity Figure
+# Temperature Figure
 TempFigure <- ggplot(Temp_comparison, aes(x = Month)) +
   geom_ribbon(
     aes(

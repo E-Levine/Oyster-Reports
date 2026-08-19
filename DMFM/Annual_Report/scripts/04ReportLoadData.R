@@ -4,10 +4,16 @@
 ###########
 ###########
 ###########
-# Space holder for doing that for WQ, drought, and flow data
+# Space holder for doing that for drought data
 ###########
 ###########
 ###########
+
+# Flow data download from USGS
+Flow_Data_raw <- read_waterdata_daily(monitoring_location_id = c("USGS-02359170"), # Selects the gauge at Sumatra
+                                   parameter_code = "00060", # limits data to discharge only
+                                   time = c("1977-01-01", ReportEnd)) # limits data to the end of ReportYear
+
 # Temp, Sal, DO data download from DEP cannot be automated. Follow instructions in /data/README.md 
 # Identify the TSDO file
 file_DEP <- list.files(path = "DMFM/Annual_Report/data/",
