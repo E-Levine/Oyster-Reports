@@ -764,7 +764,7 @@ cat("<br><br>Backup file saved to: Data/Backups/SurveySH2015-currentSAS_backup.x
 fileName <- paste0(params$Carmen, Root_folder, "GrowthSAS.xlsx")
 #
 # Load raw data file:
-Cage_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'CageCounts', detectDates = TRUE) %>%
+Cage_Raw <- readWorkbook("CERP_PBC_Raw_Data.xlsx", sheet = 'CageSHs', detectDates = TRUE) %>%
   filter(as.Date(RetDate, "%m/%d/%Y") >= Start_date & as.Date(RetDate, "%m/%d/%Y") <= End_date)
 #
 #
@@ -804,8 +804,8 @@ Cage_Raw_df <- Cage_Raw %>%
                 Site,
                 Station, 
                 Cage,
-                "DepSH" = Deployed,
-                "RetSH" = Retrieved) %>%
+                "DepSH" = Dep,
+                "RetSH" = Ret) %>%
   # Add AnalysisDate and SiteSta columns
   mutate(AnalysisDateRet = as.Date(paste0(Month, "/1/", Year), "%m/%d/%Y"), .before = Month) %>%
   mutate(SiteSta = paste(Site, Station, sep = " "), .before = Station) %>%
