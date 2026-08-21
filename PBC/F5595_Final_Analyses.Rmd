@@ -4,7 +4,7 @@ author: "ELevine"
 date: "`r Sys.Date()`"
 output: html_document
 params:
-  Start_date: "2024-10-01"
+  Start_date: "2023-10-01"
   End_date: "2025-09-30"
   Excel_name: "PBC_5595"
 ---
@@ -86,7 +86,7 @@ h4 {
 ```{r Data gather from raw data file, include = FALSE}
 #
 # Survey data set up:
-Counts_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE, check.names = TRUE) %>% 
+Counts_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE, check.names = TRUE) %>% 
   mutate(RetDate = as.Date(RetDate, format = "%m/%d/%Y")) %>% 
   subset(RetDate >= (Start_date) & RetDate < (End_date)) %>%
   # Filter to PBC sites
@@ -120,7 +120,7 @@ Counts_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', d
 #
 #
 ## Srvy SHs
-SH_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>%
+SH_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>%
   mutate(RetDate = as.Date(RetDate, format = "%m/%d/%Y")) %>% 
   subset(RetDate > (Start_date) & RetDate < (End_date)) %>%
   mutate(across(ShellHeight, ~ replace_na(.x, -999))) %>%
@@ -145,7 +145,7 @@ SH_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDa
 #
 #
 ## Dermo
-Dermo_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
+Dermo_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
          AnalysisDate = as.factor(update(RetDate, mday = 15)),
          time = as.factor(AnalysisDate)) %>% 
@@ -166,7 +166,7 @@ Dermo_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectD
 #
 #
 ## Rcrt
-Rcrt_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
+Rcrt_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
          AnalysisDate = as.factor(update(RetDate, mday = 15)),
          time = as.factor(AnalysisDate)) %>% 
@@ -187,7 +187,7 @@ Rcrt_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDat
 #
 #
 ## Salinity
-Sal_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
+Sal_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
   dplyr::select(Year:Station, Sal) %>% 
   mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
          AnalysisDate = as.factor(update(RetDate, mday = 15)),
@@ -205,7 +205,7 @@ Sal_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', de
 #
 #
 ## Sediment
-Sedi_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Sediment', detectDates = TRUE, check.names = TRUE) %>%
+Sedi_df <- readWorkbook("../Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Sediment', detectDates = TRUE, check.names = TRUE) %>%
   mutate(AnalysisDate = as.factor(update(RetDate, mday = 15)),
          time = as.factor(AnalysisDate)) %>% 
   subset(RetDate > Start_date & RetDate < End_date) %>%
@@ -222,7 +222,7 @@ Sedi_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Sediment', detec
 #
 ## FLOW
 # Compile file names and load into one df
-files <- file.path("DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
+files <- file.path("../DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
 flow_list <- map2(
   files,
   sheet_lookup[Flow_sites],
@@ -276,3 +276,291 @@ rand_structs_D <- list(
 
 ```
 
+<h1>--- Salinity analyses --- </h1>
+```{r Salinity analyses}
+#
+#
+Sal2 <- Sal_df %>% 
+  arrange(Site, Station, AnalysisDate, time)
+#
+Sal_Site_means <- Sal2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(Sal, na.rm = T))
+#
+Sal_Month_means <- Sal2 %>% 
+  group_by(AnalysisDate) %>% 
+  summarise(
+    RawMean = mean(Sal, na.rm = T))
+#
+Sal_SiteMonth_means <- Sal2 %>% 
+  group_by(AnalysisDate, Site) %>% 
+  summarise(
+    RawMeanSH = mean(Sal, na.rm = T))
+#
+# Fit best model: No random, NB
+Sali_model <- MASS::glm.nb(Sal ~ Site * AnalysisDate, data = Sal2)
+#
+#
+Sali_anova <- Anova(Sali_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(Sali_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+Sali_anova %>% gt() %>% 
+  tab_header(title = "Salinity") %>%
+  fmt_number(
+    columns = c('F values', 'Pr(>F)'),
+    decimals = 3)
+#
+# LSMeans
+Sali_site_table <- left_join(
+  summary(emmeans(Sali_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Sali_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+Sali_surv_table <- left_join(
+  summary(emmeans(Sali_model, ~ AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Sali_model, ~ AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+Sali_surv_table %>% gt() %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Sali_int_table <- left_join(
+  summary(emmeans(Sali_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Sali_model, ~ Site * AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+# Letters
+Sali_cld_site <- multcomp::cld(
+  emmeans(Sali_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Sali_cld_site_table <- as.data.frame(Sali_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Sali_site_table, Sali_cld_site_table) %>% 
+  left_join(Sal_Site_means) %>% gt() %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Sali_cld_site_table %>% gt() %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Sali_cld_int <- multcomp::cld(
+  emmeans(Sali_model, ~ Site * AnalysisDate),
+  Letters = letters,
+  adjust = "sidak"
+)
+Sali_cld_int_table <- as.data.frame(Sali_cld_int) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+# 
+Sal_Month_means %>% gt() %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+left_join(Sali_int_table, Sali_cld_int_table) %>% 
+  left_join(Sal_SiteMonth_means) %>% gt() %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Sali_cld_int_table %>% gt() %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+#
+```
+
+<h1>--- Flow analyses --- </h1>
+```{r Flow analyses}
+#
+#
+Flow2 <- flow_df %>% 
+  arrange(Year, Site, AnalysisDate, time)
+#
+Flow_Site_means <- Flow2 %>% 
+  group_by(Site, Station) %>% 
+  summarise(
+    RawMean = mean(Flow, na.rm = T))
+#
+Flow_Year_means <- Flow2 %>% 
+  group_by(Year, Station) %>% 
+  summarise(
+    RawMean = mean(Flow, na.rm = T))
+#
+Flow_SiteMonth_means <- Flow2 %>% 
+  group_by(Year, Site, Station) %>% 
+  summarise(
+    RawMeanSH = mean(Flow, na.rm = T))
+#
+# Fit best model: No random, NB
+Flow_model <- MASS::glm.nb(Flow ~ Station * Year, data = Flow2)
+#
+#
+Flow_anova <- Anova(Flow_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(Flow_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+Flow_anova %>% gt() %>% 
+  tab_header(title = "Flow") %>% 
+  fmt_number(
+    columns = c('F values', 'Pr(>F)'),
+    decimals = 3)
+#
+# LSMeans
+Flow_site_table <- left_join(
+  summary(emmeans(Flow_model, ~ Station), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Station, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Flow_model, ~ Station, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Station, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+Flow_surv_table <- left_join(
+  summary(emmeans(Flow_model, ~ Year), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Year, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Flow_model, ~ Year, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Year, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+Flow_surv_table %>% gt()
+#
+Flow_int_table <- left_join(
+  summary(emmeans(Flow_model, ~ Station * Year), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Station, Year, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Flow_model, ~ Station * Year, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Station, Year, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+# Letters
+Flow_cld_site <- multcomp::cld(
+  emmeans(Flow_model, ~ Station),
+  Letters = letters,
+  adjust = "sidak"
+)
+Flow_cld_site_table <- as.data.frame(Flow_cld_site) %>%
+  dplyr::select(Station, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Flow_site_table, Flow_cld_site_table) %>% 
+  left_join(Flow_Site_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Flow_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Flow_cld_year <- multcomp::cld(
+  emmeans(Flow_model, ~ Year),
+  Letters = letters,
+  adjust = "sidak"
+)
+Flow_cld_year_table <- as.data.frame(Flow_cld_year) %>%
+  dplyr::select(Year, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Flow_surv_table, Flow_cld_year_table) %>% 
+  left_join(Flow_Year_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Flow_cld_year_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Flow_cld_int <- multcomp::cld(
+  emmeans(Flow_model, ~ Station * Year),
+  Letters = letters,
+  adjust = "sidak"
+)
+Flow_cld_int_table <- as.data.frame(Flow_cld_int) %>%
+  dplyr::select(Station, Year, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Flow_int_table, Flow_cld_int_table) %>% 
+  left_join(Flow_SiteMonth_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Flow_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+#
+```
