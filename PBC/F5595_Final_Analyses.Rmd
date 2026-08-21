@@ -1,0 +1,278 @@
+---
+title: "F5595 Final Report Analyses"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  Start_date: "2024-10-01"
+  End_date: "2025-09-30"
+  Excel_name: "PBC_5595"
+---
+
+<!-- This file applies the best models and outputs report analyses. Models of best fit need to be updated in the following lines:
+  Survey: 240, 340, and 423
+  Dermo: 527 and 616
+  Rcrt: 715
+  Sal: 811
+  Flow: 907
+
+## Work flow: 
+ Use fit_model to chose best distribution
+ Fit best model using lmer to get SAS style output
+   If NB but no random - lme4::glm.nb
+   If NB with random - MASS::glmer.nb
+-->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+#
+Summary_Excel_file_name <- params$Excel_name
+Estuary_code <- c("LW", "LW-L", "LW-R")
+Start_date <- as.Date(params$Start_date, format = "%Y-%m-%d")
+End_date <- as.Date(params$End_date, format = "%Y-%m-%d")
+Flow_sites <- c("LW")
+sheet_lookup <- c(LW = "LWSum")
+#
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx, readxl,        #Excel
+  lubridate, zoo,         #Dates
+  glmmTMB, purrr, emmeans, car, broom, multcomp, lmerTest,#Analyses
+  knitr, kableExtra, scales, gt, gtExtras,
+  install = TRUE)
+#
+#
+```
+
+```{css}
+p {
+font-size: 12pt;
+}
+
+caption {
+  color: black;
+  font-weight: bold;
+  font-size: 14;
+  text-indent: 5%;
+} 
+
+h1 {
+font-size: 21pt;
+font-weight: bold;
+}
+
+h2 {
+font-size: 17pt;
+font-weight: bold;
+}
+
+h3 {
+font-size: 13pt;
+font-style: italic;
+text-decoration: underline;
+}
+
+h4 {
+  color: black;
+  font-weight: bold;
+  font-size: 17;
+  text-indent: 5%;
+}
+```
+
+```{r Data gather from raw data file, include = FALSE}
+#
+# Survey data set up:
+Counts_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvyCounts', detectDates = TRUE, check.names = TRUE) %>% 
+  mutate(RetDate = as.Date(RetDate, format = "%m/%d/%Y")) %>% 
+  subset(RetDate >= (Start_date) & RetDate < (End_date)) %>%
+  # Filter to PBC sites
+  filter(Site %in% Estuary_code) %>%
+  # Calculate Live/Dead per meter2
+  mutate(
+    Live = NumLive * 4,
+    Dead = NumDead * 4,
+    Total = case_when(grepl("Spring|Fall", Survey) ~ Live+Dead, TRUE ~ NA),
+    SurvCode = as.factor(case_when(
+      Survey == "Spring 2024" ~ 1,
+      Survey == "Fall 2024" ~ 2,
+      Survey == "Spring 2025" ~ 3,
+      Survey == "Fall 2025" ~ 4,
+      Survey == "Spring 2026" ~ 5,
+      Survey == "Fall 2026" ~ 6,
+      TRUE ~ NA))) %>%
+  # Convert LWR stations to match levels
+  mutate(Station = case_when(Site == "LW-R" ~ Station-1,
+                             TRUE ~ Station)) %>%
+    droplevels() %>%
+  # Make sure columns are factors
+  mutate(across(c(Site, Station), as.factor)) %>%
+  mutate(time = as.factor(SurvCode),
+         DeadRatio = case_when(Total == 0 & Dead == 0 ~ 0, 
+                               Total == 0 ~ NA, 
+                               TRUE ~ Dead/Total)) %>%
+  mutate(Live = ifelse(Live < 0, NA, Live),
+         Dead = ifelse(Dead < 0, NA, Dead)) %>% 
+    arrange(Site, Station, SurvCode)
+#
+#
+## Srvy SHs
+SH_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'SrvySHs', detectDates = TRUE, check.names = TRUE)  %>%
+  mutate(RetDate = as.Date(RetDate, format = "%m/%d/%Y")) %>% 
+  subset(RetDate > (Start_date) & RetDate < (End_date)) %>%
+  mutate(across(ShellHeight, ~ replace_na(.x, -999))) %>%
+  # Filter to CERP sites
+  filter(Site %in% Estuary_code) %>%
+  mutate(SurvCode = as.factor(case_when(
+    Survey == "Spring 2024" ~ 1,
+      Survey == "Fall 2024" ~ 2,
+      Survey == "Spring 2025" ~ 3,
+      Survey == "Fall 2025" ~ 4,
+      Survey == "Spring 2026" ~ 5,
+      Survey == "Fall 2026" ~ 6,
+    TRUE ~ NA_real_))) %>%
+  # Convert LWR stations to match levels
+  mutate(Station = case_when(Site == "LW-R" ~ Station-1,
+                             TRUE ~ Station)) %>%
+    droplevels() %>%
+  # Make sure columns are factors
+  mutate(across(c(Site, Station), as.factor)) %>%
+  mutate(ShellHeight = ifelse(ShellHeight < 0, NA, ShellHeight),
+         time = as.factor(SurvCode))
+#
+#
+## Dermo
+Dermo_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Dermo', detectDates = TRUE, check.names = TRUE) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.factor(AnalysisDate)) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% Estuary_code) %>%
+  # Convert LWR stations to match levels
+  mutate(Station = case_when(Site == "LW-R" ~ Station-1,
+                             TRUE ~ Station)) %>%
+    droplevels() %>%
+  # Determine mean dermo and dermo presence
+  mutate(MeanDermo = rowMeans(across(c(DermoMantle, DermoGill)), na.rm = T),
+         DermoSum = rowSums(across(c(DermoMantle, DermoGill)), na.rm = T)) %>%
+  mutate(DermoSum = case_when(DermoSum > 0 ~ 1, 
+                              DermoSum == 0 ~ 0, 
+                              TRUE ~ NA)) %>%
+  mutate(across(c(Site, Station), as.factor))
+#
+#
+## Rcrt
+Rcrt_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Rcrt', detectDates = TRUE, check.names = TRUE) %>%
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.factor(AnalysisDate)) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% Estuary_code) %>%
+  # Convert LWR stations to match levels
+  mutate(Station = case_when(Site == "LW-R" ~ Station-1,
+                             TRUE ~ Station)) %>%
+    droplevels() %>%
+  # Remove spat for top and bottom shells
+  mutate(Bottom = case_when(grepl("SL|LX", Site) & Shell %in% c(1, 6, 7, 12) ~ NA_real_, 
+                            Site %in% c("CR-E", "CR-W") & Shell %in% c(1, 12) ~ NA_real_, 
+                            TRUE ~ NumBottom)) %>%
+  mutate(BottomMonth = Bottom/(DaysDeployed/28)) %>%
+  mutate(across(c(Site, Station, Rep, Shell), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## Salinity
+Sal_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'WaterQuality', detectDates = TRUE, check.names = TRUE) %>%
+  dplyr::select(Year:Station, Sal) %>% 
+  mutate(RetDate = as.Date(RetDate, "%m/%d/%Y"),
+         AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.factor(AnalysisDate)) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% Estuary_code) %>%
+  # Convert LWR stations to match levels
+  mutate(Station = case_when(Site == "LW-R" ~ Station-1,
+                             TRUE ~ Station)) %>%
+    droplevels() %>%
+  mutate(across(c(Site, Station), as.factor),
+         StaCode = as.factor(gsub("-", "", paste0(Site, Station)))) %>%
+  arrange(RetDate)
+#
+#
+## Sediment
+Sedi_df <- readWorkbook("Data/CERP_PBC_Raw_Data.xlsx", sheet = 'Sediment', detectDates = TRUE, check.names = TRUE) %>%
+  mutate(AnalysisDate = as.factor(update(RetDate, mday = 15)),
+         time = as.factor(AnalysisDate)) %>% 
+  subset(RetDate > Start_date & RetDate < End_date) %>%
+  # Filter to CERP sites
+  filter(Site %in% Estuary_code) %>%
+  # Convert LWR stations to match levels
+  mutate(Station = as.numeric(substr(StationName, nchar(StationName), nchar(StationName)))) %>%
+  mutate(Station = case_when(Site == "LW-R" ~ Station-1,
+                             TRUE ~ Station)) %>%
+    droplevels() %>%
+  mutate(across(c(Site, StationName), as.factor)) %>%
+  arrange(RetDate)
+#
+#
+## FLOW
+# Compile file names and load into one df
+files <- file.path("DBHYDRO/Shared_data", paste0(Flow_sites, "_Flow.xlsx"))
+flow_list <- map2(
+  files,
+  sheet_lookup[Flow_sites],
+  ~ read_excel(.x, sheet = .y)
+)
+flow_list_long <- imap(flow_list, ~
+  .x %>%
+    dplyr::select(-any_of(c("DBKEY", "Site", "Data_Station"))) %>%   # safely remove if present
+    pivot_longer(
+      cols = -c(Analysis_Date, Date, Estuary),
+      names_to = "Station",
+      values_to = "Flow"
+    )
+)
+flow_df <- bind_rows(flow_list_long) %>%
+  mutate(Year = format(Analysis_Date, format = "%Y"),
+         AnalysisDate = as.factor(update(Analysis_Date, mday = 15)),
+         time = as.factor(AnalysisDate)) %>%
+  #filter(Station %in% c("SLESum", "LOXSum", "Flow")) %>%
+  rename("Site" = Estuary) %>%
+  mutate(across(c(Site, Station, Year), as.factor)) 
+
+#
+rm(files, flow_list, flow_list_long)
+#Data selection and cleaning follows below by type of data being assessed.
+```
+
+```{r model reference, include = FALSE}
+#
+## Survey: base_formula <- Live ~ Site * SurvCode
+rand_structs <- list(
+  none = ~ 0, #model_none <- glmmTMB(Live ~ Site * SurvCode, family = nbinom2, data = Counts2)
+  station = ~ (1 | Site/Station), #model_station <- glmmTMB(Live ~ Site * SurvCode + (1 | Site/Station), family = nbinom2, data = Counts2)
+  ar1 = ~ ar1(SurvCode + 0 | Site:Station), #model_ar1 <- glmmTMB(Live ~ Site * SurvCode + ar1(SurvCode + 0 |Site:Station), family = nbinom2, data = Counts2)
+  both = ~ (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station), #model_both <- glmmTMB(Live ~ Site * SurvCode + (1 | Site/Station) + ar1(SurvCode + 0 | Site:Station), family = nbinom2, data = Counts2)
+  extra = ~ Site * SurvCode + (1 + SurvCode|Site/Station) #model_extra <- glmmTMB(Live ~ Site * SurvCode +    (1 + SurvCode | Site/Station), family = nbinom2, data = Counts2)
+)
+#
+#
+#
+### Dermo Intensity
+# random structure formulas
+rand_structs_D <- list(
+  none = ~ 0,
+  station = ~ (1 | Site/Station),
+  ar1 = ~ ar1(time + 0 | Site:Station),
+  both = ~ (1 | Site/Station) + ar1(time + 0 | Site:Station)
+)
+#
+#
+
+```
+
