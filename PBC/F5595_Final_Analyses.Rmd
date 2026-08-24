@@ -13,8 +13,8 @@ params:
   Sal: 303
   Flow: 440  
   Survey: 601, 704, and 829
-  Dermo: 527 and 616
-  Rcrt: 715
+  Dermo: 957 and 1063
+  Rcrt: 1193
 
 
 ## Work flow: 
@@ -921,6 +921,377 @@ left_join(Shel_int_table, Shel_cld_int_table) %>%
     columns = where(is.numeric),
     decimals = 3)
 Shel_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+#
+```
+
+<h1>--- Dermo analyses --- </h1>
+```{r Dermo analyses}
+#
+#
+Dermo2 <- Dermo_df %>% 
+  # Calculate mean dermo per month per station
+  group_by(AnalysisDate, time, Site, Station) %>%
+  summarise(MeanDermo = mean(MeanDermo, na.rm = T),
+            Infected = sum(DermoSum),
+            N = n(),
+            .groups = "drop") %>%
+  mutate(DermoPrev = Infected/N) %>%
+  arrange(Site, Station, AnalysisDate, time)
+#
+Dermo_Site_means <- Dermo2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMeanInt = mean(Infected, na.rm = T),
+    RawMeanPct = mean(DermoPrev, na.rm = T))
+#
+#
+#
+### Intensity:
+# Fit best model: No random, NB
+DInt_model <- MASS::glm.nb(MeanDermo ~ Site * AnalysisDate, data = Dermo_df)
+#
+#
+DInt_anova <- Anova(DInt_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(DInt_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+DInt_anova %>% gt() %>% 
+  tab_header(title = "Dermo Intensity")
+#
+# LSMeans
+DInt_site_table <- left_join(
+  summary(emmeans(DInt_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DInt_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+DInt_surv_table <- left_join(
+  summary(emmeans(DInt_model, ~ AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DInt_model, ~ AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+DInt_surv_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+DInt_int_table <- left_join(
+  summary(emmeans(DInt_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DInt_model, ~ Site * AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+# Letters
+DInt_cld_site <- multcomp::cld(
+  emmeans(DInt_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+DInt_cld_site_table <- as.data.frame(DInt_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(DInt_site_table, DInt_cld_site_table) %>% 
+  left_join(Dermo_Site_means) %>% dplyr::select(-RawMeanPct) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+DInt_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+DInt_cld_int <- multcomp::cld(
+  emmeans(DInt_model, ~ Site * AnalysisDate),
+  Letters = letters,
+  adjust = "sidak"
+)
+DInt_cld_int_table <- as.data.frame(DInt_cld_int) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(DInt_int_table, DInt_cld_int_table) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+DInt_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+#
+### Prevalence:
+# Fit best model: Site Random
+DPre_model <- glmmTMB(DermoPrev ~ Site * AnalysisDate, 
+                      family = "binomial", data = Dermo2)
+#
+#
+DPre_anova <- joint_tests(DPre_model) %>% 
+  as.data.frame() %>%
+  rename(
+    "Effect" = `model term`
+  ) %>%
+  mutate(df2 = nobs(DPre_model) - length(fixef(DPre_model)$cond))#For glmmTMB
+#
+DPre_anova %>% gt() %>% 
+  tab_header(title = "Dermo Prevalence")
+#
+# LSMeans
+DPre_site_table <- left_join(
+  summary(emmeans(DPre_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DPre_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+#
+DPre_surv_table <- left_join(
+  summary(emmeans(DPre_model, ~ AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DPre_model, ~ AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+# 
+DPre_surv_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+DPre_int_table <- left_join(
+  summary(emmeans(DPre_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(DPre_model, ~ Site * AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+#
+# Letters
+DPre_cld_site <- multcomp::cld(
+  emmeans(DPre_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+DPre_cld_site_table <- as.data.frame(DPre_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(DPre_site_table, DPre_cld_site_table) %>% 
+  left_join(Dermo_Site_means) %>% dplyr::select(-RawMeanInt) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3) 
+DPre_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+DPre_cld_int <- multcomp::cld(
+  emmeans(DPre_model, ~ Site * AnalysisDate),
+  Letters = letters,
+  adjust = "sidak"
+)
+DPre_cld_int_table <- as.data.frame(DPre_cld_int) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(DPre_int_table, DPre_cld_int_table) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+DPre_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+```
+
+<h1>--- Recruitment analyses --- </h1>
+```{r Recruitment analyses}
+#
+#
+Rcrt2 <- Rcrt_df %>% 
+  # Calculate mean per rep for each station 
+  group_by(AnalysisDate, time, Site, Station, Rep) %>%
+  # Calculate mean monthly recruitment
+  summarise(BottomMonth_mean = mean(BottomMonth, na.rm = T), .groups = "drop") %>%
+  arrange(Site, Station, AnalysisDate, time)
+#
+Rcrt_Site_means <- Rcrt2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(BottomMonth_mean, na.rm = T))
+#
+Rcrt_Month_means <- Rcrt2 %>% 
+  group_by(AnalysisDate) %>% 
+  summarise(
+    RawMean = mean(BottomMonth_mean, na.rm = T))
+#
+Rcrt_SiteMonth_means <- Rcrt2 %>% 
+  group_by(AnalysisDate, Site) %>% 
+  summarise(
+    RawMean = mean(BottomMonth_mean, na.rm = T))
+#
+#
+# Fit best model: No random, NB
+Rcrt_model <- MASS::glm.nb(BottomMonth_mean ~ Site * AnalysisDate, data = Rcrt2)
+#
+#
+Rcrt_anova <- Anova(Rcrt_model, type = 3, test.statistic = "F") %>% #best_model$model
+  as.data.frame() %>%
+  tibble::rownames_to_column("Effect") %>%
+  rename(
+    `Num DF` = Df
+  ) %>%
+  filter(Effect != "Residuals") %>%
+  mutate(`Den Df` = df.residual(Rcrt_model)) %>%
+  dplyr::select(Effect, `Num DF`, `Den Df`, `F values`, `Pr(>F)`)
+#
+Rcrt_anova %>% gt() %>% 
+  tab_header(title = "Recruitment")
+#
+# LSMeans
+Rcrt_site_table <- left_join(
+  summary(emmeans(Rcrt_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Rcrt_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+Rcrt_surv_table <- left_join(
+  summary(emmeans(Rcrt_model, ~ AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Rcrt_model, ~ AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(AnalysisDate, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+Rcrt_surv_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Rcrt_int_table <- left_join(
+  summary(emmeans(Rcrt_model, ~ Site * AnalysisDate), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Rcrt_model, ~ Site * AnalysisDate, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, AnalysisDate, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+# Letters
+Rcrt_cld_site <- multcomp::cld(
+  emmeans(Rcrt_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Rcrt_cld_site_table <- as.data.frame(Rcrt_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Rcrt_site_table, Rcrt_cld_site_table) %>% 
+  left_join(Rcrt_Site_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Rcrt_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Rcrt_Month_means %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Rcrt_cld_int <- multcomp::cld(
+  emmeans(Rcrt_model, ~ Site * AnalysisDate),
+  Letters = letters,
+  adjust = "sidak"
+)
+Rcrt_cld_int_table <- as.data.frame(Rcrt_cld_int) %>%
+  dplyr::select(Site, AnalysisDate, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Rcrt_int_table, Rcrt_cld_int_table) %>% 
+  left_join(Rcrt_SiteMonth_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Rcrt_cld_int_table %>% gt() %>% 
   fmt_number(
     columns = where(is.numeric),
     decimals = 3)
