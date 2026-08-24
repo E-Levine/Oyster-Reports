@@ -84,7 +84,7 @@ Position_color <- scale_color_manual("", labels = Positions, values = Stat_pal2,
 ```{r Data gather from summary file, include=FALSE}
 ###Water Quality
 WQ_Sal_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
-LW_Flow <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(15) & Date <= End_date) %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, LWSum)
+LW_Flow_raw <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(30) & Date <= End_date) %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, LWSum)
 WQ_Tem_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
 WQ_pH_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
 WQ_DO_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
@@ -111,14 +111,15 @@ PBC_Sal <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>%
   gather(SiteStation, Salinity, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = factor(substr(SiteStation, 4, 4)), Helper = case_when(is.na(Salinity) ~ "*", TRUE ~ NA)) %>% 
   #Add legend placeholder for Flow data
-  rbind(data.frame(RetDate = NA, SiteStation = 'LWL4_Flow', Salinity = NA, Site = 'LWL', Station = '4', Helper = NA, stringsAsFactors = TRUE)) %>% 
-  rbind(data.frame(RetDate = NA, SiteStation = 'LWR1_Flow', Salinity = NA, Site = 'LWL', Station = '1', Helper = NA, stringsAsFactors = TRUE))
+  rbind(data.frame(RetDate = NA, SiteStation = 'LWL5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE)) %>% 
+  rbind(data.frame(RetDate = NA, SiteStation = 'LWR5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE))
 #
 #
 #Flow - Need data for each site for plotting
-LW_Flow <- rbind(LW_Flow %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWL"), 
-                    LW_Flow %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWR")) %>%
-  mutate(Rescale = (LWSum - min(LWSum, na.rm = T))/(max(LWSum, na.rm = T) - min(LWSum, na.rm = T))*(40-0)+0) #Rescale flow to salinity axis limits for plotting
+LW_Flow <- rbind(LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWL"), 
+                    LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWR")) %>%
+  mutate(Rescale = (LWSum - min(LWSum, na.rm = T))/(max(LWSum, na.rm = T) - min(LWSum, na.rm = T))*(40-0)+0,
+         Rescale16 = (LWSum - min(LWSum, na.rm = T))/(max(LWSum, na.rm = T) - min(LWSum, na.rm = T))*(16-0)+0) #Rescale flow to salinity axis limits for plotting
 #
 #
 #
@@ -348,6 +349,311 @@ Sedi_positions <- Sedi_pos %>%
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", 
                             TRUE ~ NA))
+#
+#
+```
+
+```{r Missing Data summary}
+#
+##Water quality 
+WQ_check <- full_join(WQ_Sal_s %>% 
+                        filter(LWL_RetDate_Sal > Start_date & LWL_RetDate_Sal < End_date) %>% 
+                        mutate(MonYr = substr(LWL_RetDate_Sal, 1, 7)) %>% 
+                        dplyr::select(MonYr, everything(), -matches("RetDate")) %>% 
+                        rename_with(~str_remove(., "_Sal")) %>% 
+                        gather("Station", "Salinity", -MonYr),
+                      WQ_Tem_s %>% 
+                        filter(LWL_RetDate_Temp > Start_date & LWL_RetDate_Temp < End_date) %>% 
+                        mutate(MonYr = substr(LWL_RetDate_Temp, 1, 7)) %>% 
+                        dplyr::select(MonYr, everything(), -matches("RetDate")) %>% 
+                        rename_with(~str_remove(., "_Temp")) %>% 
+                        gather("Station", "Temperature", -MonYr)) %>%
+  full_join(WQ_DO_s %>% 
+              filter(LWL_RetDate_DO > Start_date & LWL_RetDate_DO < End_date) %>% 
+              mutate(MonYr = substr(LWL_RetDate_DO, 1, 7)) %>% 
+              dplyr::select(MonYr, everything(), -matches("RetDate")) %>% 
+              rename_with(~str_remove(., "_DO")) %>% 
+              gather("Station", "DO", -MonYr)) %>%
+  full_join(WQ_pH_s %>% 
+              filter(LWL_RetDate_pH > Start_date & LWL_RetDate_pH < End_date) %>% 
+              mutate(MonYr = substr(LWL_RetDate_pH, 1, 7)) %>% 
+              dplyr::select(MonYr, everything(), -matches("RetDate")) %>% 
+              rename_with(~str_remove(., "_pH")) %>% 
+              gather("Station", "pH", -MonYr)) %>%
+  full_join(WQ_Secchi_s %>% 
+              filter(LWL_RetDate_SP > Start_date & LWL_RetDate_SP < End_date) %>% 
+              mutate(MonYr = substr(LWL_RetDate_SP, 1, 7)) %>% 
+              dplyr::select(MonYr, everything(), -matches("RetDate")) %>% 
+              rename_with(~str_remove(., "_SP")) %>% 
+              gather("Station", "Secchi", -MonYr)) %>%
+  filter(is.na(Temperature) | is.na(Salinity) | is.na(DO) | is.na(pH) | is.na(Secchi)) %>%
+  filter(Station == "LWL" | Station == "LWR")
+#
+#
+#
+##Survey - Counts_df, SH_df
+Survey_check <- Counts_df %>% 
+                        filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% 
+                        dplyr::select(Survey, contains("LiveMean")) %>% 
+                        filter(str_detect(Survey, "Spring|Fall")) %>% 
+                        rename_with(~str_remove(., "_LiveMean")) %>% 
+                        gather("Station", "LiveCount", -Survey) %>% 
+  filter(grepl("LW", Station)) %>%
+  filter(is.na(LiveCount)) %>% 
+  dplyr::select(Survey, Station)
+#
+SH_check <- SH_df %>% 
+  filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% 
+  dplyr::select(Survey, contains("Mean")) %>%                     
+  filter(str_detect(Survey, "Spring|Fall")) %>% 
+  rename_with(~str_remove(., "_SHMean")) %>% 
+  gather("Station", "SH", -Survey) %>% 
+  filter(grepl("LW", Station)) %>%
+  filter(is.na(SH)) %>% 
+  dplyr::select(Survey, Station)
+#
+#
+#
+##Dermo
+Dermo_check <- Dermo_df %>% 
+  filter(LWL_RetDate > Start_date & LWL_RetDate < End_date) %>% 
+  mutate(MonYr = substr(LWL_RetDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("Mean")) %>% 
+  rename_with(~str_remove(., "_Mean")) %>% 
+  gather("Station", "Dermo", -MonYr)  %>% 
+  filter(grepl("LW", Station)) %>%
+  filter(is.na(Dermo)) %>% 
+  dplyr::select(MonYr, Station)
+#
+#
+#
+##Repro
+Repro_check <- Repro_df %>% 
+  filter(LWL_RetDate > Start_date & LWL_RetDate < End_date) %>% 
+  mutate(MonYr = substr(LWL_RetDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("Dev")) %>% 
+  rename_with(~str_remove(., "_Dev")) %>% 
+  gather("Station", "Repro", -MonYr) %>% 
+  filter(grepl("LW", Station)) %>%
+  filter(is.na(Repro)) %>% 
+  dplyr::select(MonYr, Station)
+#
+#
+#
+##Recruitment
+Rcrt_check <- Rcrt_df %>% 
+  filter(LWL_RetDate > Start_date & LWL_RetDate < End_date) %>% 
+  mutate(MonYr = substr(LWL_RetDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("Mean")) %>% 
+  rename_with(~str_remove(., "_Mean")) %>% 
+  gather("Station", "Spat", -MonYr) %>% 
+  filter(grepl("LW", Station)) %>%
+  filter(is.na(Spat)) %>% 
+  dplyr::select(MonYr, Station)
+#
+#
+#
+##Sediment
+Rate_pos_check <- Sedi_pos %>%
+  filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% 
+  mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("RateMean")) %>% 
+  gather("Position", "RateMean", -MonYr)  %>% 
+  filter(is.na(RateMean)) %>% 
+  dplyr::select(MonYr, Position)
+Rate_sta_check <- Sedi_sta %>% 
+  filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% 
+  mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("RateMean")) %>%
+  gather("Station", "RateMean", -MonYr)  %>% 
+  separate(Station, into = c("Site", "Type"), sep = "_") %>% 
+  filter(is.na(RateMean)) %>% 
+  dplyr::select(MonYr, Site, Type)
+#
+Org_pos_check <- Sedi_pos %>%
+  filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% 
+  mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("OrganicMean")) %>% 
+  gather("Position", "OrganicMean", -MonYr)  %>% 
+  filter(is.na(OrganicMean)) %>% 
+  dplyr::select(MonYr, Position)
+Org_sta_check <- Sedi_sta %>% 
+  filter(AnalysisDate > Start_date & AnalysisDate < End_date) %>% 
+  mutate(MonYr = substr(AnalysisDate, 1, 7)) %>% 
+  dplyr::select(MonYr, contains("OrganicMean")) %>%
+  gather("Station", "OrganicMean", -MonYr)  %>% 
+  separate(Station, into = c("Site", "Type"), sep = "_") %>% 
+  filter(is.na(OrganicMean)) %>% 
+  dplyr::select(MonYr, Site, Type)
+#
+#
+#
+```
+
+The following figures are presented for the final report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`.
+\
+\
+**PBC missing data**
+
+Any samples listed below were missing during the monitoring period:
+\
+\
+*Water quality*
+\
+`r if(nrow(WQ_check) > 0) {flextable(WQ_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing water quality data.")}`
+\
+\
+*Survey*
+\
+`r if(nrow(Survey_check) > 0) {flextable(Survey_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey count data.")}`\
+`r if(nrow(SH_check) > 0) {flextable(SH_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing survey shell height data.")}`
+\
+\
+*Dermo*
+\
+`r if(nrow(Dermo_check) > 0) {flextable(Dermo_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing dermo data.")}`
+\
+\
+*Repro - site based data*
+\
+`r if(nrow(Repro_check) > 0) {flextable(Repro_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing repro data.")}`
+\
+\
+*Recruitment*
+\
+`r if(nrow(Rcrt_check) > 0) {flextable(Rcrt_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing recruitment data.")}`
+\
+\
+*Sediment*
+\
+Sedimentation rate\
+`r if(nrow(Rate_pos_check) > 0) {flextable(Rate_pos_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing sedimentation rate data per North or South station grouping.")}`\
+`r if(nrow(Rate_sta_check) > 0) {flextable(Rate_sta_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing sedimentation rate data per station.")}`\
+Percent organic weight\
+`r if(nrow(Org_pos_check) > 0) {flextable(Org_pos_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing percent organic weight data per North or South station grouping.")}`\
+`r if(nrow(Org_sta_check) > 0) {flextable(Org_sta_check) %>% align(align = "center", part = "all")  %>% autofit() %>% font(fontname = "Arial", part = "all")} else {paste("No missing percent organic weight data per station.")}`
+\
+\
+\newpage
+
+```{r Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District. Pale green bare denotes salinity optima band.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#max(LW_Flow$LWSum) - round to nearest divisible by 4
+flow_divide <- 5812
+Sal_plot <- ggarrange(
+  #LWL
+  ggplot() +
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 20), alpha = 0.4, inherit.aes = FALSE, fill = "palegreen")+
+    geom_line(data = PBC_Sal %>% filter(Site == "LWL"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
+    geom_point(data = PBC_Sal %>% filter(Site == "LWL"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 3) +
+    labs(title = "Lake Worth-Natural") +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    coord_cartesian(ylim = c(0, 40))+
+    scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
+    BaseForm + FacetForm +  PlotTitle + theme(legend.position = "none")+
+  rremove("y.title"),
+  NULL,
+  #LWR
+  ggplot() +
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 20), alpha = 0.4, inherit.aes = FALSE, fill = "palegreen")+
+    geom_line(data = PBC_Sal %>% filter(Site == "LWR"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
+    geom_point(data = PBC_Sal %>% filter(Site == "LWR"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 3) +
+    labs(title = "Lake Worth-Restoration") +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    coord_cartesian(ylim = c(0, 40))+
+    scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
+    BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
+  rremove("y.title"),
+  nrow =  3, heights = c(1, -0.05, 1))
+#
+annotate_figure(Sal_plot, left = text_grob("Salinity", rot = 90, family = "serif", color = "black", size = 17))
+#
+#
+```
+
+```{r Temperature Figure, fig.cap = "**Figure 5.**  Monthly temperature recorded at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#max(LW_Flow$LWSum) - round to nearest divisible by 4
+flow_divide <- 5812
+Temp_plot <- ggarrange(
+  #LWL
+  ggplot() +
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+geom_line(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
+    geom_point(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, fill = Station, shape = Station), size = 3) +
+    labs(title = "Lake Worth-Natural") +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    coord_cartesian(ylim = c(0, 40))+
+    scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
+    BaseForm + FacetForm +  PlotTitle + theme(legend.position = "none")+
+  rremove("y.title"),
+  NULL,
+  #LWR
+  ggplot() +
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+  geom_line(data = PBC_Temp %>% filter(Site == "LWR"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
+    geom_point(data = PBC_Temp %>% filter(Site == "LWR"), aes(RetDate, Temperature, fill = Station, shape = Station), size = 3) +
+    labs(title = "Lake Worth-Restoration") +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    coord_cartesian(ylim = c(0, 40))+
+    scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
+    BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
+  rremove("y.title"),
+  nrow =  3, heights = c(1, -0.05, 1))
+#
+annotate_figure(Temp_plot, left = text_grob("Temperature (\u00B0C)", rot = 90, family = "serif", color = "black", size = 17))
+#
+#
+```
+
+```{r Dissolved oxygen Figure, fig.cap = "**Figure 6.**  Monthly dissolved oxygen concentration recorded at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#max(LW_Flow$LWSum) - round to nearest divisible by 4
+flow_divide <- 5812
+DO_plot <- ggarrange(
+  #LWL
+  ggplot() +
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale16), fill = rgb(156, 156, 156, maxColorValue = 255))+
+geom_line(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
+    geom_point(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, fill = Station, shape = Station), size = 3) +
+    labs(title = "Lake Worth-Natural") +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/16), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    coord_cartesian(ylim = c(0, 16))+
+    scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
+    BaseForm + FacetForm +  PlotTitle + theme(legend.position = "none")+
+  rremove("y.title"),
+  NULL,
+  #LWR
+  ggplot() +
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale16), fill = rgb(156, 156, 156, maxColorValue = 255))+
+  geom_line(data = PBC_DO %>% filter(Site == "LWR"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
+    geom_point(data = PBC_DO %>% filter(Site == "LWR"), aes(RetDate, DO, fill = Station, shape = Station), size = 3) +
+    labs(title = "Lake Worth-Restoration") +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/16), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    coord_cartesian(ylim = c(0, 16))+
+    scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
+    scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
+    scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
+    BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
+  rremove("y.title"),
+  nrow =  3, heights = c(1, -0.05, 1))
+#
+annotate_figure(DO_plot, left = text_grob("Dissolved oxygen (mg/L)", rot = 90, family = "serif", color = "black", size = 17))
 #
 #
 ```
