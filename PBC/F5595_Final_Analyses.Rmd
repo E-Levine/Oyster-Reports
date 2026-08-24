@@ -10,17 +10,19 @@ params:
 ---
 
 <!-- This file applies the best models and outputs report analyses. Models of best fit need to be updated in the following lines:
-  Survey: 240, 340, and 423
+  Sal: 303
+  Flow: 440  
+  Survey: 601, 704, and 829
   Dermo: 527 and 616
   Rcrt: 715
-  Sal: 811
-  Flow: 907
+
 
 ## Work flow: 
  Use fit_model to chose best distribution
  Fit best model using lmer to get SAS style output
    If NB but no random - lme4::glm.nb
    If NB with random - MASS::glmer.nb
+   If Repeated - glmmTMB::glmmTMB(model + ar1(), family = nbinom2) - No F statistic. Use Wald X2
 -->
 
 ```{r setup, include=FALSE}
@@ -556,6 +558,369 @@ left_join(Flow_int_table, Flow_cld_int_table) %>%
     columns = where(is.numeric),
     decimals = 3)
 Flow_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+#
+```
+
+<h1>--- Survey analyses --- </h1>
+```{r Survey analyses}
+#
+## Testing for differences between sites and months
+#
+# Limit to spring and fall
+Counts2 <- Counts_df %>% 
+  filter(!is.na(Total)) %>%
+  arrange(Site, Station, SurvCode)
+#
+# Raw means
+Surv_Site_means <- Counts2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMeanLive = mean(NumLive, na.rm = T), 
+    RawMeanDR = mean(DeadRatio, na.rm = T))
+#
+Surv_Month_means <- Counts2 %>% 
+  group_by(SurvCode) %>% 
+  summarise(
+    RawMeanLive = mean(NumLive, na.rm = T), 
+    RawMeanDR = mean(DeadRatio, na.rm = T))
+#
+Surv_SiteMonth_means <- Counts2 %>% 
+  group_by(SurvCode, Site) %>% 
+  summarise(
+    RawMeanLive = mean(NumLive, na.rm = T), 
+    RawMeanDR = mean(DeadRatio, na.rm = T))
+#
+#
+### Live counts:
+# Fit best model: No random, NB
+Live_model <- glmmTMB::glmmTMB(Live ~ Site * SurvCode + ar1(SurvCode + 0 | Site:Station), data = Counts2, family = nbinom2)
+#
+#
+Live_anova <- joint_tests(Live_model) %>% 
+  as.data.frame() %>%
+  rename(
+    "Effect" = `model term`
+  ) %>%
+  mutate(df2 = nobs(Live_model) - length(fixef(Live_model)$cond))
+#
+Live_anova %>% gt() %>% 
+  tab_header(title = "Survey Live Counts")
+#
+# LSMeans
+Live_site_table <- left_join(
+  summary(emmeans(Live_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Live_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+Live_surv_table <- left_join(
+  summary(emmeans(Live_model, ~ SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Live_model, ~ SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+# 
+Live_surv_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Live_int_table <- left_join(
+  summary(emmeans(Live_model, ~ Site * SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Live_model, ~ Site * SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+# Letters
+Live_cld_site <- multcomp::cld(
+  emmeans(Live_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Live_cld_site_table <- as.data.frame(Live_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Live_site_table, Live_cld_site_table) %>% 
+  left_join(Surv_Site_means %>% dplyr::select(-RawMeanDR)) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Live_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Live_cld_int <- multcomp::cld(
+  emmeans(Live_model, ~ Site * SurvCode),
+  Letters = letters,
+  adjust = "sidak"
+)
+Live_cld_int_table <- as.data.frame(Live_cld_int) %>%
+  dplyr::select(Site, SurvCode, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Live_int_table, Live_cld_int_table) %>% 
+  left_join(Surv_SiteMonth_means %>% dplyr::select(-RawMeanDR)) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Live_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+#
+### Dead Ratio:
+# Fit best model: Repeated 
+Dead_model <- glmmTMB(DeadRatio ~ Site * SurvCode + ar1(SurvCode + 0 | Site:Station), 
+                      family = "binomial", data = Counts2)
+#
+#
+Dead_anova <- joint_tests(Dead_model) %>% 
+  as.data.frame() %>%
+  rename(
+    "Effect" = `model term`
+  ) %>%
+  mutate(df2 = nobs(Dead_model) - length(fixef(Dead_model)$cond))#For glmmTMB
+#
+Dead_anova %>% gt() %>% 
+  tab_header(title = "Survey Dead Ratios")
+#
+# LSMeans
+Dead_site_table <- left_join(
+  summary(emmeans(Dead_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Dead_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+# 
+Dead_surv_table <- left_join(
+  summary(emmeans(Dead_model, ~ SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Dead_model, ~ SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+# 
+Dead_surv_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Dead_int_table <- left_join(
+  summary(emmeans(Dead_model, ~ Site * SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Dead_model, ~ Site * SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, prob, SE) %>%
+    rename("Mean" = prob, "SE Mean" = SE))
+#
+#
+# Letters
+Dead_cld_site <- multcomp::cld(
+  emmeans(Dead_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Dead_cld_site_table <- as.data.frame(Dead_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Dead_site_table, Dead_cld_site_table) %>% 
+  left_join(Surv_Site_means %>% dplyr::select(-RawMeanLive)) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Dead_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Dead_cld_int <- multcomp::cld(
+  emmeans(Dead_model, ~ Site * SurvCode),
+  Letters = letters,
+  adjust = "sidak"
+)
+Dead_cld_int_table <- as.data.frame(Dead_cld_int) %>%
+  dplyr::select(Site, SurvCode, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Dead_int_table, Dead_cld_int_table) %>% 
+  left_join(Surv_SiteMonth_means %>% dplyr::select(-RawMeanLive)) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Dead_cld_int_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+#
+#
+### Shell Heights
+SH2 <- SH_df %>% 
+  droplevels() %>%
+  group_by(Site, time, SurvCode, Station, Quadrat) %>%
+  # Calculate mean SH per quadrat 
+  summarise(MeanSH = mean(ShellHeight, na.rm = T), .groups = "drop") %>%
+  arrange(Site, SurvCode, time, Station)
+#
+SH_Site_means <- SH2 %>% 
+  group_by(Site) %>% 
+  summarise(
+    RawMean = mean(MeanSH, na.rm = T))
+#
+SH_Month_means <- SH2 %>% 
+  group_by(SurvCode) %>% 
+  summarise(
+    RawMean = mean(MeanSH, na.rm = T))
+#
+SH_SiteMonth_means <- SH2 %>% 
+  group_by(SurvCode, Site) %>% 
+  summarise(
+    RawMeanSH = mean(MeanSH, na.rm = T))
+#
+# Fit best model: Repeated, NB
+Shel_model <- glmmTMB(MeanSH ~ Site * SurvCode + ar1(SurvCode + 0 | Site:Station), data = SH2, family = nbinom2)
+#
+#
+Shel_anova <- joint_tests(Shel_model) %>% 
+  as.data.frame() %>%
+  rename(
+    "Effect" = `model term`
+  ) %>%
+  mutate(df2 = nobs(Shel_model) - length(fixef(Shel_model)$cond))
+#
+Shel_anova %>% gt() %>% 
+  tab_header(title = "Survey Shell Heights")
+#
+# LSMeans
+Shel_site_table <- left_join(
+  summary(emmeans(Shel_model, ~ Site), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Shel_model, ~ Site, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+Shel_surv_table <- left_join(
+  summary(emmeans(Shel_model, ~ SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Shel_model, ~ SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(SurvCode, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#  
+Shel_surv_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Shel_int_table <- left_join(
+  summary(emmeans(Shel_model, ~ Site * SurvCode), infer = TRUE) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, emmean, SE, z.ratio, p.value) %>%
+    rename("Estimate" = emmean, "t Value" = z.ratio, "Pr > [t]" = p.value),
+  summary(emmeans(Shel_model, ~ Site * SurvCode, type = "response")) %>% 
+    as.data.frame() %>% 
+    dplyr::select(Site, SurvCode, response, SE) %>%
+    rename("Mean" = response, "SE Mean" = SE))
+#
+#
+# Letters
+Shel_cld_site <- multcomp::cld(
+  emmeans(Shel_model, ~ Site),
+  Letters = letters,
+  adjust = "sidak"
+)
+Shel_cld_site_table <- as.data.frame(Shel_cld_site) %>%
+  dplyr::select(Site, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Shel_site_table, Shel_cld_site_table) %>% 
+  left_join(SH_Site_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Shel_cld_site_table %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+#
+Shel_cld_int <- multcomp::cld(
+  emmeans(Shel_model, ~ Site * SurvCode),
+  Letters = letters,
+  adjust = "sidak"
+)
+Shel_cld_int_table <- as.data.frame(Shel_cld_int) %>%
+  dplyr::select(Site, SurvCode, emmean, .group) %>%
+  arrange(desc(emmean)) %>%
+  rename(
+    Estimate = emmean,
+    Group = .group
+  )
+#
+left_join(Shel_int_table, Shel_cld_int_table) %>% 
+  left_join(SH_SiteMonth_means) %>% gt() %>% 
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3)
+Shel_cld_int_table %>% gt() %>% 
   fmt_number(
     columns = where(is.numeric),
     decimals = 3)
