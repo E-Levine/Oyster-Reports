@@ -598,7 +598,7 @@ Surv_SiteMonth_means <- Counts2 %>%
 #
 #
 ### Live counts:
-# Fit best model: No random, NB
+# Fit best model: Repeated, NB
 Live_model <- glmmTMB::glmmTMB(Live ~ Site * SurvCode + ar1(SurvCode + 0 | Site:Station), data = Counts2, family = nbinom2)
 #
 #
@@ -1298,5 +1298,142 @@ Rcrt_cld_int_table %>% gt() %>%
 #
 #
 #
+#
+```
+
+```{r Excel output, inlcude = FALSE}
+#
+file_path <- paste0("../PBC/", Summary_Excel_file_name, ".xlsx")
+bold_header_style <- createStyle(textDecoration = "Bold")
+
+# If file exists, load it; otherwise create a new workbook
+if (file.exists(file_path)) {
+  wb <- loadWorkbook(file_path)
+} else {
+  wb <- createWorkbook()
+}
+#
+## Survey Live counts
+sheet_name <- "Live"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = Live_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Live_site_table, Live_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_surv_table, startCol = 1, startRow = 21, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Live_int_table,Live_cld_int_table), startCol = 1, startRow = 26, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_cld_site_table, startCol = 10, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Live_cld_int_table, startCol = 11, startRow = 26, headerStyle = bold_header_style)
+#
+#
+## Survey Dead
+sheet_name <- "Dead Ratio"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Dead_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Dead_site_table, Dead_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_surv_table, startCol = 1, startRow = 21, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Dead_int_table, Dead_cld_int_table), startCol = 1, startRow = 26, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_cld_site_table, startCol = 10, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Dead_cld_int_table, startCol = 11, startRow = 26, headerStyle = bold_header_style)
+#
+#
+## Survey Shell heights
+sheet_name <- "SH"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Shel_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Shel_site_table, Shel_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_surv_table, startCol = 1, startRow = 21, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Shel_int_table, Shel_cld_int_table), startCol = 1, startRow = 26, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_cld_site_table, startCol = 10, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Shel_cld_int_table, startCol = 11, startRow = 26, headerStyle = bold_header_style)
+#
+#
+#
+## Dermo Intensity
+sheet_name <- "DermoInt"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = DInt_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(DInt_site_table, DInt_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_surv_table, startCol = 1, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(DInt_int_table, DInt_cld_int_table), startCol = 10, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_cld_site_table, startCol = 1, startRow = 37, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DInt_cld_int_table, startCol = 1, startRow = 47, headerStyle = bold_header_style)
+#
+#
+#
+## Dermo Prevalence
+sheet_name <- "DermoPrev"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+} 
+#
+writeData(wb, sheet = sheet_name, x = DPre_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(DPre_site_table, DPre_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_surv_table, startCol = 1, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(DPre_int_table, DPre_cld_int_table), startCol = 10, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_cld_site_table, startCol = 1, startRow = 37, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = DPre_cld_int_table, startCol = 1, startRow = 47, headerStyle = bold_header_style)
+#
+#
+## Recruitment
+sheet_name <- "Rcrt"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Rcrt_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Rcrt_site_table, Rcrt_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_surv_table, startCol = 1, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Rcrt_int_table, Rcrt_cld_int_table), startCol = 10, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_cld_site_table, startCol = 1, startRow = 37, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Rcrt_cld_int_table, startCol = 1, startRow = 47, headerStyle = bold_header_style)
+#
+#
+## Salinity
+sheet_name <- "Salinity"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Sali_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Sali_site_table, Sali_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Sali_surv_table, startCol = 1, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Sali_int_table, Sali_cld_int_table), startCol = 10, startRow = 20, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Sali_cld_site_table, startCol = 1, startRow = 37, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Sali_cld_int_table, startCol = 1, startRow = 47, headerStyle = bold_header_style)
+#
+#
+## Flow
+sheet_name <- "Flow"
+# Check if the sheet already exists
+if (!(sheet_name %in% names(wb))) {
+    addWorksheet(wb, sheet_name)
+}
+writeData(wb, sheet = sheet_name, x = Flow_anova, startCol = 1, startRow = 4, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Flow_site_table, Flow_cld_site_table), startCol = 1, startRow = 10, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Flow_surv_table, Flow_cld_year_table), startCol = 1, startRow = 17, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = left_join(Flow_int_table, Flow_cld_int_table), startCol = 12, startRow = 17, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Flow_cld_site_table, startCol = 1, startRow = 43, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Flow_cld_year_table, startCol = 1, startRow = 49, headerStyle = bold_header_style)
+writeData(wb, sheet = sheet_name, x = Flow_cld_int_table, startCol = 6, startRow = 43, headerStyle = bold_header_style)
+#
+#
+#
+#
+# Save workbook (overwrite = TRUE ensures updates)
+saveWorkbook(wb, file_path, overwrite = TRUE)
 #
 ```
