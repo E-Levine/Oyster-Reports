@@ -3,6 +3,7 @@
 # Load necessary R packages
 library(tidyverse) # Loads a number of very useful packages
 library(dataRetrieval) # Necessary for loading USGS flow data
+library(sf) # Necessary for dealing with some spatial vector data
 library(odbc) # Necessary for loading data from SQL Server
 library(DBI) # Necessary for loading data from SQL Server
 library(dbplyr) # Necessary for loading data from SQL Server
@@ -29,7 +30,6 @@ ReportEnd <- as.Date(paste0(ReportYear, "-12-31"))
 Estuaries <- c("AB")
 
 # Set data ranges
-Years_WQ <- seq(2015, ReportYear) # Need to revisit this, not accurate for DEP, USGS, and  NOAA data
 Years_Survey <- seq(2015, ReportYear)
 Years_Recruitment <- seq(2015, ReportYear)
 Years_OyHealth <- seq(2016, ReportYear)

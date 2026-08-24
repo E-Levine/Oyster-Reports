@@ -15,8 +15,8 @@ Drought_AccessedDate <- as.Date(substring(file_Drought, 33, 40), # saves the acc
 rm(file_Drought) # remove value once it is not needed
 
 ###
-# Flow data download from USGS
-Flow_Data_raw <- read_waterdata_daily(monitoring_location_id = c("USGS-02359170"), # Selects the gauge at Sumatra
+# River Discharge download from USGS
+RiverDischarge_Data_raw <- read_waterdata_daily(monitoring_location_id = c("USGS-02359170"), # Selects the gauge at Sumatra
                                    parameter_code = "00060", # limits data to discharge only
                                    time = c("1977-01-01", ReportEnd)) # limits data to the end of ReportYear
 

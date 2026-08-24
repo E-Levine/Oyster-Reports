@@ -29,8 +29,8 @@ source("scripts/05ReportBasicFilters.R")
 # Water Quality - Drought 
 # render("scripts/10Drought.Rmd", quiet = TRUE)
 
-# Water Quality - Stream flow
-# render("scripts/11Flow.Rmd", quiet = TRUE)
+# Water Quality - River Discharge
+# render("scripts/11RiverDischarge.Rmd", quiet = TRUE)
 
 # Water Quality - Temp, Salinity, Dissolved oxygen
 # render("scripts/12TempSalDO.Rmd", quiet = TRUE)

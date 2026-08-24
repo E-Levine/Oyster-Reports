@@ -22,7 +22,8 @@ FixedLocations1 <- dboFixedLocations %>%
 
     ### Remove intermediate data frames
 rm(dboFixedLocations)
-###
+
+######
 
 
 ### Water Quality Data ###
@@ -41,14 +42,18 @@ Drought_Data <- Drought_Data_raw %>%
 rm(Drought_Data_raw)
 
 
-### Flow data
-Flow_Data <- Flow_Data_raw %>%
+### River Discharge data
+RiverDischarge_Data <- RiverDischarge_Data_raw %>%
   mutate(StationCode = "Apalachicola River NR Sumatra, FL") %>% # make StationCode readable
   select(StationCode, # limit to fields in use
          monitoring_location_id,
          time,
          value) %>%
   st_drop_geometry() # needed to drop "sticky" location column
+
+  ### Remove intermediate data frames
+rm(RiverDischarge_Data_raw)
+
 
 ### Temperature, Salinity, Dissolved Oxygen
 TSDO_clean <- TSDO %>% # Setting Temps to NA if there are error codes
@@ -114,15 +119,10 @@ TSDO_clean <- TSDO %>% # Setting Temps to NA if there are error codes
          Sal,
          DO_pct)
   
-# remove intermediate data frames
+  ### remove intermediate data frames
 rm(TSDO)
   
-
-
-
-
-
-###
+######
 
 
 ### Survey Data ###
@@ -210,7 +210,7 @@ rm(hsdbSBMQuadrat, hsdbSBMSH, hsdbSurveyQuadrat, hsdbSurveySH)
 rm(SBM_Quad1, SBM_SH1, Survey_Quad1, Survey_SH1)
     ###
 
-###
+######
 
 
 ### Recruitment Data ###
@@ -229,7 +229,8 @@ Recruitment <- hsdbRecruitment %>%
 
 ### Remove intermediate data frames
 rm(hsdbRecruitment)
-###
+
+######
 
 
 ### Condition Index Data ###
@@ -260,7 +261,8 @@ ConditionIndex <- hsdbConditionIndex %>%
 
 ### Remove intermediate data frames
 rm(hsdbConditionIndex)
-###
+
+######
 
 
 ### Dermo Data ###
@@ -288,7 +290,8 @@ Dermo <- hsdbDermo %>%
 
 ### Remove intermediate data frames
 rm(hsdbDermo)
-###
+
+######
 
 
 ### Buceph & Repro Data ###
@@ -323,5 +326,5 @@ Repro <- hsdbRepro %>%
 
 ### Remove intermediate data frames
 rm(hsdbRepro)
-###
-###
+
+######

@@ -1,12 +1,12 @@
 ---
-title: "Flow"
+title: "River Discharge"
 output: html_document
 ---
 
 
-``` {r Flow models}
-## Flow
-Flow_monthly <- Flow_Data %>%
+``` {r River Discharge}
+## River Discharge
+RiverDischarge_monthly <- RiverDischarge_Data %>%
   mutate(
     Date = as.Date(time),
     Year = year(Date),
@@ -14,38 +14,38 @@ Flow_monthly <- Flow_Data %>%
   ) %>%
   group_by(StationCode, Year, Month) %>%
   summarise(
-    Flow_mean = if (all(is.na(value))) NA_real_ else mean(value, na.rm = TRUE),
+    RiverDischarge_mean = if (all(is.na(value))) NA_real_ else mean(value, na.rm = TRUE),
     .groups = "drop"
   )
 
 # calculate the historical distribution for each station and month, excluding ReportYear. 
 # This gives us the typical monthly HISTORICAL conditions
-Flow_historical <- Flow_monthly %>%
+RiverDischarge_historical <- RiverDischarge_monthly %>%
   filter(Year >= 1977, Year <= ReportYear - 1) %>%
   group_by(StationCode, Month) %>%
   summarise(
-    Historical_mean = mean(Flow_mean, na.rm = TRUE),
-    Historical_sd = sd(Flow_mean, na.rm = TRUE),
-    Historical_low = quantile(Flow_mean, 0.10, na.rm = TRUE),
-    Historical_high = quantile(Flow_mean, 0.90, na.rm = TRUE),
+    Historical_mean = mean(RiverDischarge_mean, na.rm = TRUE),
+    Historical_sd = sd(RiverDischarge_mean, na.rm = TRUE),
+    Historical_low = quantile(RiverDischarge_mean, 0.10, na.rm = TRUE),
+    Historical_high = quantile(RiverDischarge_mean, 0.90, na.rm = TRUE),
     .groups = "drop"
   )
 
 # Isolate ReportYear value
-Flow_current <- Flow_monthly %>%
+RiverDischarge_current <- RiverDischarge_monthly %>%
   filter(Year == ReportYear) %>%
-  select(StationCode, Month, Flow_current = Flow_mean)
+  select(StationCode, Month, RiverDischarge_current = RiverDischarge_mean)
 
 # combine the two tables
-Flow_comparison <- Flow_historical %>%
-  left_join(Flow_current, by = c("StationCode", "Month")) %>%
+RiverDischarge_comparison <- RiverDischarge_historical %>%
+  left_join(RiverDischarge_current, by = c("StationCode", "Month")) %>%
   mutate(
-    Difference = Flow_current - Historical_mean,
+    Difference = RiverDischarge_current - Historical_mean,
     Anomaly = Difference / Historical_sd
   )
 
-# Flow Figure
-FlowFigure <- ggplot(Flow_comparison, aes(x = Month)) +
+# RiverDischarge Figure
+RiverDischargeFigure <- ggplot(RiverDischarge_comparison, aes(x = Month)) +
   geom_ribbon(
     aes(
       ymin = Historical_low,
@@ -58,11 +58,11 @@ FlowFigure <- ggplot(Flow_comparison, aes(x = Month)) +
     linewidth = 1) +
   
   geom_line(
-    aes(y = Flow_current),
+    aes(y = RiverDischarge_current),
     linewidth = 1.2) +
   
   geom_point(
-    aes(y = Flow_current),
+    aes(y = RiverDischarge_current),
     size = 2) +
   
   facet_wrap(~ StationCode) +
@@ -73,15 +73,15 @@ FlowFigure <- ggplot(Flow_comparison, aes(x = Month)) +
   
   labs(
     x = "Month",
-    y = "Stream Flow (ft³/s)",
-    title = "2025 Stream Flow Compared with Historical Conditions",
-    subtitle = "Historical period: 1977–2024; shaded area represents the 10th–90th percentile") +
+    y = "River Discharge (ft³/s)",
+    title = "2025 River Discharge Compared with Historical Conditions",
+    subtitle = "Historical period: 1977–2024; shaded area represents the 10th–90th percentile range") +
   
   theme_classic()
 
-FlowFigure
+RiverDischargeFigure
 
-Flow_daily_current <- Flow_Data %>%
+RiverDischarge_daily_current <- RiverDischarge_Data %>%
   filter(time >= ReportStart)
 
 ```

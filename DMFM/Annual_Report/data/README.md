@@ -1,5 +1,5 @@
 # Data
-BACKGROUND: Temporary storage for non-program data (e.g. DEP Water quality, USGS water flow, etc.). 
+BACKGROUND: Temporary storage for non-program data (e.g. DEP Water quality, NOAA Drought). 
 All program data should be accessed via local database copy (see /scripts/ReportLoadData.R)<br>
 
 CONTENTS: <br>
