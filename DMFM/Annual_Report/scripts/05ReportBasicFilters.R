@@ -26,13 +26,20 @@ rm(dboFixedLocations)
 
 
 ### Water Quality Data ###
-###########
-###########
-###########
-# Space holder for doing that for drought, and flow data
-###########
-###########
-###########
+
+### Drought data
+Drought_Data <- Drought_Data_raw %>%
+  mutate(Date = ymd(MapDate), # make the date usable
+    Year = year(Date),
+    Week = floor((yday(Date) - 1) / 7) + 1, # number the weeks, this data is weekly
+    Week = pmin(Week, 52)) %>% # remove the outside week 53 that occassionally occurs
+  filter(Year <= ReportYear) %>% # remove data outside of the report
+  select(Date, Year, Week, 
+         None, D0, D1, D2, D3, D4)
+
+  ### Remove intermediate data frames
+rm(Drought_Data_raw)
+
 
 ### Flow data
 Flow_Data <- Flow_Data_raw %>%

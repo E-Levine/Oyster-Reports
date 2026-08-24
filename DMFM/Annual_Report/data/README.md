@@ -17,4 +17,10 @@ This file must be manually downloaded by: <br>
 - extract the contents to Downloads
 - save the data file (csv) in this folder as TSDO_20260815.csv where the numbers are the data accessed <br>
  <br>
-2. 
+2. NOAA Historical Drought Conditions for the ACF Basin <br>
+This file must be manually downloaded by: <br>
+- visiting https://www.drought.gov/watersheds/acf-dashboard <br>
+- scroll down to section 'Historical Drought Conditions and Impacts: ACF River Basin' <br>
+- ensure the tab '2000-Present' is selected <br>
+- click 'SPREADSHEET' button to download file 'USDM-apalachicola-chattahoochee-flint.csv' <br>
+- save the data file (csv) in this folder as Drought_20260820.csv where the numbers are the data accessed <br>

@@ -26,14 +26,13 @@ source("scripts/05ReportBasicFilters.R")
 ```
 
 ```{r ReportChapters}
-# Water Quality - Drought Index
-#10
+# Water Quality - Drought 
+# render("scripts/10Drought.Rmd", quiet = TRUE)
 
 # Water Quality - Stream flow
-#11
+# render("scripts/11Flow.Rmd", quiet = TRUE)
 
 # Water Quality - Temp, Salinity, Dissolved oxygen
-#12
 # render("scripts/12TempSalDO.Rmd", quiet = TRUE)
 
 # # Survey portion of report

@@ -1,19 +1,26 @@
 # Load all data for Report
 
 # Load External Data
-###########
-###########
-###########
-# Space holder for doing that for drought data
-###########
-###########
-###########
 
+###
+# Drought data download from NOAA cannot be automated. Follow instructions in /data/README.md
+# Identify the drought data file
+file_Drought <- list.files(path = "DMFM/Annual_Report/data/",
+                               pattern = "Drought_*",
+                               full.names = TRUE)
+# Import the drought data
+Drought_Data_raw <- read.csv(file_Drought)
+Drought_AccessedDate <- as.Date(substring(file_Drought, 33, 40), # saves the accessed date for future use
+                             format = "%Y%m%d")
+rm(file_Drought) # remove value once it is not needed
+
+###
 # Flow data download from USGS
 Flow_Data_raw <- read_waterdata_daily(monitoring_location_id = c("USGS-02359170"), # Selects the gauge at Sumatra
                                    parameter_code = "00060", # limits data to discharge only
                                    time = c("1977-01-01", ReportEnd)) # limits data to the end of ReportYear
 
+###
 # Temp, Sal, DO data download from DEP cannot be automated. Follow instructions in /data/README.md 
 # Identify the TSDO file
 file_DEP <- list.files(path = "DMFM/Annual_Report/data/",
@@ -25,6 +32,7 @@ TSDO_AccessedDate <- as.Date(substring(file_DEP, 30, 37), # saves the accessed d
                              format = "%Y%m%d")
 rm(file_DEP) # remove value once it is not needed
 
+###
 # Load Database Data
 # Connect to Local database server and pull all necessary data, then close connection 
 con <- dbConnect(odbc(),

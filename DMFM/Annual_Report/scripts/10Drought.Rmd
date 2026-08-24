@@ -1,0 +1,154 @@
+---
+title: "10Drought"
+output: html_document
+---
+
+``` {r Drought models}
+## Drought condition
+
+# calculate the historical distribution for each station and month, excluding ReportYear. 
+# This gives us the typical monthly HISTORICAL conditions
+Drought_historical <- Drought_Data %>%
+  filter(Year < ReportYear) %>%
+  group_by(Week) %>%
+  summarise(
+    P10 = quantile(D1, 0.10, na.rm = TRUE),
+    P25 = quantile(D1, 0.25, na.rm = TRUE),
+    Median = median(D1, na.rm = TRUE),
+    P75 = quantile(D1, 0.75, na.rm = TRUE),
+    P90 = quantile(D1, 0.90, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Isolate ReportYear values
+Drought_current <- Drought_Data %>%
+  filter(Year == ReportYear)
+
+# Current 
+Drought_current_figure <- 
+  ggplot(Drought_current, aes(x = Week)) +
+
+  # D0
+  geom_ribbon(
+    aes(ymin = D1, ymax = D0),
+    fill = "#FFFF00"
+  ) +
+
+  # D1
+  geom_ribbon(
+    aes(ymin = D2, ymax = D1),
+    fill = "#FCD37F"
+  ) +
+
+  # D2
+  geom_ribbon(
+    aes(ymin = D3, ymax = D2),
+    fill = "#FFAA00"
+  ) +
+
+  # D3
+  geom_ribbon(
+    aes(ymin = D4, ymax = D3),
+    fill = "#E60000"
+  ) +
+
+  # D4
+  geom_ribbon(
+    aes(ymin = 0, ymax = D4),
+    fill = "#730000"
+  ) +
+
+    scale_x_continuous(
+    breaks = c(1, 5, 9, 13, 18, 22, 27, 31, 35, 40, 44, 48),
+    labels = c(
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    limits = c(0, 100),
+    breaks = seq(0, 100, 20),
+    labels = function(x) paste0(x, "%"),
+    expand = c(0, 0)
+  ) +
+  
+    labs(
+    x = "Month",
+    y = "Total Percent Land Area"
+  ) +
+  
+  theme_classic()
+  
+
+# Historical Figure
+Drought_historical_figure <- ggplot() +
+
+  # Historical 10th–90th percentile
+  geom_ribbon(
+    data = Drought_historical,
+    aes(
+      x = Week,
+      ymin = P10,
+      ymax = P90
+    ),
+    fill = "grey85"
+  ) +
+
+  # Historical 25th–75th percentile
+  geom_ribbon(
+    data = Drought_historical,
+    aes(
+      x = Week,
+      ymin = P25,
+      ymax = P75
+    ),
+    fill = "grey70"
+  ) +
+
+  # Historical median
+  geom_line(
+    data = Drought_historical,
+    aes(
+      x = Week,
+      y = Median
+    ),
+    linewidth = 0.8
+  ) +
+
+  # 2025
+  geom_line(
+    data = Drought_current,
+    aes(
+      x = Week,
+      y = D1
+    ),
+    linewidth = 1.3
+  ) +
+
+  scale_x_continuous(
+    breaks = c(1, 5, 9, 13, 18, 22, 27, 31, 35, 40, 44, 48),
+    labels = c(
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    limits = c(0, 100),
+    breaks = seq(0, 100, 20),
+    labels = function(x) paste0(x, "%"),
+    expand = c(0, 0)
+  ) +
+
+  labs(
+    x = "Month",
+    y = "Watershed area in moderate drought or worse (D1–D4)"
+  ) +
+
+  theme_classic()
+
+Drought_current_figure
+Drought_historical_figure
+
+```

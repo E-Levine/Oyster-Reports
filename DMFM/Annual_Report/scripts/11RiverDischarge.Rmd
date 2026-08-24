@@ -81,6 +81,7 @@ FlowFigure <- ggplot(Flow_comparison, aes(x = Month)) +
 
 FlowFigure
 
-
+Flow_daily_current <- Flow_Data %>%
+  filter(time >= ReportStart)
 
 ```
