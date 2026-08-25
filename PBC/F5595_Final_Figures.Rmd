@@ -585,7 +585,7 @@ Sal_plot <- ggarrange(
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
     scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
     BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
-  rremove("y.title"),
+  rremove("y.title") + rremove("x.title"),
   nrow =  3, heights = c(0.9, -0.05, 1.1))
 #
 annotate_figure(Sal_plot, 
@@ -632,7 +632,7 @@ geom_line(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, c
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
     scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
     BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
-  rremove("y.title"),
+  rremove("y.title")  + rremove("x.title"),
   nrow =  3, heights = c(0.9, -0.05, 1.1))
 #
 annotate_figure(Temp_plot, 
@@ -679,7 +679,7 @@ geom_line(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, color = Stat
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
     scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
     BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
-  rremove("y.title"),
+  rremove("y.title")  + rremove("x.title"),
   nrow =  3, heights = c(0.9, -0.05, 1.1))
 #
 annotate_figure(DO_plot, 
@@ -726,7 +726,7 @@ geom_line(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, color = Stat
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
     scale_shape_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = 21, "2" = 21, "3" = 21, "4" = 21, "5" = 22), breaks = c("5", "1", "2", "3", "4"))+
     BaseForm + FacetForm + PlotTitle + theme(legend.position = "none")+
-  rremove("y.title"),
+  rremove("y.title")  + rremove("x.title"),
   nrow =  3, heights = c(0.9, -0.05, 1.1))
 #
 annotate_figure(pH_plot, 
@@ -763,7 +763,7 @@ annotate_figure(SP_plot, left = text_grob("% Secchi Penetration", rot = 90, fami
 #
 ```
 
-```{r Natural Survey Figure, fig.cap = "**Figure 9.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray area) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Natural Survey Figure, fig.cap = "**Figure 9.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Nat_Live_list <- list()
 for(i in seq_along(LWL_stations)){
@@ -826,7 +826,7 @@ grid::grid.draw(Nat_live_fig)
 #
 ```
 
-```{r Restoration Survey Figure, fig.cap = "**Figure 10.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray area) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Restoration Survey Figure, fig.cap = "**Figure 10.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Res_Live_list <- list()
 for(i in seq_along(LWR_stations)){
@@ -889,7 +889,7 @@ grid::grid.draw(Res_live_fig)
 #
 ```
 
-```{r Natural Dead Ratio Figure, fig.cap = "**Figure 11.**  Mean semi-annual ratio (± S.D.) of dead oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray area) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Natural Dead Ratio Figure, fig.cap = "**Figure 11.**  Mean semi-annual ratio (± S.D.) of dead oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Nat_Dead_list <- list()
 for(i in seq_along(LWL_stations)){
@@ -952,7 +952,7 @@ grid::grid.draw(Nat_dead_fig)
 #
 ```
 
-```{r Restoration Dead Ratio Figure, fig.cap = "**Figure 12.**  Mean semi-annual ratio (± S.D.) of dead oysters (colored bars) present at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray area) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Restoration Dead Ratio Figure, fig.cap = "**Figure 12.**  Mean semi-annual ratio (± S.D.) of dead oysters (colored bars) present at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Res_Dead_list <- list()
 for(i in seq_along(LWR_stations)){
@@ -1015,7 +1015,7 @@ grid::grid.draw(Res_dead_fig)
 #
 ```
 
-```{r Natural Shell Heights Figure, fig.cap = "**Figure 133.**  Mean semi-annual shell height (± S.D.) of live oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray area) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Natural Shell Heights Figure, fig.cap = "**Figure 13.**  Mean semi-annual shell height (± S.D.) of live oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Nat_SH_list <- list()
 for(i in seq_along(LWL_stations)){
@@ -1078,7 +1078,7 @@ grid::grid.draw(Nat_SH_fig)
 #
 ```
 
-```{r Restoration Shell Height Figure, fig.cap = "**Figure 12.**  Mean semi-annual shell height (± S.D.) of live oysters (colored bars) present at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray area) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Restoration Shell Height Figure, fig.cap = "**Figure 14.**  Mean semi-annual shell height (± S.D.) of live oysters (colored bars) present at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Res_SH_list <- list()
 for(i in seq_along(LWR_stations)){
@@ -1137,6 +1137,248 @@ Res_SH_fig <- gridExtra::arrangeGrob(
   )
 #
 grid::grid.draw(Res_SH_fig)
+#
+#
+```
+
+```{r Natural Dermo Prevalence Figure, fig.cap = "**Figure 15.**  Monthly prevalence (%) of oysters infected with *Perkinsus marinus* (dermo; colored bars) at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * 100)
+#
+Nat_dermoP <- ggarrange(
+  DermoP %>% filter(Site == "LWL" & Station == "1") %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 1") +
+    scale_y_continuous("% Dermo Prevalence", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/100),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 100))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoP %>% filter(Site == "LWL" & Station == "2") %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 2") +
+    scale_y_continuous("% Dermo Prevalence", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/100),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 100))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoP %>% filter(Site == "LWL" & Station == "3") %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 3") +
+    scale_y_continuous("% Dermo Prevalence", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/100),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 100))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title")  + rremove("x.title"),
+  nrow =  5, heights = c(1, -0.1, 1, -0.1, 1))
+#
+rm(temp_flow)
+#
+annotate_figure(Nat_dermoP, 
+                left = text_grob("% Dermo Prevalence", rot = 90, family = "serif", color = "black", size = 17),
+                right = text_grob("Flow (cfs)", rot = 270, family = "serif", color = "black", size = 17))
+#
+#
+```
+
+```{r Restoration Dermo Prevalence Figure, fig.cap = "**Figure 16.**  Monthly prevalence (%) of oysters infected with *Perkinsus marinus* (dermo; colored bars) at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * 100)
+#
+Res_dermoP <- ggarrange(
+  DermoP %>% filter(Site == "LWR" & Station == "2") %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 2") +
+    scale_y_continuous("% Dermo Prevalence", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/100),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 100))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoP %>% filter(Site == "LWR" & Station == "3") %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 3") +
+    scale_y_continuous("% Dermo Prevalence", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/100),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 100))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoP %>% filter(Site == "LWR" & Station == "4") %>%
+    ggplot(aes(RetDate, Value, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 4") +
+    scale_y_continuous("% Dermo Prevalence", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/100),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 100))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.title"),
+  nrow =  5, heights = c(1, -0.1, 1, -0.1, 1))
+#
+rm(temp_flow)
+#
+annotate_figure(Res_dermoP, 
+                left = text_grob("% Dermo Prevalence", rot = 90, family = "serif", color = "black", size = 17),
+                right = text_grob("Flow (cfs)", rot = 270, family = "serif", color = "black", size = 17))
+#
+#
+```
+
+```{r Natural Dermo Intensity Figure, fig.cap = "**Figure 17.**  Mean monthly infection intensity (± S.D.) of oysters infected with *Perkinsus marinus* (dermo; colored bars) at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * 5)
+#
+Nat_dermoI <- ggarrange(
+  DermoI %>% filter(Site == "LWL" & Station == "1") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 1") +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/5),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 5))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoI %>% filter(Site == "LWL" & Station == "2") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 2") +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/5),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 5))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoI %>% filter(Site == "LWL" & Station == "3") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 3") +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/5),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 5))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title")  + rremove("x.title"),
+  nrow =  5, heights = c(1, -0.1, 1, -0.1, 1))
+#
+rm(temp_flow)
+#
+annotate_figure(Nat_dermoI, 
+                left = text_grob("Dermo Infection Intensity", rot = 90, family = "serif", color = "black", size = 17),
+                right = text_grob("Flow (cfs)", rot = 270, family = "serif", color = "black", size = 17))
+#
+#
+```
+
+```{r Restoration Dermo Intensity Figure, fig.cap = "**Figure 18.**  Mean monthly infection intensity (± S.D.) of oysters infected with *Perkinsus marinus* (dermo; colored bars) at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * 5)
+#
+Res_dermoI <- ggarrange(
+  DermoI %>% filter(Site == "LWR" & Station == "2") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 2") +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/5),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 5))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoI %>% filter(Site == "LWR" & Station == "3") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 3") +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/5),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 5))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.text"),
+  NULL,
+  DermoI %>% filter(Site == "LWR" & Station == "4") %>%
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_col(position = position_dodge(12), width = 9, color = "black") +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
+    geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
+    labs(title = "Station 4") +
+    scale_y_continuous("Dermo Infection Intensity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/5),
+                       breaks = flow_breaks))+
+    coord_cartesian(ylim = c(0, 5))+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+ 
+    Station_fill + Station_color + BaseForm + theme(legend.position = "none") + PlotTitle +
+  rremove("y.title") + rremove("x.title"),
+  nrow =  5, heights = c(1, -0.1, 1, -0.1, 1))
+#
+rm(temp_flow)
+#
+annotate_figure(Res_dermoI, 
+                left = text_grob("Dermo Infection Intensity", rot = 90, family = "serif", color = "black", size = 17),
+                right = text_grob("Flow (cfs)", rot = 270, family = "serif", color = "black", size = 17))
 #
 #
 ```
