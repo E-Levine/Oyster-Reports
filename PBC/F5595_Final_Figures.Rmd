@@ -27,6 +27,7 @@ pacman::p_load(odbc, DBI, dbplyr,
   DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
   knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, flextable,
+  gridExtra, grid,
   install = TRUE)
 ```
 
@@ -119,12 +120,16 @@ PBC_Sal <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>%
   rbind(data.frame(RetDate = NA, SiteStation = 'LWR5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE))
 #
 #
-#Flow - Need data for each site for plotting
+#Flow 
+flow_maxScale <- ceiling(max(LW_Flow_raw$LWSum, na.rm = TRUE) / 100) * 100
+flow_step <- ceiling(flow_maxScale / 3 / 100) * 100
+flow_breaks <- seq(0, flow_step * 3, by = flow_step)
+flow_max <- max(flow_breaks)
 LW_Flow <- rbind(LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWL"), 
                     LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWR")) %>%
-  mutate(Rescale = (LWSum)/(max(LWSum, na.rm = T))*(40-0)+0,
-         Rescale16 = (LWSum)/(max(LWSum, na.rm = T))*(16-0)+0,
-         Rescale10 = (LWSum)/(max(LWSum, na.rm = T))*(10-7)+7) #Rescale flow to salinity axis limits for plotting
+  mutate(Rescale = (LWSum)/(flow_max)*(40-0)+0, #Rescale flow to salinity and flow axis limits for plotting
+         Rescale16 = (LWSum)/(flow_max)*(16-0)+0,
+         Rescale10 = (LWSum)/(flow_max)*(10-7)+7)
 #
 #
 #
@@ -542,10 +547,6 @@ Percent organic weight\
 \newpage
 
 ```{r Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District. Pale green bare denotes salinity optima band.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
-#max(LW_Flow$LWSum) - round to nearest divisible by 4
-flow_divide <- 6000
-flow_breaks <- pretty(c(0, flow_divide), n=4)
-flow_max <- max(flow_breaks)
 #
 Sal_plot <- ggarrange(
   #LWL
@@ -557,7 +558,7 @@ Sal_plot <- ggarrange(
     labs(title = "Lake Worth-Natural") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
     scale_y_continuous("Salinity", expand = c(0,0), 
-                       sec.axis = sec_axis(~.*(flow_divide/40), 
+                       sec.axis = sec_axis(~.*(flow_max/40), 
                                            name = "Flow (cfs)", 
                                            breaks = flow_breaks)) +
     coord_cartesian(ylim = c(0, 40))+
@@ -575,7 +576,10 @@ Sal_plot <- ggarrange(
     geom_point(data = PBC_Sal %>% filter(Site == "LWR"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Salinity", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    scale_y_continuous("Salinity", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/40), 
+                                           name = "Flow (cfs)", 
+                                           breaks = flow_breaks)) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -601,7 +605,10 @@ geom_line(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, c
     geom_point(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Natural") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/40), 
+                                           name = "Flow (cfs)", 
+                                           breaks = flow_breaks)) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -616,7 +623,10 @@ geom_line(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, c
     geom_point(data = PBC_Temp %>% filter(Site == "LWR"), aes(RetDate, Temperature, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/40), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    scale_y_continuous("Temperature (\u00B0C)", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/40), 
+                                           name = "Flow (cfs)", 
+                                           breaks = flow_breaks)) +
     coord_cartesian(ylim = c(0, 40))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -642,7 +652,10 @@ geom_line(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, color = Stat
     geom_point(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Natural") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/16), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/16), 
+                                           name = "Flow (cfs)", 
+                                           breaks = flow_breaks)) +
     coord_cartesian(ylim = c(0, 16))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -657,7 +670,10 @@ geom_line(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, color = Stat
     geom_point(data = PBC_DO %>% filter(Site == "LWR"), aes(RetDate, DO, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), sec.axis = sec_axis(~.*(flow_divide/16), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    scale_y_continuous("Dissolved oxygen (mg/L)", expand = c(0,0), 
+                       sec.axis = sec_axis(~.*(flow_max/16), 
+                                           name = "Flow (cfs)", 
+                                           breaks = flow_breaks)) +
     coord_cartesian(ylim = c(0, 16))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -683,7 +699,10 @@ geom_line(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, color = Stat
     geom_point(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Natural") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-    scale_y_continuous("pH", expand = c(0,0), sec.axis = sec_axis(~(.-7)*(flow_divide/(10-7)), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+    scale_y_continuous("pH", expand = c(0,0), 
+                       sec.axis = sec_axis(~(.-7)*(flow_max/(10-7)), 
+                                           name = "Flow (cfs)", 
+                                           breaks = flow_breaks)) +
     coord_cartesian(ylim = c(7, 10))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -698,7 +717,10 @@ geom_line(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, color = Stat
     geom_point(data = PBC_pH %>% filter(Site == "LWR"), aes(RetDate, pH, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
-        scale_y_continuous("pH", expand = c(0,0), sec.axis = sec_axis(~(.-7)*(flow_divide/(10-7)), name = "Flow (cfs)", breaks = seq(0,flow_divide, flow_divide/4))) +
+        scale_y_continuous("pH", expand = c(0,0), 
+                           sec.axis = sec_axis(~(.-7)*(flow_max/(10-7)), 
+                                               name = "Flow (cfs)", 
+                                               breaks = flow_breaks)) +
     coord_cartesian(ylim = c(7, 10))+
     scale_fill_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = rgb(156, 156, 156, maxColorValue = 255)), breaks = c("5", "1", "2", "3", "4")) +
     scale_color_manual("", labels = c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Staion 4", "5" = "Flow"), values = c("1" = rgb(0, 0, 228, maxColorValue = 255), "2" = rgb(245, 0, 0, maxColorValue = 255), "3" = rgb(0, 118, 0, maxColorValue = 255), "4" = rgb(102, 0, 102, maxColorValue = 255), "5" = "white"), breaks = c("5", "1", "2", "3", "4")) + 
@@ -743,7 +765,6 @@ annotate_figure(SP_plot, left = text_grob("% Secchi Penetration", rot = 90, fami
 
 ```{r Natural Survey Figure, fig.cap = "**Figure 9.**  Mean semi-annual number (± S.D.) of live oysters present at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 #
-#
 Nat_Live_list <- list()
 for(i in seq_along(LWL_stations)){
   #
@@ -758,11 +779,13 @@ for(i in seq_along(LWL_stations)){
   y_breaks <- pretty(c(0, max_upper))
   y_max <- max(y_breaks)
   temp_flow <- LW_Flow %>% 
-    mutate(Rescale = LWSum / flow_divide * y_max)
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
   #
   Nat_Live_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -772,24 +795,33 @@ for(i in seq_along(LWL_stations)){
                        expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
                        sec.axis = sec_axis(
                          local({
-                           ymax <- y_max
-                           fmax <- flow_max
-                           ~.*fmax/ymax}),
-                         breaks = flow_breaks)) + 
-    ggtitle(paste0(case_when(substr(Working_site, 3, 3) == "1" ~ "Station 1", substr(Working_site, 3, 3) == "2" ~ "Station 2", TRUE ~ "Station 3"))) + 
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
     Station_fill + Station_color + BaseForm + PlotTitle + 
     Xnudge + theme(legend.position = "none")
 }
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
 #
-Nat_live_fig <- ggarrange(
-  Nat_Live_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title"),
-  Nat_Live_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"),
-  Nat_Live_list[[3]] + rremove("x.title") + rremove("y.title"),
-  nrow = 3, heights = c(0.9, 0.9, 1.3), align = "v"  
+Nat_live_fig <- gridExtra::arrangeGrob(
+  textGrob(expression("Live oysters / m"^2), rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(Nat_Live_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(Nat_Live_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(Nat_Live_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.9, 0.9, 1.3)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
   )
 #
-annotate_figure(Nat_live_fig, 
-                left = text_grob(expression("Live oysters / m"^2), rot = 90, family = "serif", color = "black", size = 17),
-                right = text_grob("Flow (cfs)", rot = 270, family = "serif", color = "black", size = 17))
+grid::grid.draw(Nat_live_fig)
+#
 #
 ```
