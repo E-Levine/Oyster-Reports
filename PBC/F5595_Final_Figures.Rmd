@@ -311,7 +311,8 @@ Sed_sta_rate <- Sedi_sta %>%
   dplyr::select(-SiteStation) %>% 
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", 
-                            TRUE ~ NA))
+                            TRUE ~ NA),
+         SiteStation = as.factor(paste0(Site, Station)))
 Sed_sta_org <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Pct")) %>% 
   filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
@@ -326,7 +327,8 @@ Sed_sta_org <- Sedi_sta %>%
   dplyr::select(-SiteStation) %>% 
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", 
-                            TRUE ~ NA))
+                            TRUE ~ NA),
+         SiteStation = as.factor(paste0(Site, Station)))
 Sed_sta_wt <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Wt")) %>% 
   filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
@@ -340,7 +342,8 @@ Sed_sta_wt <- Sedi_sta %>%
                              TRUE ~ NA)) %>% 
   dplyr::select(-SiteStation) %>% 
   spread(Measure, Value) %>% 
-  mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+  mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA),
+         SiteStation = as.factor(paste0(Site, Station)))
 #
 Sedi_positions <- Sedi_pos %>% 
   dplyr::select(-AnalysisDate) %>% 
@@ -546,7 +549,7 @@ Percent organic weight\
 \
 \newpage
 
-```{r Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District. Pale green bare denotes salinity optima band.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+```{r Salinity Figure, fig.cap = "**Figure 4.**  Monthly salinity recorded at natural reef stations (top) and at restored reef stations (bottom) in Lake Worth Lagoon and the mean daily flow rate at the S155 structure as recorded by the South Florida Water Management District. Pale green bar denotes salinity optima band.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
 #
 Sal_plot <- ggarrange(
   #LWL
@@ -1379,6 +1382,684 @@ rm(temp_flow)
 annotate_figure(Res_dermoI, 
                 left = text_grob("Dermo Infection Intensity", rot = 90, family = "serif", color = "black", size = 17),
                 right = text_grob("Flow (cfs)", rot = 270, family = "serif", color = "black", size = 17))
+#
+#
+```
+
+```{r Repro Figure, fig.cap = "**Figure 19.**  Monthly reproductive development of oysters collected from natural reef stations (top) and restored reef stations (bottom) in Lake Worth Lagoon.", fig.height = 7, fig.width = 8, fig.fullwidth=TRUE}
+#
+ggarrange(
+    Repro_PBC %>% filter(Site == "LWL") %>%
+        ggplot(aes(RetDate, Value, fill = Stage)) + 
+        geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 12, color = "black") + 
+        labs(title = "Lake Worth-Natural") +
+        scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+        scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+        Stage_fill + BaseForm + Legend + PlotTitle,
+    NULL,
+    Repro_PBC %>% filter(Site == "LWR") %>%
+        ggplot(aes(RetDate, Value, fill = Stage)) + 
+        geom_bar(position = position_fill(reverse = TRUE), stat = "identity", width = 12, color = "black") + 
+        labs(title = "Lake Worth-Restoration") +
+        scale_y_continuous("Frequency", expand = c(0,0), labels = label_percent(suffix = "")) +
+        scale_x_date("", expand= c(0,0), date_breaks = "1 month", date_labels = "%b", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+        Stage_fill + BaseForm + PlotTitle + theme(legend.position = "none"),
+    nrow =  3, heights = c(1, -0.05, 1))
+#
+```
+
+```{r Natural Recruitment Figure, fig.cap = "**Figure 20.**  Mean monthly number (± S.D.) of oyster spat recruits (colored bars) collected per shell from natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Nat_Rcrt_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Recruits %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Nat_Rcrt_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+Nat_rcrt_fig <- gridExtra::arrangeGrob(
+  textGrob("Spat / Shell", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(Nat_Rcrt_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(Nat_Rcrt_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(Nat_Rcrt_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Nat_rcrt_fig)
+#
+#
+```
+
+```{r Restoration Recruitment Figure, fig.cap = "**Figure 21.**  Mean monthly number (± S.D.) of oyster spat recruits (colored bars) collected per shell from restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Res_Rcrt_list <- list()
+for(i in seq_along(LWR_stations)){
+  #
+  Working_site <- paste(LWR_stations[i])
+  df_temp <- Recruits %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Res_Rcrt_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Spat / Shell", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "4" ~ "Station 4", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+Res_rcrt_fig <- gridExtra::arrangeGrob(
+  textGrob("Spat / Shell", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(Res_Rcrt_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(Res_Rcrt_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(Res_Rcrt_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Res_rcrt_fig)
+#
+#
+```
+
+```{r Natural Sedimentation Figure, fig.cap = "**Figure 22.**  Mean monthly sedimentation rate (± S.D.; colored bars) at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Nat_Sedi_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Sed_sta_rate %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Nat_Sedi_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(40), width = 15, color = "black", show.legend = FALSE)+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Sedimentation Rate (g/month)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Nat_Sedi_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")) 
+g2 <- ggplotGrob(Nat_Sedi_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"))
+g3 <- ggplotGrob(Nat_Sedi_list[[3]] + rremove("x.title") + rremove("y.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Nat_sedi_fig <- gridExtra::arrangeGrob(
+  textGrob("Sedimentation Rate (g/month)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Nat_sedi_fig)
+#
+#
+```
+
+```{r Restoration Sedimentation Figure, fig.cap = "**Figure 23.**  Mean monthly sedimentation rate (± S.D.; colored bars) at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Res_Sedi_list <- list()
+for(i in seq_along(LWR_stations)){
+  #
+  Working_site <- paste(LWR_stations[i])
+  df_temp <- Sed_sta_rate %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Res_Sedi_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(40), width = 15, color = "black", show.legend = FALSE)+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Sedimentation Rate (g/month)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "4" ~ "Station 4", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Res_Sedi_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")) 
+g2 <- ggplotGrob(Res_Sedi_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"))
+g3 <- ggplotGrob(Res_Sedi_list[[3]] + rremove("x.title") + rremove("y.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Res_sedi_fig <- gridExtra::arrangeGrob(
+  textGrob("Sedimentation Rate (g/month)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Res_sedi_fig)
+#
+#
+```
+
+```{r Natural Organic Figure, fig.cap = "**Figure 24.**  Mean monthly organic content (%) of sediment (colored bars) at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Nat_Orgc_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Sed_sta_org %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Nat_Orgc_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(40), width = 15, color = "black", show.legend = FALSE)+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Organic Content (%)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Nat_Orgc_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")) 
+g2 <- ggplotGrob(Nat_Orgc_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"))
+g3 <- ggplotGrob(Nat_Orgc_list[[3]] + rremove("x.title") + rremove("y.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Nat_Orgc_fig <- gridExtra::arrangeGrob(
+  textGrob("Organic Content (%)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Nat_Orgc_fig)
+#
+#
+```
+
+```{r Restoration Organic Figure, fig.cap = "**Figure 25.**  Mean monthly organic content (%) of sediment (colored bars) at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Res_Orgc_list <- list()
+for(i in seq_along(LWR_stations)){
+  #
+  Working_site <- paste(LWR_stations[i])
+  df_temp <- Sed_sta_org %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Res_Orgc_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(40), width = 15, color = "black", show.legend = FALSE)+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Organic Content (%)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "4" ~ "Station 4", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Res_Orgc_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")) 
+g2 <- ggplotGrob(Res_Orgc_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"))
+g3 <- ggplotGrob(Res_Orgc_list[[3]] + rremove("x.title") + rremove("y.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Res_Orgc_fig <- gridExtra::arrangeGrob(
+  textGrob("Organic Content (%)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Res_Orgc_fig)
+#
+#
+```
+
+```{r Natural Organic Weight Figure, fig.cap = "**Figure 26.**  Mean monthly organic weight (± S.D.) of sediment (colored bars) collected at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Nat_Orgw_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Sed_sta_wt %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Nat_Orgw_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(40), width = 15, color = "black", show.legend = FALSE)+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Organic Weight (g/month)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Nat_Orgw_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")) 
+g2 <- ggplotGrob(Nat_Orgw_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"))
+g3 <- ggplotGrob(Nat_Orgw_list[[3]] + rremove("x.title") + rremove("y.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Nat_Orgw_fig <- gridExtra::arrangeGrob(
+  textGrob("Organic Weight (g/month)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Nat_Orgw_fig)
+#
+#
+```
+
+```{r Restoration Organic Weight Figure, fig.cap = "**Figure 27.**  Mean monthly organic weight (± S.D.) of sediment (colored bars) collected at restoration reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+Res_Orgw_list <- list()
+for(i in seq_along(LWR_stations)){
+  #
+  Working_site <- paste(LWR_stations[i])
+  df_temp <- Sed_sta_wt %>% 
+    filter(grepl(Working_site, SiteStation)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  Res_Orgw_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 15, color = "black") + 
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(40), width = 15, color = "black", show.legend = FALSE)+
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous("Organic Weight (g/month)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "4" ~ "Station 4", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Res_Orgw_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")) 
+g2 <- ggplotGrob(Res_Orgw_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title"))
+g3 <- ggplotGrob(Res_Orgw_list[[3]] + rremove("x.title") + rremove("y.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Res_Orgw_fig <- gridExtra::arrangeGrob(
+  textGrob("Organic Weight (g/month)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(Res_Orgw_fig)
+#
+#
+```
+
+```{r Sediment Position Figure, fig.cap = "**Figure 28.**  Mean monthly sedimentation rate (± S.D.), organic content (%), and organic weight (± S.D.) of sediment at stations north (blue bars) and south (red bars) of C-51 in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+Posi_list <- list()
+for(i in seq_along(Sediment_list)){
+  #
+  Working_param <- paste(Sediment_list[i])
+  df_temp <- Sedi_positions %>% 
+    filter(grepl(Working_param, Parameter)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- ceiling(max(df_temp$Upper, na.rm = T)*1.05) #*1.05 adds 5% buffer to top if needed
+  #
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #
+  Posi_list[[i]] <- df_temp %>% 
+    ggplot(aes(RetDate, Mean, fill = Position))+ 
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(19), width = 14) +
+    geom_col(position = position_dodge(19), width = 17, color = "black") +
+    #Adding pattern to indicate estimated values:
+    geom_col_pattern(aes(pattern = ifelse(format(RetDate, "%Y-%m") == "2025-05" | format(RetDate, "%Y-%m") == "2025-09", "stripe", NA)), pattern_density = 0.4, pattern_fill = "white", position = position_dodge(19), width = 17, color = "black", show.legend = FALSE)+
+    geom_text(aes(y = HelperLocation, label = Helper, fill = Position), 
+              position = position_dodge(15), size = 9) +
+    scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
+    scale_y_continuous(case_when(Working_param == "Rate" ~ "Sedimentation\nRate (g/month)", 
+                                 Working_param == "OrgContent" ~ "Organic\nContent (%)", 
+                                 Working_param == "OrgWt" ~ "Organic Weight\n(g/month)", 
+                                 TRUE ~ "Something is missing."), 
+                       expand = c(0,0), limits = c(0, y_max), 
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                         breaks = flow_breaks))+
+    Position_fill + Position_color + BaseForm + PlotTitle + 
+    theme(axis.title.y = element_text(size = 14),
+          legend.position = "none")
+}
+
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+g1 <- ggplotGrob(Posi_list[[1]] + rremove("x.title") + rremove("x.text")) 
+g2 <- ggplotGrob(Posi_list[[2]] + rremove("x.title") + rremove("x.text"))
+g3 <- ggplotGrob(Posi_list[[3]] + rremove("x.title"))
+max_widths <- grid::unit.pmax(
+  g1$widths,
+  g2$widths,
+  g3$widths
+)
+
+g1$widths <- max_widths
+g2$widths <- max_widths
+g3$widths <- max_widths
+#
+Posi_fig <- gridExtra::arrangeGrob(
+  gridExtra::arrangeGrob(
+    g1, g2, g3,
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 2,
+  widths = c(20, 1.5)
+  )
+#
+grid::grid.draw(Posi_fig)
 #
 #
 ```

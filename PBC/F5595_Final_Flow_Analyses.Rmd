@@ -1,0 +1,753 @@
+---
+title: "F5595 Final Flow Analyses"
+author: "ELevine"
+date: "`r Sys.Date()`"
+output: 
+  word_document: 
+    reference_docx: Monthly-Reports-template.docx
+    fig_caption: yes
+params:
+  Start_date: "2023-10-01"
+  End_date:   "2026-09-30"
+  Excel_name: "PBC_5595"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+# make sure to check flow scale ranges when plotting Sal/Flow plots
+Estuary_code <- c("LW", "LW-L", "LW-R")
+Start_date <- as.Date(params$Start_date, format = "%Y-%m-%d")
+End_date <- as.Date(params$End_date, format = "%Y-%m-%d")
+Flow_sites <- c("LW")
+sheet_lookup <- c(LW = "LWSum")
+Summary_Excel_file_name <- params$Excel_name
+#
+#Packages
+if (!require("pacman")) {install.packages("pacman")}
+#p_unlock()
+pacman::p_load(odbc, DBI, dbplyr,
+  tidyverse, dplyr,  stringr, #DF manipulation
+  DT, openxlsx, readxl,        #Excel
+  lubridate, zoo,         #Dates
+  glmmTMB, purrr, emmeans, car, broom, multcomp, lmerTest,#Analyses
+  knitr, kableExtra, scales, gt, gtExtras, 
+  ggpubr, ggpattern, magick, flextable,
+  gridExtra, grid,
+  install = TRUE)
+#
+#
+#
+#
+```
+
+```{r FigureFormatting, include = FALSE}
+#
+PBC_sites <- c("LWL", "LWR")
+LWL_stations <- c("LWL1", "LWL2", "LWL3")
+LWR_stations <- c("LWR2", "LWR3", "LWR4")
+#
+#Shared formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.margin = margin(b = 6, l = 6, t = 12, r = 12, unit = "pt"),
+        axis.title = element_text(family = "serif", color = "black", size = 17), 
+        axis.title.x = element_text(margin = margin(t = 12)), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 12), 
+        #axis.text.x = element_text(angle = 45, hjust = 0.9),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.10, "cm"),
+        axis.ticks.length.y = unit(0.15, "cm"))
+Xnudge <- theme(axis.text.x = element_text(hjust = 1.1))
+
+Survey_legend <- theme(legend.position = "inside", legend.position.inside = c(.25, .97), legend.justification = c("left", "top"), legend.box.just = "left", #legend.box.spacing = unit(0.05, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.spacing.y = unit(0.20, "lines"),
+                     legend.key.width = unit(0.0001, "pt"), legend.key.height = unit(0.000001, "pt"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+Legend <- theme(legend.position = "inside", legend.position.inside = c(.005, .97), legend.justification = c("left", "top"), legend.box.just = "left", legend.box.spacing = unit(0.15, "lines"), #Adjust legend position
+                     legend.background = element_rect(color = "black", fill = "white", linetype = "solid"),
+                     legend.title = element_blank(), legend.key.height = unit(0.7, "lines"), legend.key.spacing.y = unit(0.25, "lines"),
+                     legend.key.width = unit(1.5, "lines"), #Adjust legend title and spacing
+                     legend.text = element_text(family = "serif", color = "black", size = 12))
+
+FacetForm <- theme(strip.placement = "outside", strip.text.x.top = element_text(vjust = 1, hjust = 0, size = 13, family = "serif"), strip.clip = "off", panel.spacing.y = unit(0.5, "lines"), strip.background = element_blank())
+
+PlotTitle <- theme(plot.title = element_text(size = 13, family = "serif", margin = margin(b = 0.07, t = 0.025)))
+
+#Color and shape to station number
+Stat_pal <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255), rgb(0, 118, 0, maxColorValue = 255), rgb(102, 0, 102, maxColorValue = 255))
+Stations <- c("1" = "Station 1", "2" = "Station 2", "3" = "Station 3", "4" = "Station 4") 
+Station_fill <- scale_fill_manual("", labels = Stations, values = setNames(Stat_pal, 1:4), na.value = "#999999")
+Station_color <- scale_color_manual("", labels = Stations, values = setNames(Stat_pal, 1:4), na.value = "#999999")
+Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21, 25, 22, 23), 1:4))
+#
+#Sediment formatting
+Sediment_list <- c("Rate", "OrgContent", "OrgWt")
+Stat_pal2 <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255))
+Positions <- c("N" = "North", "S" = "South")
+Position_fill <- scale_fill_manual("", labels = Positions, values = Stat_pal2, na.value = "#999999")
+Position_color <- scale_color_manual("", labels = Positions, values = Stat_pal2, na.value = "#999999")
+#
+#
+# Hyperbolic model
+fit_flow_models <- function(flow_data, associated_data, flow_col = "Mean_Flow", other_col = "Mean_Salinity"){
+  # Assumptions:
+  # - flow_data: data frame with columns for Date, Station, and specified flow_col
+  # - associated_data: data frame with columns for Date, Station, and specified other_col
+  # - The function pairs each associated data station with each flow station by matching on Date
+  # - It performs an inner join on Date, so only matching time points are used
+  # - Requires at least 4 data points for fitting (to avoid underdetermined models)
+  station_col <- "Station"
+  time_col <- "Date"
+  # Get unique station IDs
+  other_stations <- unique(associated_data[[station_col]])
+  flow_stations <- unique(flow_data[[station_col]])
+  # Initialize a list to store results
+  results <- list()
+  data_lookup <- list()
+  
+  # Loop over each combination
+  for (other_station in other_stations) {
+    for (flow_station in flow_stations) {
+      # Subset salinity data for the current station
+      other_sub <- associated_data %>%
+        dplyr::filter(.data[[station_col]] == other_station) %>%
+        dplyr::select(all_of(time_col), !!other_col := all_of(other_col))
+      
+      # Subset flow data for the current station
+      flow_sub <- flow_data %>%
+        dplyr::filter(.data[[station_col]] == flow_station) %>%
+        dplyr::select(all_of(time_col), !!flow_col := all_of(flow_col))
+      
+      # Merge on time (inner join to get matching time points)
+      combined <- inner_join(other_sub, flow_sub, by = time_col) %>% tidyr::drop_na()
+      
+      # Get model name
+      model_name <- paste(
+        stringr::str_replace_all(other_station, "_", ""),
+        stringr::str_replace_all(flow_station, "_", ""),
+        sep = "_"
+      )
+      
+      # Store data_lookup table
+      if (nrow(combined) > 0) {
+        data_lookup[[model_name]] <- combined
+      }
+      
+      # Check if there are enough data points (at least 4 for NLS)
+      if (nrow(combined) >= 4) {
+        #
+        # Handling zero-flow days 
+        if (any(combined[[flow_col]] == 0, na.rm = TRUE)) {
+          combined[[flow_col]] <- combined[[flow_col]] + 0.001
+        }
+        # Build the formula dynamically
+        formula_str <- paste0(other_col, " ~ y0 + (a * b) / (b + ", flow_col, ")")
+        
+        # Attempt to fit the model
+        fit <- try(
+          nlsLM(
+            as.formula(formula_str),
+            data = combined,
+            start = list(
+              # Handling extreme outliers using 1% and 99% quantiles
+              y0 = quantile(combined[[other_col]], 0.01, na.rm = TRUE)[[1]], #min(combined[[other_col]], na.rm = TRUE),
+              a  = quantile(combined[[other_col]], 0.99, na.rm = TRUE)[[1]] - quantile(combined[[other_col]], 0.01, na.rm = TRUE)[[1]], #max(combined[[other_col]], na.rm = TRUE) - min(combined[[other_col]], na.rm = TRUE),
+              b  = median(combined[[flow_col]], na.rm = TRUE)
+            )
+          ),
+          silent = TRUE
+        )
+        results[[model_name]] <- combined
+        # Store the summary if fit succeeded, otherwise store an error message
+        if (!inherits(fit, "try-error")) {
+          results[[model_name]] <- list(
+            model = fit,
+            summary = summary(fit)
+          )
+        } else {
+          results[[model_name]] <- paste("Fit failed for data station", other_station, "and flow station", flow_station, ":", attr(fit, "condition")$message)
+        }
+      } else {
+        results[[model_name]] <- paste("Insufficient data for data station", other_station, "and flow station", flow_station, "(only", nrow(combined), "matching time points)")
+      }
+    }
+  }
+  # Print the list of all model names (combinations) that were attempted
+  print("Models attempted (otherStation_flowStation):")
+  print(names(results))
+  #assign("Model_data", results_data, envir = .GlobalEnv)
+  return(list(models = results,
+              data_lookup = data_lookup))
+}
+# Linear model
+fit_flow_turb_models <- function(flow_data,
+                                 associated_data,
+                                 flow_col = "Mean_Flow",
+                                 other_col = "Mean_Turbidity") {
+  
+  library(quantreg)
+  
+  station_col <- "Station"
+  time_col <- "Date"
+  
+  # Get unique station IDs
+  other_stations <- unique(associated_data[[station_col]])
+  flow_stations  <- unique(flow_data[[station_col]])
+  
+  # Initialize lists
+  results <- list()
+  data_lookup <- list()
+  
+  # Loop over each station combination
+  for (other_station in other_stations) {
+    for (flow_station in flow_stations) {
+      
+      # Subset associated data
+      other_sub <- associated_data %>%
+        dplyr::filter(.data[[station_col]] == other_station) %>%
+        dplyr::select(all_of(time_col), !!other_col := all_of(other_col))
+      
+      # Subset flow data
+      flow_sub <- flow_data %>%
+        dplyr::filter(.data[[station_col]] == flow_station) %>%
+        dplyr::select(all_of(time_col), !!flow_col := all_of(flow_col))
+      
+      # Merge by date
+      combined <- suppressWarnings(dplyr::inner_join(other_sub, flow_sub, by = time_col) %>%
+        tidyr::drop_na() %>%
+        mutate(logFlow = log10(.data[[flow_col]] + 1),
+               logOther = log10(.data[[other_col]] + 1)))
+      
+      # Model name
+      model_name <- paste(
+        stringr::str_replace_all(other_station, "_", ""),
+        stringr::str_replace_all(flow_station, "_", ""),
+        sep = "_"
+      )
+      
+      # Store merged data
+      if (nrow(combined) > 0) {
+        data_lookup[[model_name]] <- combined
+      }
+      
+      # Need at least 2 observations to fit a linear model
+      if (nrow(combined) >= 2) {
+        
+        # Fit model
+        fit <- try(
+          rq(logOther ~ logFlow + I(logFlow^2), tau = 0.95, data = combined),#lm(logOther ~ logFlow, data = combined),#lm(logOther ~ poly(logFlow, 2, raw = TRUE), data = combined),
+          silent = TRUE
+        )
+        
+        if (!inherits(fit, "try-error")) {
+          results[[model_name]] <- list(
+            model = fit,
+            summary = summary(fit)
+          )
+        } else {
+          results[[model_name]] <- paste(
+            "Fit failed for data station",
+            other_station,
+            "and flow station",
+            flow_station,
+            ":",
+            attr(fit, "condition")$message
+          )
+        }
+        
+      } else {
+        
+        results[[model_name]] <- paste(
+          "Insufficient data for data station",
+          other_station,
+          "and flow station",
+          "(only",
+          nrow(combined),
+          "matching time points)"
+        )
+      }
+    }
+  }
+  
+  print("Models attempted (otherStation_flowStation):")
+  print(names(results))
+  
+  return(list(
+    models = results,
+    data_lookup = data_lookup
+  ))
+}
+#
+filter_models <- function(results, models, mode = c("keep", "remove")) {
+  #
+  stopifnot(
+    is.list(results),
+    all(c("models", "data_lookup") %in% names(results))
+  )
+  #
+  mode <- match.arg(mode)
+  # Get model names
+  model_names <- names(results$models)
+  # Keep or remove models 
+  if (mode == "keep") {
+    valid_models <- intersect(models, model_names)
+    
+    if (length(valid_models) == 0) {
+      stop("None of the specified models were found in results$models.")
+    }
+    
+    if (length(valid_models) < length(models)) {
+      warning("Some requested models were not found and were ignored.")
+    }
+    
+    keep_names <- valid_models
+    
+  } else {  # mode == "remove"
+    
+    invalid_models <- setdiff(models, model_names)
+    if (length(invalid_models) > 0) {
+      warning("Some models to remove were not found and were ignored.")
+    }
+    
+    keep_names <- setdiff(model_names, models)
+  }
+  # Output filtered data
+  list(
+    models      = results$models[keep_names],
+    data_lookup = results$data_lookup[names(results$data_lookup) %in% keep_names]
+  )
+}
+#
+ggplot_hyperbolic_fit <- function(resultsdf, 
+                                  results, 
+                                  model_name,
+                                  flow_col = "Flow",
+                                  value_col = "Salinity",
+                                  Salinity_min = NULL, Salinity_max = NULL,
+                                  Flow_min = NULL, Flow_max = NULL) {
+  #
+  #
+  make_plot <- function(model_name) {
+    #
+    fit <- results[[model_name]]$summary
+    #
+    if (!(model_name %in% names(resultsdf))) {
+      stop("Model name not found in results.")
+    }
+    # Skip models that failed to fit
+    if (!inherits(fit, "summary.nls")) {
+      message("Skipping ", model_name, " (fit unsuccessful).")
+      return(NULL)
+    }
+    #
+    df <- resultsdf[[model_name]]
+    
+    if (!all(c(flow_col, value_col) %in% names(df)))
+      return(NULL)
+    
+    p <- coef(fit)
+    y0 <- p[1]
+    a  <- p[2]
+    b  <- p[3]
+    
+    xseq <- seq(min(df[[flow_col]]),
+                max(df[[flow_col]]),
+                length.out = 300)
+    
+    pred_df <- data.frame(
+      flow = xseq,
+      fitted = y0 + (a * b)/(b + xseq)
+    ) %>%
+      rename(!!flow_col := flow)
+    
+    ggplot(df,
+           aes(x = .data[[flow_col]],
+               y = .data[[value_col]])) +
+      {if(!is.null(Salinity_min) && !is.null(Salinity_max))
+        annotate("rect",
+                 xmin=-Inf,xmax=Inf,
+                 ymin=Salinity_min,ymax=Salinity_max,
+                 alpha=.6,fill="#B8FFB8")} +
+      {if(!is.null(Flow_min) && !is.null(Flow_max))
+        annotate("rect",
+                 xmin=Flow_min,xmax=Flow_max,
+                 ymin=-Inf,ymax=Inf,
+                 alpha=.6,fill="#97FFFF")} +
+      geom_point(color="gray30", size=2) +
+      geom_line(data=pred_df,
+                aes(x=.data[[flow_col]], y=fitted),
+                color="blue",
+                linewidth=1.2) +
+      scale_y_continuous(expand=c(.005,.1)) +
+      scale_x_continuous(expand=c(.005,.1)) +
+      labs(
+        title=model_name,
+        subtitle=paste0(
+          "y = ", round(y0,2),
+          " + (", round(a,2),
+          " × ", round(b,2),
+          ")/(", round(b,2), " + x)"
+        ),
+        x=flow_col,
+        y=value_col
+      ) +
+      theme_classic()
+  }
+  #
+  ## HANDLE "all" FIRST
+  ## =========================
+  ## Return a grid of all models
+  if (tolower(model_name) == "all") {
+    
+    plots <- lapply(names(resultsdf), make_plot)
+    
+    ## remove failed models
+    plots <- plots[!sapply(plots, is.null)]
+    
+    n <- length(plots)
+    
+    if (n == 0)
+      stop("No successful models to plot.")
+    
+    ncol <- ceiling(sqrt(n))
+    nrow <- ceiling(n / ncol)
+    
+    return(
+      patchwork::wrap_plots(
+        plots,
+        ncol = ncol,
+        nrow = nrow
+      )
+    )
+  }
+  
+  ## SINGLE MODEL PATH
+  ## =========================
+  if (!(model_name %in% names(resultsdf))) {
+    stop("Model name not found in results.")
+  }
+  
+  make_plot(model_name)
+}
+#
+#
+ggplot_quad_fit <- function(resultsdf, 
+                            results, 
+                            model_name,
+                            flow_col = "Flow",
+                            value_col = "Turbidity",
+                            Value_min = NULL, Value_max = NULL,
+                            Flow_min = NULL, Flow_max = NULL) {
+  #
+  #
+  make_plot <- function(model_name) {
+    #
+    fit <- results[[model_name]]$summary
+    #
+    if (!(model_name %in% names(resultsdf))) {
+      stop("Model name not found in results.")
+    }
+    # Skip models that failed to fit
+    if (!inherits(fit, "summary.rq")) {
+      message("Skipping ", model_name, " (fit unsuccessful).")
+      return(NULL)
+    }
+    #
+    df <- resultsdf[[model_name]]
+    df <- df %>%
+      mutate(logFlow = log10(.data[[flow_col]] + 1),
+             logOther = log10(.data[[value_col]] + 1))
+    
+    if (!all(c("logFlow", "logOther") %in% names(df)))#if (!all(c(flow_col, value_col) %in% names(df)))
+      return(NULL)
+    
+    # Extract coefficients
+    p <- coef(fit)
+    y0 <- p[1]
+    a  <- p[2]
+    b  <- p[3]
+    
+    # Range of original data
+    xseq <- seq(min(df[[flow_col]], na.rm = T),
+                max(df[[flow_col]], na.rm = T),
+                length.out = 1000)
+    log_x <- log10(xseq + 1)
+    
+    # Predict on log+1 scale
+    pred_df <- data.frame(
+      Flow = xseq,
+      logFlow = log_x,
+      fittedLog = y0 + a * log_x + b * log_x^2 #fitted = y0 + (a * b)/(b + xseq)
+    ) %>%
+      mutate(Other = (10^fittedLog) - 1)
+    
+    ggplot(df,
+           aes(x = .data[[flow_col]],
+               y = .data[[value_col]])) +
+      {if(!is.null(Value_min) && !is.null(Value_max))
+        annotate("rect",
+                 xmin=-Inf,xmax=Inf,
+                 ymin=Value_min,ymax=Value_max,
+                 alpha=.6,fill="#B8FFB8")} +
+      {if(!is.null(Flow_min) && !is.null(Flow_max))
+        annotate("rect",
+                 xmin=Flow_min,xmax=Flow_max,
+                 ymin=-Inf,ymax=Inf,
+                 alpha=.6,fill="#97FFFF")} +
+      geom_point(color="gray30", size=2) +
+      geom_line(data=pred_df,
+                aes(x=Flow, y=Other),#.data[[flow_col]], y=fitted),
+                color="blue",
+                linewidth=1.2) +
+      scale_y_continuous(expand=expansion(mult=c(0,0.05))) +
+      scale_x_continuous(expand=expansion(mult=c(0,0.05))) +
+      labs(
+        title=model_name,
+        subtitle=paste0("y = 10^[", round(y0, 2)," + (", round(a, 2), "*log(x))"," + (", round(b, 2), "*log(x)^2)] - 1"), #Normal scale
+        #paste0("log(y) = ", round(y0,2)," + (", round(a,2),"*log(x)) + (", round(b,2), "*log(x)^2)"), #Log scale
+        x=flow_col,
+        y=value_col
+      ) +
+      theme_classic()
+  }
+  #
+  ## HANDLE "all" FIRST
+  ## =========================
+  ## Return a grid of all models
+  if (tolower(model_name) == "all") {
+    
+    plots <- lapply(names(resultsdf), make_plot)
+    
+    ## remove failed models
+    plots <- plots[!sapply(plots, is.null)]
+    
+    n <- length(plots)
+    
+    if (n == 0)
+      stop("No successful models to plot.")
+    
+    ncol <- ceiling(sqrt(n))
+    nrow <- ceiling(n / ncol)
+    
+    return(
+      patchwork::wrap_plots(
+        plots,
+        ncol = ncol,
+        nrow = nrow
+      )
+    )
+  }
+  
+  ## SINGLE MODEL PATH
+  ## =========================
+  if (!(model_name %in% names(resultsdf))) {
+    stop("Model name not found in results.")
+  }
+  
+  make_plot(model_name)
+}
+#
+#
+#
+#
+```
+
+```{r Data gather from summary files, include=FALSE}
+#
+# Salinity 
+Sal_day_s <-  readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Sali_raw', detectDates = TRUE, check.names = TRUE)
+Sal_mon_s <-  readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'MeanSalinity', detectDates = TRUE, check.names = TRUE)
+#
+# Sediment
+Sedi_sta <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Sediment_sta', detectDates = TRUE, check.names = TRUE)
+Sedi_pos <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Sediment_sec', detectDates = TRUE, check.names = TRUE)
+#
+# Flow
+Flow_raw <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE)
+Flow_mean_raw <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Flow_mean_df', detectDates = TRUE, check.names = TRUE)
+#
+# Turbidity
+Turb_day <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Turb_raw', detectDates = TRUE, check.names = TRUE)
+Turb_mon <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'MeanTurbidity', detectDates = TRUE, check.names = TRUE)
+#
+#
+```
+
+The following figures are presented for the final report covering `r Start_date %>% format("%B %Y")` through `r End_date %>% format("%B %Y")`.
+
+```{r Mean flow 14-day models, include=FALSE}
+#
+m_flow14_sald <- fit_flow_models(
+  flow_data = Flow_mean_raw %>% 
+    dplyr::select(Analysis_Date, Date, Mean14_North, Mean14_South) %>% 
+    pivot_longer(cols = c(contains("Mean")), names_to = "Station", values_to = "Flow") %>%
+    mutate(Station = gsub("(.*)_","",Station)),
+  associated_data = Sal_day_s %>% 
+    dplyr::select(-LWMean) %>% 
+    pivot_longer(cols = c(LWL20_Sali, LWL19_Sali), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)"),
+  flow_col = "Flow",
+  other_col = "Sali")
+#
+m_flow14_sald <- filter_models(m_flow14_sald, c("LWL20_South", "LWL19_North"), 
+                               mode = "remove")
+#
+#
+#
+```
+
+```{r Flow vs salinity Figure, fig.cap = "**Figure 1.** Non-linear relationship between mean rolling 14-day flow rate into Lake Worth Lagoon and mean daily salinity as recorded by the South Florida Water Management District. Parameters were recorded at S155 and S44 structures and the LWL20 logger for North stations and at S155 and S41 structures and LWL19 logger for South stations. Pale green bar denotes salinity optima band.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+#
+#
+#
+# Model fit 
+fitN <- m_flow14_sald$models[["LWL20_North"]]$summary
+fitS <- m_flow14_sald$models[["LWL19_South"]]$summary
+#
+# Model data
+dfN <- m_flow14_sald$data_lookup[["LWL20_North"]]
+dfS <- m_flow14_sald$data_lookup[["LWL19_South"]]
+#
+# Model predictions
+pred_dfN <- data.frame(
+      flow = seq(min(dfN$Flow),
+                max(dfN$Flow),
+                length.out = 300),
+      fitted = coef(fitN)[1] + (coef(fitN)[2] * coef(fitN)[3])/(coef(fitN)[3] + seq(min(dfN$Flow), max(dfN$Flow), length.out = 300))) %>% 
+  rename("Flow" = flow)
+pred_dfS <- data.frame(
+      flow = seq(min(dfS$Flow),
+                max(dfS$Flow),
+                length.out = 300),
+      fitted = coef(fitS)[1] + (coef(fitS)[2] * coef(fitS)[3])/(coef(fitS)[3] + seq(min(dfS$Flow), max(dfS$Flow), length.out = 300))) %>% 
+  rename("Flow" = flow)
+#
+#
+ggarrange(
+  dfN %>%
+  ggplot(aes(Flow, Sali)) +
+  annotate("rect",
+           xmin = -Inf, xmax = Inf,
+           ymin = 10, ymax = 20,
+           alpha = 0.6, fill = "#B8FFB8") +
+  geom_point(color = "gray30", size = 3) +
+  geom_line(data = pred_dfN,
+            aes(x = Flow, 
+                y = fitted),
+            color = "blue",
+            linewidth = 1.2) +
+  ggtitle("North")+
+  scale_x_continuous("Flow (cfs)", expand=c(0,0), limits = c(0, 1200)) +
+  scale_y_continuous("Salinty", expand=c(0,0), limits = c(0, 40)) +
+  BaseForm + PlotTitle,
+  #
+  dfS %>%
+    ggplot(aes(Flow, Sali)) +
+    annotate("rect",
+             xmin = -Inf, xmax = Inf,
+             ymin = 10, ymax = 20,
+             alpha = 0.6, fill = "#B8FFB8") +
+    geom_point(color = "gray30", size = 3) +
+    geom_line(data = pred_dfS,
+              aes(x = Flow, 
+                  y = fitted),
+              color = "blue",
+              linewidth = 1.2) +
+    ggtitle("South")+
+    scale_x_continuous("Flow (cfs)", expand=c(0,0), limits = c(0, 1200)) +
+    scale_y_continuous("", expand=c(0,0), limits = c(0, 40)) +
+    BaseForm + PlotTitle)
+#
+#
+#
+```
+
+```{r Mean monthly flow salinity models, include=FALSE}
+#
+# BEST: NC-North, SC-South
+#
+m_flowm_salm <- fit_flow_models(
+  flow_data = Flow_mean_raw %>% 
+    dplyr::select(Analysis_Date, Date, North_Flow, South_Flow) %>% 
+    pivot_longer(cols = c(contains("Flow")), names_to = "Station", values_to = "Flow") %>%
+    mutate(Station = gsub("_(.*)","",Station)),
+  associated_data = Sal_mon_s %>% 
+    dplyr::select(AnalysisDate, NC, SC) %>% 
+    pivot_longer(cols = c(-AnalysisDate), names_to = c("Station"), values_to = "Sali") %>%
+    rename("Date" = AnalysisDate),
+  flow_col = "Flow",
+  other_col = "Sali")
+#
+m_flowm_salm <- filter_models(m_flowm_salm, c("NC_South", "SC_North"), 
+                               mode = "remove")
+#
+#
+#
+```
+
+```{r Flow vs salinity monthly Figure, fig.cap = "**Figure 2.** Non-linear relationship between mean monthly flow rate into Lake Worth Lagoon and mean monthly salinity as recorded by the South Florida Water Management District. Pale green bar denotes salinity optima band.", fig.height = 5, fig.width = 8, fig.fullwidth=TRUE}
+#
+#
+#
+# Model fit 
+fitN <- m_flowm_salm$models[["NC_North"]]$summary
+fitS <- m_flowm_salm$models[["SC_South"]]$summary
+#
+# Model data
+dfN <- m_flowm_salm$data_lookup[["NC_North"]]
+dfS <- m_flowm_salm$data_lookup[["SC_South"]]
+#
+# Model predictions
+pred_dfN <- data.frame(
+      flow = seq(min(dfN$Flow),
+                max(dfN$Flow),
+                length.out = 300),
+      fitted = coef(fitN)[1] + (coef(fitN)[2] * coef(fitN)[3])/(coef(fitN)[3] + seq(min(dfN$Flow), max(dfN$Flow), length.out = 300))) %>% 
+  rename("Flow" = flow)
+pred_dfS <- data.frame(
+      flow = seq(min(dfS$Flow),
+                max(dfS$Flow),
+                length.out = 300),
+      fitted = coef(fitS)[1] + (coef(fitS)[2] * coef(fitS)[3])/(coef(fitS)[3] + seq(min(dfS$Flow), max(dfS$Flow), length.out = 300))) %>% 
+  rename("Flow" = flow)
+#
+#
+ggarrange(
+  dfN %>%
+  ggplot(aes(Flow, Sali)) +
+  annotate("rect",
+           xmin = -Inf, xmax = Inf,
+           ymin = 10, ymax = 20,
+           alpha = 0.6, fill = "#B8FFB8") +
+  geom_point(color = "gray30", size = 3) +
+  geom_line(data = pred_dfN,
+            aes(x = Flow, 
+                y = fitted),
+            color = "blue",
+            linewidth = 1.2) +
+  ggtitle("North")+
+  scale_x_continuous("Flow (cfs)", expand=c(0,0), limits = c(0, 1200)) +
+  scale_y_continuous("Salinty", expand=c(0,0), limits = c(0, 40)) +
+  BaseForm + PlotTitle,
+  #
+  dfS %>%
+    ggplot(aes(Flow, Sali)) +
+    annotate("rect",
+             xmin = -Inf, xmax = Inf,
+             ymin = 10, ymax = 20,
+             alpha = 0.6, fill = "#B8FFB8") +
+    geom_point(color = "gray30", size = 3) +
+    geom_line(data = pred_dfS,
+              aes(x = Flow, 
+                  y = fitted),
+              color = "blue",
+              linewidth = 1.2) +
+    ggtitle("South")+
+    scale_x_continuous("Flow (cfs)", expand=c(0,0), limits = c(0, 1200)) +
+    scale_y_continuous("", expand=c(0,0), limits = c(0, 40)) +
+    BaseForm + PlotTitle)
+#
+#
+#
+```
