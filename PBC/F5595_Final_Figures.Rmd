@@ -6,6 +6,7 @@ output:
   word_document: 
     reference_docx: Monthly-Reports-template.docx
     fig_caption: yes
+geometry: "margin=1in"
 params:
   Start_date: "2023-10-01"
   End_date: "2025-09-30"
@@ -26,7 +27,8 @@ pacman::p_load(odbc, DBI, dbplyr,
   tidyverse, dplyr,  stringr, #DF manipulation
   DT, openxlsx,         #Excel
   lubridate, zoo,         #Dates
-  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, flextable,
+  knitr, kableExtra, scales, gt, gtExtras, ggpubr, ggpattern, magick, 
+  flextable, officer,
   gridExtra, grid,
   install = TRUE)
 ```
@@ -36,6 +38,14 @@ pacman::p_load(odbc, DBI, dbplyr,
 PBC_sites <- c("LWL", "LWR")
 LWL_stations <- c("LWL1", "LWL2", "LWL3")
 LWR_stations <- c("LWR2", "LWR3", "LWR4")
+#
+# Station information
+StationInfo <- data.frame(
+  Group = c("Lake Worth", "Lake Worth", "Lake Worth", "Lake Worth-Restoration", "Lake Worth-Restoration", "Lake Worth-Restoration"),
+  Type = c("Natural", "Natural", "Natural", "Restored", "Restored", "Restored"),
+  Station = c("1", "2", "3", "2", "3", "4"), 
+  StationName = c("Audubon Island", "John's Island", "Hypoluxo Bird Island", "Grassy Flats", "Snook Island", "Tarpon Cove")
+)
 #
 #Shared formatting for figure consistency
 BaseForm <- theme_classic() +
@@ -765,6 +775,89 @@ annotate_figure(SP_plot, left = text_grob("% Secchi Penetration", rot = 90, fami
 #
 #
 ```
+
+```{r Survey table, results='asis'}
+cat("<br>
+    <br>
+    <br>")
+Survey_table <- Counts_df %>% 
+  dplyr::select(Survey, contains("LiveMean")) %>% 
+  dplyr::select(Survey, contains("LW")) %>% 
+  drop_na() %>% 
+  pivot_longer(c(-Survey),
+    names_to = "SiteStation",
+    values_to = "Mean") %>%
+  mutate(
+    Type = case_when(substr(SiteStation, 3, 3) == "L" ~ "Natural",
+                     TRUE ~ "Restored"),
+    Station = substr(SiteStation, 4, 4)) %>%
+  left_join(StationInfo) %>%
+  group_by(Group, Type, Station, StationName) %>%
+  summarise(
+    Minimum = round(min(Mean), 2),
+    Maximum = round(max(Mean), 2),
+    Mean = round(mean(Mean), 2),
+    .groups = "drop"
+  ) %>%
+  dplyr::select(
+    Group,
+    Type,
+    Station,
+    StationName,
+    Minimum,
+    Maximum,
+    Mean)
+
+
+Survey_table %>%
+  flextable() %>%
+  # Font
+  font(fontname = "Times New Roman", part = "all") %>%
+  # Remove all default borders
+  border_remove() %>%
+  # Header formatting
+  bold(part = "header") %>%
+  # Alignment
+  align(
+    j = c("Group",
+          "Type",
+          "Station",
+          "StationName"),
+    align = "left",
+    part = "all") %>%
+  align(
+    j = c("Minimum",
+          "Maximum",
+          "Mean"),
+    align = "center",
+    part = "all") %>%
+  # Number formatting
+  colformat_num(
+    j = c("Minimum",
+          "Maximum",
+          "Mean"),
+    digits = 2) %>%
+  # Header borders
+  hline_top(border = fp_border(color = "black",
+                               width = 1.5),
+            part = "header") %>%
+  hline_bottom(border = fp_border(color = "black",
+                                  width = 1.5),
+              part = "header") %>%
+  # Bottom border of table
+  hline_bottom(border = fp_border(color = "black",
+                                  width = 1.5),
+               part = "body") %>%
+  # Caption
+  set_caption(
+    caption = "**Table 4.** Minimum, maximum, and mean live oyster density (oysters/m2) at each of the Lake Worth monitoring stations throughout the monitoring period.") %>%
+  # Automatically size columns
+  autofit()
+cat("<br>
+    <br>
+    <br>")
+```
+
 
 ```{r Natural Survey Figure, fig.cap = "**Figure 9.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef stations in Lake Worth Lagoon and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
 #
