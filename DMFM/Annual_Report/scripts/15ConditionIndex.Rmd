@@ -10,62 +10,170 @@ output: html_document
 ### Stats for ConditionIndex rates
 # ConditionIndex by section
 ConditionIndexStats <- ConditionIndex %>%
+  filter(!is.na(TissueDryWeight),
+         !is.na(TarePanWeight),
+         !is.na(ShellDryWeight)) %>%
   mutate(Month = month(TripDate),
          Year = year(TripDate),
-         CI = ((TissueDryWeight - TarePanWeight) * 100) / (TotalWeight - ShellWetWeight)) %>%
-  filter(Year <= ReportYear) %>%
-  filter(CI > 0) %>%
-  filter(!is.na(CI))
+         CI = ((TissueDryWeight - TarePanWeight) / ShellDryWeight) * 100
+         ) %>%
+  filter(Year <= ReportYear) 
+# filter(CI > 0) %>% # these are initially used filters, We've since gone back and reviewed data that triggered these and dropped them from the database
+# filter(!is.na(CI)) 
 
 ```
 
-```{r Model selection}
-#########
-# Figure out which data distribution to use
-# All years
+``` {r Condition Index Model Selection, eval = FALSE}
+###### ~~~~~~~ DO NOT RUN ~~~~~~~~~~
+# Selecting the best fit model
+# view the histogram
 hist(ConditionIndexStats$CI)
-# OIMMP
- # Attempted to use Section, Year,ShellVolume, ShellLinear, ShellHeight, and TotalWeight. Month outperformed by over 3000
-# Adding FixedLocationID as random effect help (over 300) but adding section as nested random effect didn't
-# tried using gaussian distribution, actually worse fit
-# tried different Dispersion parameters, none or FixedLocation. Month outperformed all. improving the dispersion test and AIC
-# tried to include Year month interaction, but that didn't converge appears that the seasonal trend persists from year to year, though there is some variation 
 
-ConditionIndex <- glmmTMB( #### Best by 200
+### identify correct distribution
+m_gamma <- glmmTMB(CI ~ 1,
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+m_gaussian <- glmmTMB(CI ~ 1,
+  data = ConditionIndexStats,
+  family = gaussian(link = "identity"))
+m_lognormal <- glmmTMB(CI ~ 1,
+  data = ConditionIndexStats,
+  family = gaussian(link = "log"))
+
+AIC(m_gamma, m_gaussian, m_lognormal)
+simulateResiduals(m_gamma, plot = TRUE)
+simulateResiduals(m_gaussian, plot = TRUE)
+simulateResiduals(m_lognormal, plot = TRUE)
+# Best fit identified as Gamma
+# DHARMA residuals for gaussian and lognormal looked very similar, not quite fitting the Expected-observed line, dispersion test p = 0.968, outlier test p=0 and Within-group deviations from uniformity significant. Gamma looked better, with a good looking fit along Expected-Observed line, dispersion test p = 0, outlier test p = 0.20616, and Within-group deviations from uniformity significant.
+
+### Adding in Random effect
+m0 <- glmmTMB(CI ~ 1,
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+m1 <- glmmTMB(CI ~ 1 + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+
+AIC(m0, m1)
+VarCorr(m1)
+# AIC decreased 245 which is strong evidence for random effect of fixedlovationID
+res_m1 <- simulateResiduals(m1)
+plot(res_m1)
+testDispersion(res_m1)
+testOutliers(res_m1)
+testUniformity(res_m1)
+
+# Identified that 0016 only has 2 observations, which might affect dispersion
+summary(m1)
+res_m1 <- simulateResiduals(m1)
+testDispersion(res_m1)
+testUniformity(res_m1)
+plotResiduals(res_m1, form = ConditionIndexStats$FixedLocationID)
+plotResiduals(res_m1, form = ConditionIndexStats$CI)
+
+# tested the model without 0016 and found it doesn't affect the values very much, so we will leave it in.
+m1_no0016 <- glmmTMB(CI ~ 1 + (1 | FixedLocationID),
+  data = subset(ConditionIndexStats, FixedLocationID != "0016"),
+  family = Gamma(link = "log"))
+AIC(m1, m1_no0016)
+VarCorr(m1_no0016)
+
+### Adding in Fixed effects
+m2 <- glmmTMB(CI ~ SectionName + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+model.sel(m1, m2)
+simulateResiduals(m2, plot = TRUE)
+# SectionName doesn't help
+m3 <- glmmTMB(CI ~ factor(Month) + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+model.sel(m1, m3)
+simulateResiduals(m3, plot = TRUE)
+# Month helps
+
+# Adding Year
+m_year <- glmmTMB(  CI ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+
+AIC(m3, m_year)
+summary(m_year)
+simulateResiduals(m_year, plot = TRUE)
+res_year <- simulateResiduals(m_year)
+
+plot(res_year)
+testDispersion(res_year)
+testOutliers(res_year)
+testUniformity(res_year)
+# Year improves fit
+
+plotResiduals(res_year, form = ConditionIndexStats$Month)
+plotResiduals(res_year, form = ConditionIndexStats$Year)
+plotResiduals(res_year)
+
+# adding Year Month interaction
+m_month_year <- glmmTMB(CI ~ factor(Month) * factor(Year) + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+
+AIC(m_year, m_month_year)
+# Month Year INTERACTION adds too much complexity and not enough improvement of fit
+
+# Use cyclic smoothing of month
+m_year_smooth <- glmmTMB(CI ~ s(Month, bs = "cc") + factor(Year) + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  family = Gamma(link = "log"))
+AIC(m_year, m_year_smooth)
+summary(m_year_smooth)
+simulateResiduals(m_year_smooth, plot = TRUE)
+res_year_smooth <- simulateResiduals(m_year_smooth)
+
+plot(res_year_smooth)
+testDispersion(res_year_smooth)
+testOutliers(res_year_smooth)
+testUniformity(res_year_smooth)
+# Did not improve fit
+
+# adding dispersion for month and year
+m_month_dispersion <- glmmTMB(  CI ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  dispformula = ~ factor(Month),
+  family = Gamma(link = "log"))
+m_year_dispersion <- glmmTMB(  CI ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
+  data = ConditionIndexStats,
+  dispformula = ~ factor(Year),
+  family = Gamma(link = "log"))
+
+AIC(m_year, m_month_dispersion, m_year_dispersion)
+simulateResiduals(m_month_dispersion, plot = TRUE)
+simulateResiduals(m_year_dispersion, plot = TRUE)
+# Both improved AIC, but worse residuals
+
+
+```
+
+```{r Condition Index}
+# Condition Index model
+ConditionIndex <- glmmTMB( 
   CI ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
   family = Gamma(link = "log"),
-  dispformula = ~ factor(Month),
   data = ConditionIndexStats)
 
-# ### Use AICc to compare the models: we'll use the model with the lowest score for making any inferences moving forward
-# Using the following found no strong support for a difference between sections given the small improvement in the model including Section as a Fixed Effect, no improvement when including section as a random effect, and the knowledge that west has fewer observations than the other sections, especially lacking months with typically higher CI values
-# ConditionIndex.Section <- glmmTMB(
-#   CI ~ factor(Month) + factor(Year) + factor(SectionName) + (1 | FixedLocationID),
-#   family = Gamma(link = "log"),
-#   dispformula = ~ factor(Month),
-#   data = ConditionIndexStats)
-# 
-# aictab(list(ConditionIndex, ConditionIndex.Section, ConditionIndex.SectionRand))
-# summary(ConditionIndex.Section)
-# 
-# aictab(oimmp_models) #will use one for analysis
-
-simulationOutput <- simulateResiduals(ConditionIndex, n = 1000, refit = FALSE, plot = TRUE)
-
+hist(ConditionIndexStats$CI)
+simulateResiduals(ConditionIndex, n = 1000, refit = FALSE, plot = TRUE)
 acf(residuals(ConditionIndex, type = "pearson"))
-
+r2(ConditionIndex)
 summary(ConditionIndex)
+# Diagnostics show a satisfactory model fit. The KS test is sensitive to small changes when the number of observations is above 1,000, thus it is not surprising it fails with nearly 8,000 observations in the data. Similarly, a few outliers have caused the Outlier test to fail. Quantile deviations are significant, again likely due to outliers. The ACF Pearson plot shows no significant autocorrelation, implying that the model has effectively captured the temporal dependencies. Despite minor issues, the model represents a good fit for the data. 
+
 
 # Diagnostic Table for the Appendix
-diag_oimmp_CI <- extract_diagnostics(ConditionIndex,  "Condition Index")
-# This needs some work
-# “Because variance partitioning metrics (marginal and conditional R2) are not uniquely defined for Gamma generalized linear mixed models with modeled dispersion, model fit was assessed using likelihood-based criteria and simulation-based diagnostics. DHARMa residual simulations indicated no evidence of over- or under-dispersion (dispersion ratio = 0.98, p = 0.76) and no systematic residual patterns.”
+diagnostics_CI_table <- extract_diagnostics(ConditionIndex,  "Condition Index")
+kable(diagnostics_CI_table, digits = 3)
 
 
-```
-
-
-``` {r Data extraction}
 # Predict standardized monthly mean condition index
 # Rate units are dimensionless
 
@@ -171,7 +279,7 @@ ggplot() +
     breaks = 1:12,
     labels = month.abb
   ) +
-  coord_cartesian(ylim = c(6, 15)) +
+  coord_cartesian(ylim = c(1.5, 4.1)) +
   # labels
   labs(
     x = "Month",
@@ -222,7 +330,7 @@ ggplot() +
   ) +
   # Scale
   scale_x_discrete() +
-  coord_cartesian(ylim = c(6, 15)) +
+  coord_cartesian(ylim = c(1.5, 4.1)) +
 
   # labels
   labs(
@@ -241,119 +349,3 @@ print(ConditionIndexYear_FIGURE)
 ### Placeholder for ConditionIndex text for report
 ```
 This is text to output for ConditionIndex
-
-
-``` {r Model Selection Cahill, eval = FALSE}
-# Extra items were considered, but rejuected. I'm saving them here, but the above code will be stripped of extraneous values.
-### Stats for ConditionIndex rates
-# ConditionIndex by section
-ConditionIndexStats <- ConditionIndex %>%
-  mutate(Month = month(TripDate),
-         Year = year(TripDate),
-         CI_cahill = ((TissueDryWeight - TarePanWeight) / ShellDryWeight) * 100,
-         CI_oimmp = ((TissueDryWeight - TarePanWeight) * 100) / (TotalWeight - ShellWetWeight),
-         ShellVolume = ShellHeight * ShellLength * ShellWidth,
-         ShellLinear = ShellHeight + ShellLength + ShellWidth,
-         ShellVolume_scaled = scale(ShellVolume)[,1],
-         ShellLinear_scaled = scale(ShellLinear)[,1],
-         ShellHeight_scaled = scale(ShellHeight)[,1],
-         TotalWeight_scaled = scale(TotalWeight)[,1]) %>%
-  filter(Year <= ReportYear)
-
-CI_Cahill <- ConditionIndexStats %>%
-  filter(!is.na(CI_cahill))
-
-CI_oimmp <- ConditionIndexStats %>%
-  filter(CI_oimmp > 0) %>%
-  filter(!is.na(CI_oimmp))
-# Cahill's values were considered, but were roughly the same to OIMMP. Going with OIMMP for consistency
-# Figure out which data distribution to use
-# Cahill
-# All years
-hist(CI_Cahill$CI_cahill)
-# past years
-hist(subset(CI_Cahill, TripDate <= ReportStart)$CI_cahill)
-# current year
-hist(subset(CI_Cahill, TripDate >= ReportStart)$CI_cahill) 
-# try nBinom2 and gamma
-
-# OIMMP
-# All years
-hist(CI_oimmp$CI_oimmp)
-# past years
-hist(subset(CI_oimmp, TripDate <= ReportStart)$CI_oimmp)
-# current year
-hist(subset(CI_oimmp, TripDate >= ReportStart)$CI_oimmp) 
-
-
-# Cahill
-Cahill_CI.section <- glmmTMB(
-  CI_cahill ~ factor(SectionName),
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.year <- glmmTMB(
-  CI_cahill ~ factor(Year),
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.month <- glmmTMB( #### Best by over 2000
-  CI_cahill ~ factor(Month),
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.ShellVolume_scaled <- glmmTMB(
-  CI_cahill ~ ShellVolume_scaled,
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.ShellLinear_scaled <- glmmTMB(
-  CI_cahill ~ ShellLinear_scaled,
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.ShellHeight_scaled <- glmmTMB(
-  CI_cahill ~ ShellHeight_scaled,
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.TotalWeight_scaled <- glmmTMB(
-  CI_cahill ~ TotalWeight_scaled,
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-
-Cahill_CI.month.location <- glmmTMB( #### Best by over 300
-  CI_cahill ~ factor(Month) + (1 | FixedLocationID),
-  family = Gamma(link = "log"),
-  data = CI_Cahill)
-         
-### Use AICc to compare the models: we'll use the model with the lowest score for making any inferences moving forward
-Cahill_models <- list(
-  '1-Section' = Cahill_CI.section,
-  '2-Year' = Cahill_CI.year, 
-  '3-Month' = Cahill_CI.month, 
-  '4-Volume' = Cahill_CI.ShellVolume_scaled, 
-  '5-Linear' = Cahill_CI.ShellLinear_scaled,
-  '6-ShellHeight' = Cahill_CI.ShellHeight_scaled,
-  '7-TotalWeight' = Cahill_CI.TotalWeight_scaled,
-  '8-Month&Location' = Cahill_CI.month.location,
-  '9-bestfromother' = cahill_CI)
-
-aictab(Cahill_models) #will use one for analysis
-
-simulateResiduals(cahill_CI, n = 1000, refit = FALSE, plot = TRUE)
-
-cahill_CI <- glmmTMB( #### Best by 200
-  CI_cahill ~ factor(Month) + factor(Year) + (1 | FixedLocationID),
-  family = Gamma(link = "log"),
-  dispformula = ~ factor(Month),
-  data = CI_Cahill)
-
-summary(cahill_CI)
-
-
-CI_current <- ConditionIndexStats %>%
-  filter(Year == ReportYear)
-
-```
-

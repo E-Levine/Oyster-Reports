@@ -1,16 +1,17 @@
 # Load all data for Report
 
+##########################
 # Load External Data
 
 ###
 # Drought data download from NOAA cannot be automated. Follow instructions in /data/README.md
 # Identify the drought data file
-file_Drought <- list.files(path = "DMFM/Annual_Report/data/",
-                               pattern = "Drought_*",
+file_Drought <- list.files(path = "C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/Annual_Report/data/",
+                               pattern = "Drought_",
                                full.names = TRUE)
 # Import the drought data
 Drought_Data_raw <- read.csv(file_Drought)
-Drought_AccessedDate <- as.Date(substring(file_Drought, 33, 40), # saves the accessed date for future use
+Drought_AccessedDate <- as.Date(str_sub(file_Drought, -12, -5), # saves the accessed date for future use
                              format = "%Y%m%d")
 rm(file_Drought) # remove value once it is not needed
 
@@ -19,20 +20,22 @@ rm(file_Drought) # remove value once it is not needed
 RiverDischarge_Data_raw <- read_waterdata_daily(monitoring_location_id = c("USGS-02359170"), # Selects the gauge at Sumatra
                                    parameter_code = "00060", # limits data to discharge only
                                    time = c("1977-01-01", ReportEnd)) # limits data to the end of ReportYear
+RiverDischarge_AccessedDate <- Sys.Date() # saves the accessed date for future use
 
 ###
 # Temp, Sal, DO data download from DEP cannot be automated. Follow instructions in /data/README.md 
 # Identify the TSDO file
-file_DEP <- list.files(path = "DMFM/Annual_Report/data/",
+file_DEP <- list.files(path = "C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/Annual_Report/data/",
                        pattern = "TSDO_*",
                        full.names = TRUE)
 # Import the data
 TSDO <- read.csv(file_DEP)
-TSDO_AccessedDate <- as.Date(substring(file_DEP, 30, 37), # saves the accessed date for future use
+TSDO_AccessedDate <- as.Date(str_sub(file_DEP, -12, -5), # saves the accessed date for future use
                              format = "%Y%m%d")
 rm(file_DEP) # remove value once it is not needed
 
-###
+##########################
+##########################
 # Load Database Data
 # Connect to Local database server and pull all necessary data, then close connection 
 con <- dbConnect(odbc(),
@@ -45,11 +48,6 @@ con <- dbConnect(odbc(),
 dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
   collect() %>% 
   filter(Estuary %in% Estuaries)
-
-# Load Water Quality Data
-hsdbWaterQuality <- tbl(con,in_schema("hsdb", "SampleEventWQ")) %>%
-  collect() %>%
-  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
 
 # Load Survey Data
 hsdbSurveyQuadrat <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
@@ -91,3 +89,6 @@ hsdbRecruitment <- tbl(con,in_schema("hsdb", "Recruitment")) %>%
 
 # Disconnect from database
 DBI::dbDisconnect(con)
+
+# Remove connection
+rm(con)
