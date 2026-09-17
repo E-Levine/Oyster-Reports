@@ -22,6 +22,7 @@ library(emmeans) # needed to extract modeled means and CI
 library(brms) # needed for categorical models and diagnostics
 library(bayesplot) # needed for categorical diagnostics and plotting
 library(ordinal) # needed for cumulative Link Mixed models for Repro (& Dermo?)
+library(loo) # needed for Repro SexRatio evaluation
 library(MuMIn) # needed Repro stage selection
 
 # Set background variables

@@ -165,13 +165,14 @@ summary(SexRatio)
 
 # after fitting
 saveRDS(SexRatio,
-  file = "models/sexratio_brm_final.rds")
+  file = paste0("models/sexratio_brm_final_", ReportYear, ".rds"))
+
 
 ```
 
 ```{r SexRatio}
 ### Loads model without having to rerun it
-SexRatio <- readRDS("models/sexratio_brm_final.rds")
+SexRatio <- readRDS(paste0("models/sexratio_brm_final_", ReportYear, ".rds"))
 
 # Instead of simulateResiduals() using posterior predictive checks (PPCs)
 # These compare observed category frequencies to those generated from the fitted model.
@@ -229,7 +230,7 @@ summary(SexRatio)   # R-hat & ESS in text are derived from this
 # I'm choosing not to include this in the report, because it's big and busy. But it can be used to show the good match between the model and actual values
 # plot(SexRatio)      # trace plots
 
-# Create prediction data by creating a grid of values we want predictions for
+# Create prediction data by creating a grid of values we want predictions for Month
 newdata <- expand.grid(
   Wt_scaled = seq(min(ReproStats$Wt_scaled),
                   max(ReproStats$Wt_scaled),
@@ -281,6 +282,63 @@ SexRatio_Month_TABLE <- pred_df %>%
             .groups = "drop")
 kable(SexRatio_Month_TABLE, 
       digits = 3)
+
+
+######
+# Create prediction data by creating a grid of values we want predictions for Year
+newdata_year <- expand.grid(
+  Wt_scaled = seq(min(ReproStats$Wt_scaled),
+                  max(ReproStats$Wt_scaled),
+                  length.out = 80),
+  Year = levels(ReproStats$Year),
+  Month = levels(ReproStats$Month), # looks at all months
+  SectionName = "Central" # holds section constant
+)
+
+# Generate predicted probabilities and credible intervals
+pred_year <- fitted(
+  SexRatio,
+  newdata = newdata_year,
+  re_formula = NA # average across locations and section-year variation
+)
+# combine predictions with the new data to get predicted probabilities
+pred_df_year <- cbind(newdata_year, pred_year)
+
+#Create Appendix table by Year
+SexRatio_Year_TABLE <- pred_df_year %>%
+  group_by(Year) %>%
+  summarise(`P(M)` = mean(`Estimate.P(Y = M)`, na.rm = TRUE),
+            `P(F)` = mean(`Estimate.P(Y = F)`, na.rm = TRUE),
+            `P(Z)` = mean(`Estimate.P(Y = Z)`, na.rm = TRUE),
+            `P(M/F)` = mean(`Estimate.P(Y = M/F)`, na.rm = TRUE),
+            .groups = "drop")
+kable(SexRatio_Year_TABLE, 
+      digits = 3)
+
+# Generate Figure Repro.2
+### This figure is not used in the report, too noisy to see anything
+# Convert to long format (for plotting)
+# plot_data_year <- pred_df_year |>
+#   pivot_longer(
+#     cols = starts_with("Estimate"),
+#     names_to = "Sex",
+#     values_to = "Probability"
+#   )
+# plot_data_year$Sex <- gsub("Estimate.", "", plot_data_year$Sex) # Cleans up labels
+# plot_data_year$Weight <- plot_data_year$Wt_scaled * sd(ReproStats$TotalWeight) +
+#                     mean(ReproStats$TotalWeight) # Converts scaled data back to actual values
+# ggplot(plot_data_year,
+#        aes(Weight, Probability, color = Sex)) +
+#   geom_line(linewidth = 1.2) +
+#   facet_wrap(~Year) +
+#   labs(
+#     x = "Total weight (g)",
+#     y = "Predicted probability",
+#     color = "Sex category",
+#     title = "Predicted Sex Ratios by Body Size"
+#   ) +
+#   theme_classic()
+
 
 ```
 
@@ -434,7 +492,7 @@ summary(indifferent43) # variance 0.05211
 ``` {r ReproStages}
 
 # Stages 1–3 model
-stage_model <- clmm(ReproStage ~ Month + Year + (1 | FixedLocationID), 
+stage_model <- clmm(ReproStage ~ Year + Month + (1 | FixedLocationID), 
                     link = "logit",
                     data = ReproStageStats,
                     subset = ReproStage != "4")
@@ -449,7 +507,7 @@ indifferent_model <- glmmTMB(Indifferent ~ Year + Month + (1 | FixedLocationID),
 summary(indifferent_model)
 simulateResiduals(indifferent_model)
 
-# Month probabilities
+### Month probabilities
 # model-predicted probabilities for stages 1-3
 stage_probs <- emmeans(stage_model, ~ Month | ReproStage, mode = "prob") %>%
   as.data.frame() %>%
@@ -495,6 +553,56 @@ Stage_Month_TABLE <- all_probs %>%
 
 kable(Stage_Month_TABLE, 
       digits = 3)
+
+
+
+### Year probabilities
+# model-predicted probabilities for stages 1-3
+stage_probs <- emmeans(stage_model, ~ Year | ReproStage, mode = "prob") %>%
+  as.data.frame() %>%
+  filter(ReproStage %in% c("1","2","3")) %>%
+  rename(Stage = ReproStage) %>%
+  select(Year, Stage, prob)  
+# predicted probability of being indifferent (Stage 4)
+indifferent_probs <- emmeans(indifferent_model, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(Stage = "4") %>%
+  select(Year, Stage, prob)
+
+# Merge Stage 4 probability into Stage 1-3 table
+all_probs <- stage_probs %>%
+  left_join(indifferent_probs %>% select(Year, p4 = prob),
+            by = c("Year")) %>%
+  mutate(prob = prob * (1 - p4)) %>%   # scale Stage 1-3 probabilities
+  select(-p4)
+
+# Add Stage 4 back in
+all_probs <- bind_rows(all_probs, indifferent_probs %>%
+                         rename(prob = prob)) %>%
+  arrange(Year, Stage)
+all_probs$Stage <- factor(all_probs$Stage,
+                          levels = c("4","3","2","1"),
+                          labels = c("Indifferent",
+                                     "Spent/Recycling",
+                                     "Ripe/Spawning",
+                                     "Developing"))
+
+ggplot(all_probs, aes(x = Year, y = prob, fill = Stage)) +
+  geom_col() +
+  labs(title = "Predicted Reproductive Stage by Year",
+       x = "Year",
+       y = "Probability") + 
+  scale_y_continuous(limits = c(0,1)) +
+  theme_classic()
+
+# Create Appendix table by Year
+Stage_Year_TABLE <- all_probs %>%
+  pivot_wider(names_from = Stage,
+              values_from = prob)
+
+kable(Stage_Year_TABLE, 
+      digits = 3)
+
 
 ```
 

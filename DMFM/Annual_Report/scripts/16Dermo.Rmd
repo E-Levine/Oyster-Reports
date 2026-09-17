@@ -124,7 +124,7 @@ DermoPrevalence <- glmmTMB(Infected ~ Year + SH_scaled + Month + (1|FixedLocatio
                            family = binomial,
                            data = DermoStats)
 
-simulateResiduals(DermoPrevalence, plot = TRUE)
+simulateResiduals(DermoPrevalence, n = 1000, refit = FALSE, plot = TRUE)
 acf(residuals(DermoPrevalence, type = "pearson"))
 r2(DermoPrevalence)
 # R2 is fairly low and indicates poor predictive power, as well as random effect (locations) have a strong impact on the prevalence
