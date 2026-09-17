@@ -14,6 +14,10 @@ FilterFunction1 <- function(data) {
       grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
       grepl("SBM Hotel", StationName) | grepl("SBM Bulkhead", StationName) ~ "Historic Uncultched",
       grepl("SBM", StationName) & Year >= 2021 & TimeSinceCultched > 0 ~ "NFWF-2021",
+      grepl("NFWF21", StationName) ~ "NFWF-2021",
+      grepl("NFWF24-25", StationName) | grepl("NFWF24-26", StationName) ~ "NFWF-2024 General",
+      grepl("NFWF24", StationName) ~ "NFWF-2024 Pilot",
+      grepl("Intertidal", ParcelName) ~ "Intertidal",
       TRUE ~ "Historic Uncultched")) 
 }
 ###
