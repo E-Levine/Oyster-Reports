@@ -18,16 +18,16 @@ SHMeasures <- ShellHeights_1 %>%
   group_by(QuadratID) %>%
   summarize(TotalNumMeasured = sum(!is.na(ShellHeight)),
             Count_Spat_1_to_30 = sum(ifelse(ShellHeight >= 1 & ShellHeight <= 30, 1, 0), na.rm = TRUE),
-            Count_Seed_31_to_75 = sum(ifelse(ShellHeight >= 31 & ShellHeight <= 75, 1, 0), na.rm = TRUE),
-            Count_Legal_76_plus = sum(ifelse(ShellHeight >= 76, 1, 0), na.rm = TRUE)
+            Count_Seed_31_to_74 = sum(ifelse(ShellHeight >= 31 & ShellHeight <= 74, 1, 0), na.rm = TRUE),
+            Count_Legal_75_plus = sum(ifelse(ShellHeight >= 75, 1, 0), na.rm = TRUE)
   )
 
 ### Provide stats for how many live oysters there were in each quadrat, by size class
 QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
   mutate(
     Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
-    Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
-    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)) %>%
+    Num_Seed_31_to_74 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_74 * NumLive) / TotalNumMeasured),
+    Num_Legal_75_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_75_plus * NumLive) / TotalNumMeasured)) %>%
   select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
 
 # remove intermediate data frames
@@ -39,7 +39,7 @@ QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
 SizeClasses_ALL <- ShellHeights_1 %>%
   filter(!is.na(ShellHeight)) %>%
   mutate(ShellHeightBin = cut(ShellHeight, 
-                              breaks = c(0, 30, 75, 200),
+                              breaks = c(0, 30, 74, 200),
                               right = TRUE,
                               include.lowest = TRUE)) %>% # puts measures in 3 bins
   group_by(Year, ProjectGroup) %>%
@@ -49,13 +49,13 @@ SizeClasses_ALL <- ShellHeights_1 %>%
   mutate(ProportionMeasured = (ProjectNumberMeasured / ProjectTotal),
          Year = factor(Year),
          ShellHeightBin = factor(ShellHeightBin,
-                                 levels = c("(75,200]", "(30,75]", "[0,30]" )   # <-- order from bottom to top
+                                 levels = c("(74,200]", "(30,74]", "[0,30]" )   # <-- order from bottom to top
     ))
 
 SizeClasses_ALL$ShellHeightBin <- forcats::fct_recode(SizeClasses_ALL$ShellHeightBin,
   "Spat (1–30 mm)"    = "[0,30]",
-  "Seed (31–75 mm)"   = "(30,75]",
-  "Legal (>=76 mm)"  = "(75,200]"
+  "Seed (31–74 mm)"   = "(30,74]",
+  "Legal (>=75 mm)"  = "(74,200]"
 )
 
 maxSH <- max(ShellHeights_1$ShellHeight, na.rm = TRUE)

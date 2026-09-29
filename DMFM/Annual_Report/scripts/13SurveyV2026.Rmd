@@ -6,11 +6,17 @@ title: "Survey_Report"
 # Use modelled means
 
 ``` {r BasicStats}
-### Limit data to March through June samples to reduce seasonal bias
+### Limit data to March through June samples to reduce seasonal bias and Remove Baywide data to reduce spatial bias
 ShellHeights_1 <- ShellHeights_ALL %>%
+  filter(!str_detect(StationName, "Baywide")) %>%
+  # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
+  filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1")) %>%
   filter(month(TripDate) > 02 & month(TripDate) < 07)
 
 Quadrats_1 <- Quadrats_ALL %>%
+  filter(!str_detect(StationName, "Baywide")) %>%
+  # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
+  filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1")) %>%
   filter(month(TripDate) > 02 & month(TripDate) < 07)
 
 ### Provides how many were measured for each size class for each quadrat
@@ -85,7 +91,7 @@ maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 
 ```
 
-``` {r SampleWeight Model seclection}
+``` {r SampleWeight Model selection, eval = FALSE}
 # Figure out which data distribution to use
 # ALL
 hist(QuadStats$TotalWeight)
@@ -115,52 +121,259 @@ hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$TotalWeight)
 hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$TotalWeight) 
 # normal, range 0 - 30, peak at 12
 
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$TotalWeight) 
+# normal, range 5 - 20, strong peak at 12; and strong peak at 1
+```
+
+``` {r SampleWeight Model selection INTERTIDAL, eval = FALSE}
+
+### Intertidal Model ###
+## Choose distribution family
+TotalWeight_Intertidal_gamma <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+TotalWeight_Intertidal_gaussian <- glmmTMB(TotalWeight ~ 1, 
+                      family = gaussian(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_Intertidal_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Intertidal_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_Intertidal_gamma, TotalWeight_Intertidal_gaussian)
+## Gamma has better AIC and residuals, however KS, Dispersion, and Within group tests fail
+
+## Add dispersion
+TotalWeight_Intertidal_gamma_1 <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      dispformula = ~ 1,
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+TotalWeight_Intertidal_gamma_section <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      dispformula = ~ SectionName,
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_Intertidal_gamma_1, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Intertidal_gamma_section, n = 1000, plot = T)
+AIC(TotalWeight_Intertidal_gamma, TotalWeight_Intertidal_gamma_1, TotalWeight_Intertidal_gamma_section)
+## Including a dispersion term does NOT improve fit
+
+## Add FixedLocation as a fixed or random effect
+TotalWeight_Intertidal_gamma_fixed <- glmmTMB(TotalWeight ~ FixedLocationID, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+TotalWeight_Intertidal_gamma_random <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID), ### BEST
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_Intertidal_gamma_fixed, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Intertidal_gamma_random, n = 1000, plot = T)
+AIC(TotalWeight_Intertidal_gamma, TotalWeight_Intertidal_gamma_fixed, TotalWeight_Intertidal_gamma_random)
+## Fixed effect improved fit, but KS, Levene, and Within-group test fail. All tests pass with random
+
+```
+
+``` {r SampleWeight Model selection HISTORIC, eval = FALSE}
+### Historic Model ###
+## Choose distribution family
+TotalWeight_Historic_gamma <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+TotalWeight_Historic_gaussian <- glmmTMB(TotalWeight ~ 1, 
+                      family = gaussian(link = "identity"), 
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_Historic_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Historic_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_Historic_gamma, TotalWeight_Historic_gaussian)
+## Gamma has better AIC and residuals, however KS, Dispersion, and Within group tests fail
+
+## Add dispersion
+TotalWeight_Historic_gamma_1 <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      dispformula = ~ 1,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+TotalWeight_Historic_gamma_section <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      dispformula = ~ SectionName,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_Historic_gamma_1, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Historic_gamma_section, n = 1000, plot = T)
+AIC(TotalWeight_Historic_gamma, TotalWeight_Historic_gamma_1, TotalWeight_Historic_gamma_section)
+## Add dispersion did't help AIC or residuals
+
+## Add effects
+TotalWeight_Historic_gamma_fixed_y <- glmmTMB(TotalWeight ~ factor(Year) + FixedLocationID, 
+                      family = Gamma(link = "log"),
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+TotalWeight_Historic_gamma_random_y <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # BEST
+                      family = Gamma(link = "log"),
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+TotalWeight_Historic_gamma_fixed_ys <- glmmTMB(TotalWeight ~ factor(Year) + SectionName + FixedLocationID, 
+                      family = Gamma(link = "log"),
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+TotalWeight_Historic_gamma_random_ys <- glmmTMB(TotalWeight ~ factor(Year) + SectionName + (1 | FixedLocationID), 
+                      family = Gamma(link = "log"),
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+simulateResiduals(TotalWeight_Historic_gamma_fixed_y, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Historic_gamma_random_y, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Historic_gamma_fixed_ys, n = 1000, plot = T)
+simulateResiduals(TotalWeight_Historic_gamma_random_ys, n = 1000, plot = T)
+AIC(TotalWeight_Historic_gamma, TotalWeight_Historic_gamma_fixed_y, TotalWeight_Historic_gamma_random_y,
+    TotalWeight_Historic_gamma_fixed_ys, TotalWeight_Historic_gamma_random_ys)
+## Adding SectionName didn't improve fit, Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations
+
+```
+
+``` {r SampleWeight Model selection RESTORE-2017, eval = FALSE}
+### RESTORE-2017 Model ###
+## Choose distribution family
+TotalWeight_RESTORE_2017_gamma <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+TotalWeight_RESTORE_2017_gaussian <- glmmTMB(TotalWeight ~ 1, 
+                      family = gaussian(link = "identity"), 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_RESTORE_2017_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_RESTORE_2017_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_RESTORE_2017_gamma, TotalWeight_RESTORE_2017_gaussian)
+## Gamma has good fit and AIC
+
+## Add effects
+TotalWeight_RESTORE_2017_gamma_fixed <- glmmTMB(TotalWeight ~ FixedLocationID, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+TotalWeight_RESTORE_2017_gamma_random <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID), # BEST
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+simulateResiduals(TotalWeight_RESTORE_2017_gamma_fixed, n = 1000, plot = T)
+simulateResiduals(TotalWeight_RESTORE_2017_gamma_random, n = 1000, plot = T)
+AIC(TotalWeight_RESTORE_2017_gamma, TotalWeight_RESTORE_2017_gamma_fixed, TotalWeight_RESTORE_2017_gamma_random)
+## Adding FixedLocationID as random effect improved AIC and residuals
+```
+
+``` {r SampleWeight Model selection NFWF-2021, eval = FALSE}
+### NFWF-2021 Model ###
+## Choose distribution family
+TotalWeight_NFWF_2021_gamma <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+TotalWeight_NFWF_2021_gaussian <- glmmTMB(TotalWeight ~ 1, 
+                      family = gaussian(link = "identity"), 
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF_2021_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2021_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_2021_gamma, TotalWeight_NFWF_2021_gaussian)
+## Good fit with Gaussian, no failed tests
+
+## Add effects
+TotalWeight_NFWF_2021_gaussian_fixed_y <- glmmTMB(TotalWeight ~ factor(Year) + FixedLocationID, 
+                      family = gaussian(link = "identity"),
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+TotalWeight_NFWF_2021_gaussian_random_y <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # BEST
+                      family = gaussian(link = "identity"),
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF_2021_gaussian_fixed_y, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2021_gaussian_random_y, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_2021_gaussian, TotalWeight_NFWF_2021_gaussian_fixed_y, TotalWeight_NFWF_2021_gaussian_random_y)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations
+
+```
+
+``` {r SampleWeight Model selection NFWF-2024 ALL, eval = FALSE}
+### NFWF-2024 ALL Model ###
+## Choose distribution family
+TotalWeight_NFWF_2024_gamma <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+TotalWeight_NFWF_2024_gaussian <- glmmTMB(TotalWeight ~ 1, 
+                      family = gaussian(link = "identity"), 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF_2024_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_2024_gamma, TotalWeight_NFWF_2024_gaussian)
+## Gamma has good fit and AIC
+
+## Add effects
+TotalWeight_NFWF_2024_gamma_fixed <- glmmTMB(TotalWeight ~ FixedLocationID, 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+TotalWeight_NFWF_2024_gamma_random <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID), 
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+TotalWeight_NFWF_2024_gamma_random_p <- glmmTMB(TotalWeight ~ ProjectGroup + (1 | FixedLocationID), # BEST
+                      family = Gamma(link = "log"), 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF_2024_gamma_fixed, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gamma_random, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gamma_random_p, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_2024_gamma, TotalWeight_NFWF_2024_gamma_fixed, TotalWeight_NFWF_2024_gamma_random, TotalWeight_NFWF_2024_gamma_random_p)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Adding project group doesn't add anything to the fit
+
+## Modeling this data all together works well and ProjectGroup can be seperated out with the model
+```
 
 
+``` {r TotalWeight}
+# Analysis indicates that data from each Project group should be modeled separately
+
+### Intertidal Model ###
+TotalWeight_Intertidal <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID),
+                                  family = Gamma(link = "log"), 
+                                  data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit & summary
+simulateResiduals(TotalWt_Intertidal, n = 1000, plot = T)
+summary(TotalWt_Intertidal)
+
+
+### Historic Model ###
+TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), 
+                                family = Gamma(link = "log"),
+                                data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+# Check goodness of fit & summary
+simulateResiduals(TotalWeight_Historic, n = 1000, plot = T)
+summaary(TotalWeight_Historic)
+
+
+### RESTORE-2017 Model ###
+TotalWeight_RESTORE_2017 <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID), 
+                                    family = Gamma(link = "log"),
+                                    data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+# Check goodness of fit & summary
+simulateResiduals(TotalWeight_RESTORE_2017, n = 1000, plot = T)
+summaary(TotalWeight_RESTORE_2017)
+
+
+### NFWF-2021 Model ###
+TotalWeight_NFWF_2021 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), 
+                                 family = gaussian(link = "identity"),
+                                 data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+# Check goodness of fit & summary
+simulateResiduals(TotalWeight_NFWF_2021, n = 1000, plot = T)
+summaary(TotalWeight_NFWF_2021)
+
+
+### NFWF-2024 ALL Model ###
+TotalWeight_NFWF_2024 <- glmmTMB(TotalWeight ~ ProjectGroup + (1 | FixedLocationID), 
+                                 family = Gamma(link = "log"), 
+                                 data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+# Check goodness of fit & summary
+simulateResiduals(TotalWeight_NFWF_2024, n = 1000, plot = T)
+summaary(TotalWeight_NFWF_2024)
 
 ```
 
 
-``` {r SampleWeightStats}
-# Analysis indicates that Historic and Restoration data should be modeled separately
 
-# Figure out which data distribution to use
-# Historic
-hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$TotalWeight)
-# NFWF-2021
-hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$TotalWeight) 
 
-### Historic Model ###
-# Gamma out performed Gaussian
-# Zero-inflation did not improve model fit
-# Leaving out Random effect of Location was very detrimental to the model
-TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
-                      family = Gamma(link = "log"), 
-                      data = QuadStats,
-                      subset = ProjectGroup == "Historic Uncultched")
 
-# Check goodness of fit
-simulateResiduals(TotalWeight_Historic, n = 1000, plot = T)
-
-### Restoration Model ###
-## NFWF-2021 ##
-# Gaussian out performed Gamma
-# Zero-inflation did not improve model fit
-# Leaving out Random effect of Location was very detrimental to the model
-
-TotalWeight_NFWF2021 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # Best
-                      family = gaussian(link = "identity"), 
-                      data = QuadStats,
-                      subset = ProjectGroup == "NFWF-2021")
-
-# Check goodness of fit
-simulateResiduals(TotalWeight_NFWF2021, n = 1000, plot = T)
-
-# Look at summaries
-summary(TotalWeight_Historic)
-summary(TotalWeight_NFWF2021)
-
-# Create dataframe to store 
+``` {r}
+# Create dataframe to store values
 ####### Put the modeled means into a data frame for plotting
 TotalWeightStats_historic <- emmeans(TotalWeight_Historic, ~ Year, type = "response") %>%
   as.data.frame() %>%
