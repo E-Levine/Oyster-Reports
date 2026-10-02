@@ -472,71 +472,108 @@ rm(TotalWeightStats_Historic, TotalWeightStats_RESTORE_2017,
 
 ```
 
-
 ``` {r TotalWeight Figures and Tables}
+##### Bar graphs for modeled mean Total Weight density by ProjectGroup 
+### INTERTIDAL ###
+# By StationNumber
+TotalWeightStats_FIGURE_Intertidal <- TotalWeightStats_Intertidal_ALL %>%
+  ggplot(aes(x = fct_inorder(as.factor(StationName)), 
+             y = TotalWeightMeanDensity_modeled)) + 
+      geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) +
+      geom_errorbar(aes(ymin = TotalWeightLowerDensity_modeled, 
+                      ymax = TotalWeightUpperDensity_modeled),
+                      width = 0.3, 
+                      position = position_dodge(width = 0.9)) + # Add error bars
+      scale_x_discrete("Station Name", 
+                       expand = c(0.1, 0), 
+                       guide = guide_axis(angle = -45)) +
+      scale_y_continuous("Mean Sample Weight Density (kg / m2)", 
+                         expand = c(0, 0),
+                         limits = c(0, ceiling(max(TotalWeightStats_Intertidal_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_Intertidal_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Sample Weight Density by Intertidal Station") + 
+      BaseForm +
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0, vjust = 0)) 
 
-# Bar graph for modeled mean Total Weight density by ProjectGroup and Year
+print(TotalWeightStats_FIGURE_Intertidal)
 
-### HISTORIC ###
-# Needed for Null data symbol
-# df_historic <- df_complete %>%
-#   filter(ProjectGroup == "Historic Uncultched")
-
-# TotalWeightStats_FIG_Historic <- TotalWeightStats_ALL %>%
-#   filter(ProjectGroup == "Historic Uncultched")  # limits to Historic Uncultched only
-    
-TotalWeightStats_FIGURE_ALL <- TotalWeightStats_ALL %>%
-  ggplot(aes(x = as.factor(Year), 
-             y = TotalWeightMeanDensity_modeled,
-             fill = as.factor(ProjectGroup))) + 
+### SUBTIDAL ###
+# By Project Group. For this report we will only show the current year
+TotalWeightStats_FIGURE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
+  filter(Year == 2026) %>% # For this report we will only show the current year
+  ggplot(aes(x = fct_inorder(as.factor(ProjectGroup)), 
+             y = TotalWeightMeanDensity_modeled)) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
     geom_errorbar(aes(ymin = TotalWeightLowerDensity_modeled, 
                       ymax = TotalWeightUpperDensity_modeled),
                       width = 0.3, 
                       position = position_dodge(width = 0.9)) + # Add error bars
-      scale_x_discrete("Year", 
-                       expand = c(0.005, 0), 
+      scale_x_discrete("Project Group", 
+                       expand = c(0.05, 0), 
                        guide = guide_axis(angle = -45)) +
       scale_y_continuous("Mean Sample Weight Density (kg / m2)", 
                          expand = c(0, 0),
-                         limits = c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE)) * 1.05),
-                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE))))) + 
-      ggtitle("Modeled Mean Sample Weight Density by Year and Project Group") + 
+                         limits = c(0, ceiling(max(TotalWeightStats_Subtidal_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_Subtidal_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Sample Weight Density by Project Group in 2026") + 
       BaseForm +
       theme(legend.position = "bottom",
             plot.title = element_text(hjust = 0, vjust = 0)) 
 
-print(TotalWeightStats_FIGURE_ALL)
+print(TotalWeightStats_FIGURE_Subtidal)
 
 
-
-# Summary Table for the Appendix
-TotalWeightStats_TABLE <- TotalWeightStats_ALL %>%
-  select(ProjectGroup,
-         Year, 
+##### Summary Tables for the Appendix
+### INTERTIDAL
+TotalWeightStats_TABLE_Intertidal <- TotalWeightStats_Intertidal_ALL %>%
+  select(StationNameNumber,
          TotalWeightDensityMean_raw,
          TotalWeightDensitySD_raw,
          TotalWeightMeanDensity_modeled,
          TotalWeightLowerDensity_modeled,
-         TotalWeightUpperDensity_modeled) %>%
-  arrange(ProjectGroup,
-          Year)
-  
-kable(TotalWeightStats_TABLE,
+         TotalWeightUpperDensity_modeled) 
+
+kable(TotalWeightStats_TABLE_Intertidal,
       digits = 1,
-      col.names = c("Project", "Year", 
+      col.names = c("Station Name & Number",  
       "Raw Mean Density", "Raw SD",
       "Modeled Mean Density", "LCL 95%", "UCL 95%"),
-      caption = "Raw and Modeled Mean Densities of Substrate. Density is expressed in kilogramss per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. NA indicates that no samples were collected. ")
+      caption = "Raw and Modeled Mean Densities of Substrate on Intertidal reefs in 2026. Density is expressed in kilogramss per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
 
-# Diagnostic Table for the Appendix
+### SUBTIDAL
+TotalWeightStats_TABLE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
+  filter(Year == 2026) %>% # For this report we will only show the current year
+  select(ProjectGroup,
+         TotalWeightDensityMean_raw,
+         TotalWeightDensitySD_raw,
+         TotalWeightMeanDensity_modeled,
+         TotalWeightLowerDensity_modeled,
+         TotalWeightUpperDensity_modeled) 
+
+kable(TotalWeightStats_TABLE_Subtidal,
+      digits = 1,
+      col.names = c("Project Group",  
+      "Raw Mean Density", "Raw SD",
+      "Modeled Mean Density", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Densities of Substrate on Subtidal reefs in 2026. Density is expressed in kilogramss per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+
+
+##### Diagnostic Table for the Appendix
+diag_TotalWeight_Intertidal <- extract_diagnostics(TotalWeight_Intertidal,  "Intertidal")
 diag_TotalWeight_Historic <- extract_diagnostics(TotalWeight_Historic,  "Historic Uncultched")
-diag_TotalWeight_NFWF2021 <- extract_diagnostics(TotalWeight_NFWF2021,  "NFWF-2021")
-
+diag_TotalWeight_RESTORE_2017 <- extract_diagnostics(TotalWeight_RESTORE_2017,  "RESTORE-2017")
+diag_TotalWeight_NFWF_2021 <- extract_diagnostics(TotalWeight_NFWF_2021,  "NFWF-2021")
+diag_TotalWeight_NFWF_2024 <- extract_diagnostics(TotalWeight_NFWF_2024,  "NFWF-2024")
 # Combine into a single Table
-TotalWeight_Diagnostic_Table <- rbind(diag_TotalWeight_Historic, diag_TotalWeight_NFWF2021)
-kable(TotalWeight_Diagnostic_Table)
+TotalWeight_Diagnostic_Table <- rbind(diag_TotalWeight_Intertidal, diag_TotalWeight_Historic,
+                                      diag_TotalWeight_RESTORE_2017, diag_TotalWeight_NFWF_2021,
+                                      diag_TotalWeight_NFWF_2024)
+kable(TotalWeight_Diagnostic_Table, digits =2)
+# Cleanup
+rm(diag_TotalWeight_Intertidal, diag_TotalWeight_Historic, diag_TotalWeight_RESTORE_2017, diag_TotalWeight_NFWF_2021, diag_TotalWeight_NFWF_2024)
 
 ```
 
