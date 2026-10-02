@@ -18,7 +18,8 @@ library(glmmTMB) # needed for modeled means
 library(DHARMa) # needed for model diagnostics
 library(performance) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
-library(emmeans) # needed to extract modeled means and CI
+library(emmeans) # needed to extract modeled means and CI of Fixed effects
+library(ggeffects) # needed to extract means and CI of Random effects 
 library(brms) # needed for categorical models and diagnostics
 library(bayesplot) # needed for categorical diagnostics and plotting
 library(ordinal) # needed for cumulative Link Mixed models for Repro (& Dermo?)

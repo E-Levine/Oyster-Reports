@@ -319,16 +319,20 @@ AIC(TotalWeight_NFWF_2024_gamma, TotalWeight_NFWF_2024_gamma_fixed, TotalWeight_
 ```
 
 
-``` {r TotalWeight}
+``` {r TotalWeight Models and Dataframes}
 # Analysis indicates that data from each Project group should be modeled separately
+
+###############
+### Create models  
+###############
 
 ### Intertidal Model ###
 TotalWeight_Intertidal <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID),
                                   family = Gamma(link = "log"), 
                                   data = subset(QuadStats, ProjectGroup == "Intertidal"))
 # Check goodness of fit & summary
-simulateResiduals(TotalWt_Intertidal, n = 1000, plot = T)
-summary(TotalWt_Intertidal)
+simulateResiduals(TotalWeight_Intertidal, n = 1000, plot = T)
+summary(TotalWeight_Intertidal)
 
 
 ### Historic Model ###
@@ -337,7 +341,7 @@ TotalWeight_Historic <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationI
                                 data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
 # Check goodness of fit & summary
 simulateResiduals(TotalWeight_Historic, n = 1000, plot = T)
-summaary(TotalWeight_Historic)
+summary(TotalWeight_Historic)
 
 
 ### RESTORE-2017 Model ###
@@ -346,7 +350,7 @@ TotalWeight_RESTORE_2017 <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID),
                                     data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
 # Check goodness of fit & summary
 simulateResiduals(TotalWeight_RESTORE_2017, n = 1000, plot = T)
-summaary(TotalWeight_RESTORE_2017)
+summary(TotalWeight_RESTORE_2017)
 
 
 ### NFWF-2021 Model ###
@@ -355,7 +359,7 @@ TotalWeight_NFWF_2021 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocation
                                  data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
 # Check goodness of fit & summary
 simulateResiduals(TotalWeight_NFWF_2021, n = 1000, plot = T)
-summaary(TotalWeight_NFWF_2021)
+summary(TotalWeight_NFWF_2021)
 
 
 ### NFWF-2024 ALL Model ###
@@ -364,53 +368,101 @@ TotalWeight_NFWF_2024 <- glmmTMB(TotalWeight ~ ProjectGroup + (1 | FixedLocation
                                  data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
 # Check goodness of fit & summary
 simulateResiduals(TotalWeight_NFWF_2024, n = 1000, plot = T)
-summaary(TotalWeight_NFWF_2024)
-
-```
+summary(TotalWeight_NFWF_2024)
 
 
+###############
+### Create dataframes to store values for plots and tables 
+###############
 
+###############
+### INTERTIDAL
+# Generate Modeled Means, CI, and SE
+# ggpredict needed to extract values of Random effects 
+TotalWeightStats_Intertidal_modeled <- ggpredict(TotalWeight_Intertidal, 
+                                                 terms = "FixedLocationID", type = "random") %>%
+  as.data.frame() %>%
+  rename(FixedLocationID = x,
+         TotalWeightMean_modeled = predicted,
+         TotalWeightLower_modeled = conf.low,
+         TotalWeightUpper_modeled = conf.high) %>%
+  mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
+         TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
+         TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
+  select(-group) %>%
+  mutate(TotalWeightUpperDensity_modeled = case_when(
+    TotalWeightMean_modeled <= 0 ~ 0,
+    TRUE ~ TotalWeightUpperDensity_modeled)) %>%
+  left_join(FixedLocations1, by="FixedLocationID") %>%
+  arrange(StationNumber) 
+# Generate raw mean and SD
+TotalWeightStats_Intertidal_RAW <- QuadStats %>%
+  filter(ProjectGroup == "Intertidal") %>%
+  group_by(FixedLocationID,
+           StationNumber) %>%
+  summarise_ALL() %>%
+  arrange(StationNumber) %>%
+  select(-matches("Num"))
+# Combine into single table and remove intermediate dataframes
+TotalWeightStats_Intertidal_ALL <- left_join(TotalWeightStats_Intertidal_modeled, 
+                              TotalWeightStats_Intertidal_RAW, 
+                              by = c("FixedLocationID")) 
+rm(TotalWeightStats_Intertidal_modeled, TotalWeightStats_Intertidal_RAW)
 
-
-``` {r}
-# Create dataframe to store values
-####### Put the modeled means into a data frame for plotting
-TotalWeightStats_historic <- emmeans(TotalWeight_Historic, ~ Year, type = "response") %>%
+###############
+### SUBTIDAL
+# Generate Modeled Means, CI, and SE
+# emmeans needed to extract values of Random effects
+TotalWeightStats_Historic <- emmeans(TotalWeight_Historic, ~ Year, type = "response") %>%
   as.data.frame() %>%
   mutate(ProjectGroup = "Historic Uncultched") 
 
-TotalWeightStats_nfwf2021 <- emmeans(TotalWeight_NFWF2021, ~ Year, type = "response") %>%
+TotalWeightStats_RESTORE_2017 <- emmeans(TotalWeight_RESTORE_2017, ~ 1, type = "response") %>%
   as.data.frame() %>%
-  mutate(ProjectGroup = "NFWF-2021") %>%
-  rename(response = emmean, # rename due to gaussian family
-         asymp.LCL = lower.CL,
-         asymp.UCL = upper.CL)
+  mutate(ProjectGroup = "RESTORE-2017",
+         Year = 2026) %>%
+  select(-1)
 
-TotalWeightStats_modeled <- bind_rows(TotalWeightStats_historic, TotalWeightStats_nfwf2021) %>%
+TotalWeightStats_NFWF_2021 <- emmeans(TotalWeight_NFWF_2021, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  rename(response = emmean) %>%
+  mutate(ProjectGroup = "NFWF-2021") 
+
+TotalWeightStats_NFWF_2024 <- emmeans(TotalWeight_NFWF_2024, ~ ProjectGroup, type = "response") %>%
+  as.data.frame() %>%
+  mutate(Year = 2026) 
+
+TotalWeightStats_Subtidal_modeled <- bind_rows(TotalWeightStats_Historic, 
+                                               TotalWeightStats_RESTORE_2017,
+                                               TotalWeightStats_NFWF_2021,
+                                               TotalWeightStats_NFWF_2024) %>%
   rename(TotalWeightMean_modeled = response,
          TotalWeightLower_modeled = asymp.LCL,
          TotalWeightUpper_modeled = asymp.UCL) %>%
   mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
          TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
          TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
-  select(-SE, -df) %>%
+  select(-df) %>%
   mutate(TotalWeightUpperDensity_modeled = case_when(
     TotalWeightMean_modeled <= 0 ~ 0,
-    TRUE ~ TotalWeightUpperDensity_modeled
-  ))
+    TRUE ~ TotalWeightUpperDensity_modeled))
 
 # Generate raw mean and SD
-TotalWeightStats_RAW <- QuadStats %>%
-  group_by(Year, 
-           ProjectGroup) %>%
+TotalWeightStats_Subtidal_RAW <- QuadStats %>%
+  filter(ProjectGroup != "Intertidal") %>%
+  group_by(ProjectGroup,
+           Year) %>%
   summarise_ALL() %>%
-  arrange(Year,
-          ProjectGroup) %>%
+  arrange(ProjectGroup, Year) %>%
   select(-matches("Num"))
 
-TotalWeightStats_ALL <- left_join(TotalWeightStats_modeled, 
-                              TotalWeightStats_RAW, 
+# Combine into single table and remove intermediate dataframes
+TotalWeightStats_Subtidal_ALL <- left_join(TotalWeightStats_Subtidal_modeled, 
+                              TotalWeightStats_Subtidal_RAW, 
                               by = c("Year", "ProjectGroup")) 
+rm(TotalWeightStats_Historic, TotalWeightStats_RESTORE_2017, 
+   TotalWeightStats_NFWF_2021, TotalWeightStats_NFWF_2024,
+   TotalWeightStats_Subtidal_modeled, TotalWeightStats_Subtidal_RAW)
 
 #  # Create a complete grid for all years, sections, and projects
 # df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
@@ -418,15 +470,10 @@ TotalWeightStats_ALL <- left_join(TotalWeightStats_modeled,
 #     mutate(has_data = !is.na(RawOysterDensityMean), # Add a flag for missing data
 #            SectionName = factor(SectionName, levels = lv3))
 
-
-
-
-
-
 ```
 
 
-``` {r TotalWeight Figures}
+``` {r TotalWeight Figures and Tables}
 
 # Bar graph for modeled mean Total Weight density by ProjectGroup and Year
 
