@@ -133,6 +133,7 @@ Survey_Quad1 <- hsdbSurveyQuadrat %>%
          NumLive,
          NumDead,
          NumDrills,
+         NumLegal,
          TotalWeight,
          Comments)
 
@@ -141,10 +142,12 @@ SBM_Quad1 <- hsdbSBMQuadrat %>%
   rename(TotalWeight = TotalSampleWeight, # Must rename the columns so we can union them together
          NumLive = NumLiveOysters,
          NumDead = NumDeadOysters) %>%
+  mutate(NumLegal = NA) %>% # This column doesn't occur in that table, but needs to exist to union
   select(QuadratID,
          NumLive,
          NumDead,
          NumDrills,
+         NumLegal,
          TotalWeight,
          Comments)
 
@@ -166,6 +169,7 @@ Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1) %>%
          NumLive,
          NumDead,
          NumDrills,
+         NumLegal,
          TotalWeight,
          Comments)
     ###

@@ -6,6 +6,9 @@ title: "Survey_Report"
 # Use modelled means
 
 ``` {r BasicStats}
+### Set Project Group order to display
+ProjectGroupOrder <- c("Intertidal", "Historic Uncultched", "RESTORE-2017", "NFWF-2021",
+                       "NFWF-2024", "NFWF-2024 Pilot", "NFWF-2024 General", "NFWF-2024 General Adjusted")
 ### Limit data to March through June samples to reduce seasonal bias and Remove Baywide data to reduce spatial bias
 ShellHeights_1 <- ShellHeights_ALL %>%
   filter(!str_detect(StationName, "Baywide")) %>%
@@ -29,7 +32,7 @@ SHMeasures <- ShellHeights_1 %>%
   )
 
 ### Provide stats for how many live oysters there were in each quadrat, by size class
-QuadStats <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>%
+QuadStats_ <- left_join(Quadrats_1, SHMeasures, by = c("QuadratID")) %>% #Change QuadStats_ to QuadStats when 2025 data is complete
   mutate(
     Num_Spat_1_to_30 = if_else(TotalNumMeasured == 0, 0, (Count_Spat_1_to_30 * NumLive) / TotalNumMeasured),
     Num_Seed_31_to_75 = if_else(TotalNumMeasured == 0, 0, (Count_Seed_31_to_75 * NumLive) / TotalNumMeasured),
@@ -73,7 +76,6 @@ maxSH <- max(ShellHeights_1$ShellHeight, na.rm = TRUE)
 ShellHeightsReportYrX <- ShellHeights_1 %>%
   filter(!is.na(ShellHeight),
   Year == ReportYear) %>%
-
   mutate(ShellHeightBin = cut(ShellHeight, 
                               breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
                               right = TRUE,
@@ -84,12 +86,21 @@ ShellHeightsReportYrX <- ShellHeights_1 %>%
   summarise(ProjectNumberMeasured = n()) %>%
   mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
 
+# Determine number of oysters measured during ReportYear
 ShellHeightsReportYr <- ShellHeights_1 %>%
-  filter(Year == ReportYear) 
-
+  filter(Year == ReportYear,
+         !is.na(ShellHeight)) 
+# Determine size of largest oyster measure during ReportYear 
 maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 
 ```
+``` {r 2025 Fix}
+# Import the 2025 data
+QuadStats2025 <- readxl::read_xlsx("C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/Annual_Report/data/QuadStats2025.xlsx")
+QuadStats <- union_all(QuadStats_, QuadStats2025)
+# Delete this chunk once 2025 data is entered, proofed, and checked
+```
+
 
 ``` {r SampleWeight Model selection, eval = FALSE}
 # Figure out which data distribution to use
@@ -241,10 +252,10 @@ AIC(TotalWeight_RESTORE_2017_gamma, TotalWeight_RESTORE_2017_gaussian)
 ## Gamma has good fit and AIC
 
 ## Add effects
-TotalWeight_RESTORE_2017_gamma_fixed <- glmmTMB(TotalWeight ~ FixedLocationID, 
+TotalWeight_RESTORE_2017_gamma_fixed <- glmmTMB(TotalWeight ~ factor(Year) + FixedLocationID, 
                       family = Gamma(link = "log"), 
                       data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
-TotalWeight_RESTORE_2017_gamma_random <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID), # BEST
+TotalWeight_RESTORE_2017_gamma_random <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), # BEST
                       family = Gamma(link = "log"), 
                       data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
 simulateResiduals(TotalWeight_RESTORE_2017_gamma_fixed, n = 1000, plot = T)
@@ -345,7 +356,7 @@ summary(TotalWeight_Historic)
 
 
 ### RESTORE-2017 Model ###
-TotalWeight_RESTORE_2017 <- glmmTMB(TotalWeight ~ 1 + (1 | FixedLocationID), 
+TotalWeight_RESTORE_2017 <- glmmTMB(TotalWeight ~ factor(Year) + (1 | FixedLocationID), 
                                     family = Gamma(link = "log"),
                                     data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
 # Check goodness of fit & summary
@@ -417,11 +428,9 @@ TotalWeightStats_Historic <- emmeans(TotalWeight_Historic, ~ Year, type = "respo
   as.data.frame() %>%
   mutate(ProjectGroup = "Historic Uncultched") 
 
-TotalWeightStats_RESTORE_2017 <- emmeans(TotalWeight_RESTORE_2017, ~ 1, type = "response") %>%
+TotalWeightStats_RESTORE_2017 <- emmeans(TotalWeight_RESTORE_2017, ~ Year, type = "response") %>%
   as.data.frame() %>%
-  mutate(ProjectGroup = "RESTORE-2017",
-         Year = 2026) %>%
-  select(-1)
+  mutate(ProjectGroup = "RESTORE-2017")
 
 TotalWeightStats_NFWF_2021 <- emmeans(TotalWeight_NFWF_2021, ~ Year, type = "response") %>%
   as.data.frame() %>%
@@ -807,12 +816,8 @@ kable(NumLive_Diagnostic_Table)
 
 ``` {r Size Distribution Figures}
 ### Size Distributions
-
-## Years past
-
-
-
-SizeClasses_FIG <- ggplot(SizeClasses_ALL, 
+## Past years
+SizeClasses_FIGURE_past <- ggplot(SizeClasses_ALL, 
                           aes(x = as.factor(Year), y = ProportionMeasured, fill = ShellHeightBin)) +
   geom_col(color = "black") +
   facet_wrap(~ ProjectGroup, ncol = 1) +
@@ -825,16 +830,36 @@ SizeClasses_FIG <- ggplot(SizeClasses_ALL,
   BaseForm +
   theme_bw()
 
-SizeClasses_FIG
+# SizeClasses_FIGURE_past # Not including past years in this report
 
-
-
-
-
-# Report Year
+## Report Year
 # Histograms
 
-histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured, fill = ProjectGroup)) +
+# Prep data frame for creating SH distribution histogram for PROJECT YEAR
+# Excludes measurements from the 2026 Easthole mortality event
+ShellHeightsReportYrGeneralAdjusted <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight),
+  Year == ReportYear,
+  FixedLocationID == "0525") %>%
+  mutate(ProjectGroup = "NFWF-2024 General Adjusted") %>%
+  mutate(ShellHeightBin = cut(ShellHeight, 
+                              breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(ProjectGroup) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(ProjectGroup, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
+
+ShellHeightsReportYrX <- rbind(ShellHeightsReportYrX, ShellHeightsReportYrGeneralAdjusted) 
+ShellHeightsReportYrX$ProjectGroup <- factor(ShellHeightsReportYrX$ProjectGroup, 
+                                             levels = ProjectGroupOrder)
+
+
+
+
+SH_Distribution_ReportYr <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured)) +
   geom_col() +
   facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
   scale_x_discrete(
@@ -843,10 +868,9 @@ histogramY <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentM
   labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
        x = "Shell Height (mm)", 
        y = "Percent of Measurements Within Groups")  +
-  BaseForm +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-histogramY
+print(SH_Distribution_ReportYr)
 
 
 ```
