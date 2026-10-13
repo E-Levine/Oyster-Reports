@@ -102,7 +102,7 @@ QuadStats <- union_all(QuadStats_, QuadStats2025)
 ```
 
 
-``` {r SampleWeight Model selection, eval = FALSE}
+``` {r TotalWeight Model selection, eval = FALSE}
 # Figure out which data distribution to use
 # ALL
 hist(QuadStats$TotalWeight)
@@ -137,7 +137,7 @@ hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$TotalWeight)
 # normal, range 5 - 20, strong peak at 12; and strong peak at 1
 ```
 
-``` {r SampleWeight Model selection INTERTIDAL, eval = FALSE}
+``` {r TotalWeight Model selection INTERTIDAL, eval = FALSE}
 
 ### Intertidal Model ###
 ## Choose distribution family
@@ -183,7 +183,7 @@ AIC(TotalWeight_Intertidal_gamma, TotalWeight_Intertidal_gamma_fixed, TotalWeigh
 
 ```
 
-``` {r SampleWeight Model selection HISTORIC, eval = FALSE}
+``` {r TotalWeight Model selection HISTORIC, eval = FALSE}
 ### Historic Model ###
 ## Choose distribution family
 TotalWeight_Historic_gamma <- glmmTMB(TotalWeight ~ 1, 
@@ -236,7 +236,7 @@ AIC(TotalWeight_Historic_gamma, TotalWeight_Historic_gamma_fixed_y, TotalWeight_
 
 ```
 
-``` {r SampleWeight Model selection RESTORE-2017, eval = FALSE}
+``` {r TotalWeight Model selection RESTORE-2017, eval = FALSE}
 ### RESTORE-2017 Model ###
 ## Choose distribution family
 TotalWeight_RESTORE_2017_gamma <- glmmTMB(TotalWeight ~ 1, 
@@ -264,7 +264,7 @@ AIC(TotalWeight_RESTORE_2017_gamma, TotalWeight_RESTORE_2017_gamma_fixed, TotalW
 ## Adding FixedLocationID as random effect improved AIC and residuals
 ```
 
-``` {r SampleWeight Model selection NFWF-2021, eval = FALSE}
+``` {r TotalWeight Model selection NFWF-2021, eval = FALSE}
 ### NFWF-2021 Model ###
 ## Choose distribution family
 TotalWeight_NFWF_2021_gamma <- glmmTMB(TotalWeight ~ 1, 
@@ -294,7 +294,7 @@ AIC(TotalWeight_NFWF_2021_gaussian, TotalWeight_NFWF_2021_gaussian_fixed_y, Tota
 
 ```
 
-``` {r SampleWeight Model selection NFWF-2024 ALL, eval = FALSE}
+``` {r TotalWeight Model selection NFWF-2024 ALL, eval = FALSE}
 ### NFWF-2024 ALL Model ###
 ## Choose distribution family
 TotalWeight_NFWF_2024_gamma <- glmmTMB(TotalWeight ~ 1, 
@@ -328,7 +328,6 @@ AIC(TotalWeight_NFWF_2024_gamma, TotalWeight_NFWF_2024_gamma_fixed, TotalWeight_
 
 ## Modeling this data all together works well and ProjectGroup can be seperated out with the model
 ```
-
 
 ``` {r TotalWeight Models and Dataframes}
 # Analysis indicates that data from each Project group should be modeled separately
@@ -550,7 +549,7 @@ kable(TotalWeightStats_TABLE_Intertidal,
       col.names = c("Station Name & Number",  
       "Raw Mean Density", "Raw SD",
       "Modeled Mean Density", "LCL 95%", "UCL 95%"),
-      caption = "Raw and Modeled Mean Densities of Substrate on Intertidal reefs in 2026. Density is expressed in kilogramss per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+      caption = "Raw and Modeled Mean Densities of Substrate on Intertidal reefs in 2026. Density is expressed in kilograms per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
 
 ### SUBTIDAL
 TotalWeightStats_TABLE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
@@ -567,7 +566,7 @@ kable(TotalWeightStats_TABLE_Subtidal,
       col.names = c("Project Group",  
       "Raw Mean Density", "Raw SD",
       "Modeled Mean Density", "LCL 95%", "UCL 95%"),
-      caption = "Raw and Modeled Mean Densities of Substrate on Subtidal reefs in 2026. Density is expressed in kilogramss per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+      caption = "Raw and Modeled Mean Densities of Substrate on Subtidal reefs in 2026. Density is expressed in kilograms per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
 
 
 ##### Diagnostic Table for the Appendix
@@ -587,231 +586,484 @@ rm(diag_TotalWeight_Intertidal, diag_TotalWeight_Historic, diag_TotalWeight_REST
 ```
 
 
-
-
-
-
-
-
-``` {r NumLiveStats}
-# Analysis indicates that Historic and Restoration data should be modeled separately
-
+``` {r NumLive Model selection, eval = FALSE}
 # Figure out which data distribution to use
+# ALL
+hist(QuadStats$NumLive)
+# negative binomial, range 0 - 1000, peak at 0
+
+# Intertidal
+hist(subset(QuadStats, ProjectGroup == "Intertidal")$NumLive)
+# negative binomial, range 0 - 500, peak at 0
+
 # Historic
 hist(subset(QuadStats, ProjectGroup == "Historic Uncultched")$NumLive)
+# negative binomial, range 0 - 250, peak at 0
+
+# RESTORE-2017
+hist(subset(QuadStats, ProjectGroup == "RESTORE-2017")$NumLive)
+# negative binomial, range 0 - 250, peak at 0
+
 # NFWF-2021
-hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive)
+hist(subset(QuadStats, ProjectGroup == "NFWF-2021")$NumLive) 
+# negative binomial, range 0 - 400, peak at 50
+
+# NFWF-2024 General
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$NumLive) 
+# Normal, range 50 - 30, peak at 175
+
+# NFWF-2024 Pilot
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$NumLive) 
+# negative binomial, range 0 - 1000, peak at 225
+
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$NumLive) 
+# negative binomial, range 0 - 1000, peak at 150
+```
+
+``` {r NumLive Model selection INTERTIDAL, eval = FALSE}
+### Intertidal Model ###
+## Choose distribution family
+NumLive_Intertidal_nbinom2 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+NumLive_Intertidal_poisson <- glmmTMB(NumLive ~ 1, 
+                      family = poisson, 
+                      ziformula = ~1,
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit
+simulateResiduals(NumLive_Intertidal_nbinom2, n = 1000, plot = T)
+simulateResiduals(NumLive_Intertidal_poisson, n = 1000, plot = T)
+AIC(NumLive_Intertidal_nbinom2, NumLive_Intertidal_poisson)
+## nbinom2 has FAR better AIC and residuals, however KS, Dispersion, and Within group tests fail
+
+## Add dispersion
+NumLive_Intertidal_nbinom2_1 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      ziformula = ~ 1,
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+NumLive_Intertidal_nbinom2_section <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      ziformula = ~ SectionName,
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit
+simulateResiduals(NumLive_Intertidal_nbinom2_1, n = 1000, plot = T)
+simulateResiduals(NumLive_Intertidal_nbinom2_section, n = 1000, plot = T)
+AIC(NumLive_Intertidal_nbinom2, NumLive_Intertidal_nbinom2_1, NumLive_Intertidal_nbinom2_section)
+## Including a dispersion term does NOT improve fit
+
+## Add FixedLocation as a fixed or random effect
+NumLive_Intertidal_nbinom2_fixed <- glmmTMB(NumLive ~ FixedLocationID, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+NumLive_Intertidal_nbinom2_random <- glmmTMB(NumLive ~ 1 + (1 | FixedLocationID), ### BEST
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit
+simulateResiduals(NumLive_Intertidal_nbinom2_fixed, n = 1000, plot = T)
+simulateResiduals(NumLive_Intertidal_nbinom2_random, n = 1000, plot = T)
+AIC(NumLive_Intertidal_nbinom2, NumLive_Intertidal_nbinom2_fixed, NumLive_Intertidal_nbinom2_random)
+## Fixed effect improved AIC, but Within-group test fail. All tests pass and better fit with random
+```
+
+``` {r NumLive Model selection HISTORIC, eval = FALSE}
+### Historic Model ###
+## Choose distribution family
+NumLive_Historic_nbinom2 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+NumLive_Historic_poisson <- glmmTMB(NumLive ~ 1, 
+                      family = poisson, 
+                      ziformula = ~1,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+# Check goodness of fit
+simulateResiduals(NumLive_Historic_nbinom2, n = 1000, plot = T)
+simulateResiduals(NumLive_Historic_poisson, n = 1000, plot = T)
+AIC(NumLive_Historic_nbinom2, NumLive_Historic_poisson)
+## nbinom2 has better AIC and residuals, however Dispersion test fails
+
+## Add dispersion
+NumLive_Historic_nbinom2_1 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      dispformula = ~ 1,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+NumLive_Historic_nbinom2_section <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      dispformula = ~ SectionName,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+# Check goodness of fit
+simulateResiduals(NumLive_Historic_nbinom2_1, n = 1000, plot = T)
+simulateResiduals(NumLive_Historic_nbinom2_section, n = 1000, plot = T)
+AIC(NumLive_Historic_nbinom2, NumLive_Historic_nbinom2_1, NumLive_Historic_nbinom2_section)
+## Add dispersion didn't help AIC or residuals
+
+## Add effects
+NumLive_Historic_nbinom2_fixed_y <- glmmTMB(NumLive ~ factor(Year) + FixedLocationID, 
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+NumLive_Historic_nbinom2_random_y <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), 
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+NumLive_Historic_nbinom2_fixed_ys <- glmmTMB(NumLive ~ factor(Year) + SectionName + FixedLocationID, 
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+NumLive_Historic_nbinom2_random_ys <- glmmTMB(NumLive ~ factor(Year) + SectionName + (1 | FixedLocationID), # BEST
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+simulateResiduals(NumLive_Historic_nbinom2_fixed_y, n = 1000, plot = T)
+simulateResiduals(NumLive_Historic_nbinom2_random_y, n = 1000, plot = T)
+simulateResiduals(NumLive_Historic_nbinom2_fixed_ys, n = 1000, plot = T)
+simulateResiduals(NumLive_Historic_nbinom2_random_ys, n = 1000, plot = T)
+AIC(NumLive_Historic_nbinom2, NumLive_Historic_nbinom2_fixed_y, NumLive_Historic_nbinom2_random_y,
+    NumLive_Historic_nbinom2_fixed_ys, NumLive_Historic_nbinom2_random_ys)
+## Adding SectionName did improve fit, Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations
+```
+
+``` {r NumLive Model selection RESTORE-2017, eval = FALSE}
+### RESTORE-2017 Model ###
+## Choose distribution family
+NumLive_RESTORE_2017_nbinom2 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+NumLive_RESTORE_2017_poisson <- glmmTMB(NumLive ~ 1, 
+                      family = poisson, 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+# Check goodness of fit
+simulateResiduals(NumLive_RESTORE_2017_nbinom2, n = 1000, plot = T)
+simulateResiduals(NumLive_RESTORE_2017_poisson, n = 1000, plot = T)
+AIC(NumLive_RESTORE_2017_nbinom2, NumLive_RESTORE_2017_poisson)
+## nbinom2 has good fit and AIC
+
+## Add effects
+NumLive_RESTORE_2017_nbinom2_fixed <- glmmTMB(NumLive ~ factor(Year) + FixedLocationID, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+NumLive_RESTORE_2017_nbinom2_random <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # BEST
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+NumLive_RESTORE_2017_nbinom2_random_zi <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), 
+                      family = nbinom2, 
+                      ziformula = ~ 1,
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+simulateResiduals(NumLive_RESTORE_2017_nbinom2_fixed, n = 1000, plot = T)
+simulateResiduals(NumLive_RESTORE_2017_nbinom2_random, n = 1000, plot = T)
+simulateResiduals(NumLive_RESTORE_2017_nbinom2_random_zi, n = 1000, plot = T)
+AIC(NumLive_RESTORE_2017_nbinom2, NumLive_RESTORE_2017_nbinom2_fixed, NumLive_RESTORE_2017_nbinom2_random, NumLive_RESTORE_2017_nbinom2_random_zi)
+## Adding FixedLocationID as random effect improved AIC and residuals. Adding dispersion doesn't help
+```
+
+``` {r NumLive Model selection NFWF-2021, eval = FALSE}
+### NFWF-2021 Model ###
+## Choose distribution family
+NumLive_NFWF_2021_nbinom2 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+NumLive_NFWF_2021_poisson <- glmmTMB(NumLive ~ 1, 
+                      family = poisson, 
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF_2021_nbinom2, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_2021_poisson, n = 1000, plot = T)
+AIC(NumLive_NFWF_2021_nbinom2, NumLive_NFWF_2021_poisson)
+## Good fit with nbinom2, no failed tests
+
+## Add effects
+NumLive_NFWF_2021_nbinom2_fixed_y <- glmmTMB(NumLive ~ factor(Year) + FixedLocationID, 
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+NumLive_NFWF_2021_nbinom2_random_y <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), # BEST
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF_2021_nbinom2_fixed_y, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_2021_nbinom2_random_y, n = 1000, plot = T)
+AIC(NumLive_NFWF_2021_nbinom2, NumLive_NFWF_2021_nbinom2_fixed_y, NumLive_NFWF_2021_nbinom2_random_y)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations
+```
+
+``` {r NumLive Model selection NFWF-2024 ALL, eval = FALSE}
+### NFWF-2024 ALL Model ###
+## Choose distribution family
+NumLive_NFWF_2024_nbinom2 <- glmmTMB(NumLive ~ 1, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+NumLive_NFWF_2024_poisson <- glmmTMB(NumLive ~ 1, 
+                      family = poisson, 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF_2024_nbinom2, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_2024_poisson, n = 1000, plot = T)
+AIC(NumLive_NFWF_2024_nbinom2, NumLive_NFWF_2024_poisson)
+## nbinom2 has good fit and AIC
+
+## Add effects
+NumLive_NFWF_2024_nbinom2_fixed <- glmmTMB(NumLive ~ FixedLocationID, 
+                      family = nbinom2, 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+NumLive_NFWF_2024_nbinom2_random <- glmmTMB(NumLive ~ 1 + (1 | FixedLocationID), 
+                      family = nbinom2, 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+NumLive_NFWF_2024_nbinom2_random_p <- glmmTMB(NumLive ~ ProjectGroup + (1 | FixedLocationID), # BEST
+                      family = nbinom2, 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+# Check goodness of fit
+simulateResiduals(NumLive_NFWF_2024_nbinom2_fixed, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_2024_nbinom2_random, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_2024_nbinom2_random_p, n = 1000, plot = T)
+AIC(NumLive_NFWF_2024_nbinom2, NumLive_NFWF_2024_nbinom2_fixed, NumLive_NFWF_2024_nbinom2_random, NumLive_NFWF_2024_nbinom2_random_p)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Adding project group doesn't add anything to the fit
+
+## Modeling this data all together works well and ProjectGroup can be seperated out with the model
+```
+
+``` {r NumLive Models and Dataframes}
+# Analysis indicates that data from each Project group should be modeled separately
+
+###############
+### Create models  
+###############
+
+### Intertidal Model ###
+NumLive_Intertidal <- glmmTMB(NumLive ~ 1 + (1 | FixedLocationID), 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "Intertidal"))
+# Check goodness of fit & summary
+simulateResiduals(NumLive_Intertidal, n = 1000, plot = T)
+summary(NumLive_Intertidal)
+
 
 ### Historic Model ###
-# Negative binomial out performed Poisson
-# Zero-inflation did not improve model fit
-# Leaving out Random effect of Location was very detrimental to the model
-# Adding in extra nested structure to the random effects improved AIC and ultimately DHARMa, but keeping Section as a fixed effect was best
-# Adding in dispformula = ~ SectionName improved fit, suggesting that variance is different between sections, but so are means. Preference for the simpler model meant leaving that out
-NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID/QuadratID), 
-                       family = nbinom2,   
-                       data = QuadStats,
-                       subset = ProjectGroup == "Historic Uncultched")
-
-# Compare all models
-#aictab(list(NumLive_Historic,NumLive_Historic2))
-# Check goodness of fit
+NumLive_Historic <- glmmTMB(NumLive ~ factor(Year) + SectionName + (1 | FixedLocationID), 
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "Historic Uncultched"))
+# Check goodness of fit & summary
 simulateResiduals(NumLive_Historic, n = 1000, plot = T)
-
-### Restoration Model ###
-## NFWF-2021 ##
-# Negative binomial out performed Poisson
-# Zero-inflation did not improve model fit
-# Leaving out Random effect of Location was slightly detrimental to the model
-# Adding nested random effects did not improve AIC, thus simpler is chosen, but keeping Section as a fixed effect was best
-NumLive_NFWF2021 <- glmmTMB(NumLive ~ factor(Year) * factor(SectionName) + (1 | FixedLocationID), # Best
-                       family = nbinom2,  
-                       data = QuadStats,
-                       subset = ProjectGroup == "NFWF-2021")
-
-# Check goodness of fit
-simulateResiduals(NumLive_NFWF2021, n = 1000, plot = T)
-
-# Look at summaries
 summary(NumLive_Historic)
-summary(NumLive_NFWF2021)
 
-# Create dataframe to store 
-####### Put the modeled means into a data frame for plotting
-NumLiveStats_historic <- emmeans(NumLive_Historic, ~ Year * SectionName, type = "response") %>%
+
+### RESTORE-2017 Model ###
+NumLive_RESTORE_2017 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), 
+                      family = nbinom2, 
+                      data = subset(QuadStats, ProjectGroup == "RESTORE-2017"))
+# Check goodness of fit & summary
+simulateResiduals(NumLive_RESTORE_2017, n = 1000, plot = T)
+summary(NumLive_RESTORE_2017)
+
+
+### NFWF-2021 Model ###
+NumLive_NFWF_2021 <- glmmTMB(NumLive ~ factor(Year) + (1 | FixedLocationID), 
+                      family = nbinom2,
+                      data = subset(QuadStats, ProjectGroup == "NFWF-2021"))
+# Check goodness of fit & summary
+simulateResiduals(NumLive_NFWF_2021, n = 1000, plot = T)
+summary(NumLive_NFWF_2021)
+
+
+### NFWF-2024 ALL Model ###
+NumLive_NFWF_2024 <- glmmTMB(NumLive ~ ProjectGroup + (1 | FixedLocationID), 
+                      family = nbinom2, 
+                      data = subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024")))
+# Check goodness of fit & summary
+simulateResiduals(NumLive_NFWF_2024, n = 1000, plot = T)
+summary(NumLive_NFWF_2024)
+
+
+###############
+### Create dataframes to store values for plots and tables 
+###############
+
+###############
+### INTERTIDAL
+# Generate Modeled Means, CI, and SE
+# ggpredict needed to extract values of Random effects 
+NumLiveStats_Intertidal_modeled <- ggpredict(NumLive_Intertidal, 
+                                                 terms = "FixedLocationID", type = "random") %>%
+  as.data.frame() %>%
+  rename(FixedLocationID = x,
+         NumLiveMean_modeled = predicted,
+         NumLiveLower_modeled = conf.low,
+         NumLiveUpper_modeled = conf.high) %>%
+  mutate(NumLiveMeanDensity_modeled = round((NumLiveMean_modeled * 4), 1),
+         NumLiveLowerDensity_modeled = round((NumLiveLower_modeled * 4), 1),
+         NumLiveUpperDensity_modeled = round((NumLiveUpper_modeled * 4), 1)) %>%
+  select(-group) %>%
+  mutate(NumLiveUpperDensity_modeled = case_when(
+    NumLiveMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLiveUpperDensity_modeled)) %>%
+  left_join(FixedLocations1, by="FixedLocationID") %>%
+  arrange(StationNumber) 
+# Generate raw mean and SD
+NumLiveStats_Intertidal_RAW <- QuadStats %>%
+  filter(ProjectGroup == "Intertidal") %>%
+  group_by(FixedLocationID,
+           StationNumber) %>%
+  summarise_ALL() %>%
+  arrange(StationNumber) %>%
+  select(-matches("Weight"))
+# Combine into single table and remove intermediate dataframes
+NumLiveStats_Intertidal_ALL <- left_join(NumLiveStats_Intertidal_modeled, 
+                              NumLiveStats_Intertidal_RAW, 
+                              by = c("FixedLocationID")) 
+rm(NumLiveStats_Intertidal_modeled, NumLiveStats_Intertidal_RAW)
+
+###############
+### SUBTIDAL
+# Generate Modeled Means, CI, and SE
+# emmeans needed to extract values of Random effects
+NumLiveStats_Historic <- emmeans(NumLive_Historic, ~ Year, type = "response") %>%
   as.data.frame() %>%
   mutate(ProjectGroup = "Historic Uncultched") 
 
-NumLiveStats_nfwf2021 <- emmeans(NumLive_NFWF2021, ~ Year * SectionName, type = "response") %>%
+NumLiveStats_RESTORE_2017 <- emmeans(NumLive_RESTORE_2017, ~ Year, type = "response") %>%
   as.data.frame() %>%
-  mutate(ProjectGroup = "NFWF-2021")
+  mutate(ProjectGroup = "RESTORE-2017")
 
-NumLiveStats_modeled <- bind_rows(NumLiveStats_historic, NumLiveStats_nfwf2021) %>%
+NumLiveStats_NFWF_2021 <- emmeans(NumLive_NFWF_2021, ~ Year, type = "response") %>%
+  as.data.frame() %>%
+  mutate(ProjectGroup = "NFWF-2021") 
+
+NumLiveStats_NFWF_2024 <- emmeans(NumLive_NFWF_2024, ~ ProjectGroup, type = "response") %>%
+  as.data.frame() %>%
+  mutate(Year = 2026) 
+
+NumLiveStats_Subtidal_modeled <- bind_rows(NumLiveStats_Historic, 
+                                               NumLiveStats_RESTORE_2017,
+                                               NumLiveStats_NFWF_2021,
+                                               NumLiveStats_NFWF_2024) %>%
   rename(NumLiveMean_modeled = response,
          NumLiveLower_modeled = asymp.LCL,
          NumLiveUpper_modeled = asymp.UCL) %>%
-  mutate(NumLiveMeanDensity_modeled = NumLiveMean_modeled * 4,
-         NumLiveLowerDensity_modeled = NumLiveLower_modeled * 4,
-         NumLiveUpperDensity_modeled = NumLiveUpper_modeled * 4) %>%
-  select(-SE, -df) %>%
+  mutate(NumLiveMeanDensity_modeled = round((NumLiveMean_modeled * 4), 1),
+         NumLiveLowerDensity_modeled = round((NumLiveLower_modeled * 4), 1),
+         NumLiveUpperDensity_modeled = round((NumLiveUpper_modeled * 4), 1)) %>%
+  select(-df) %>%
   mutate(NumLiveUpperDensity_modeled = case_when(
     NumLiveMean_modeled <= 0 ~ 0,
-    TRUE ~ NumLiveUpperDensity_modeled
-  ))
+    TRUE ~ NumLiveUpperDensity_modeled))
 
 # Generate raw mean and SD
-NumLiveStats_RAW <- QuadStats %>%
-  group_by(Year, 
-           ProjectGroup,
-           SectionName) %>%
+NumLiveStats_Subtidal_RAW <- QuadStats %>%
+  filter(ProjectGroup != "Intertidal") %>%
+  group_by(ProjectGroup,
+           Year) %>%
   summarise_ALL() %>%
-  arrange(Year,
-          ProjectGroup) %>%
-  select(-matches("Drill|Weight"))
+  arrange(ProjectGroup, Year) %>%
+  select(-matches("Weight"))
 
-NumLiveStats_ALL <- left_join(NumLiveStats_modeled, 
-                              NumLiveStats_RAW, 
-                              by = c("Year", "ProjectGroup", "SectionName")) %>%
-  mutate(SectionName = factor(SectionName, levels = lv3))
-  
-# rm(NumLiveStats_historic, NumLiveStats_RAW, NumLiveStats_RAW, NumLiveStats_RAW)
+# Combine into single table and remove intermediate dataframes
+NumLiveStats_Subtidal_ALL <- left_join(NumLiveStats_Subtidal_modeled, 
+                              NumLiveStats_Subtidal_RAW, 
+                              by = c("Year", "ProjectGroup")) 
+rm(NumLiveStats_Historic, NumLiveStats_RESTORE_2017, 
+   NumLiveStats_NFWF_2021, NumLiveStats_NFWF_2024,
+   NumLiveStats_Subtidal_modeled, NumLiveStats_Subtidal_RAW)
 
- # Create a complete grid for all years, sections, and projects
-df_complete <- expand_grid(Year = Years_Survey, SectionName = lv3, ProjectGroup = unique(NumLiveStats_ALL$ProjectGroup)) %>%
-    left_join(NumLiveStats_ALL, by = c("Year", "SectionName", "ProjectGroup")) %>% 
-    mutate(has_data = !is.na(NumLiveDensityMean_raw), # Add a flag for missing data
-           SectionName = factor(SectionName, levels = lv3))
-  
 ```
 
-``` {r NumLive Figures}
-
-# Bar graph for modeled mean oyster density by ProjectGroup, Year, and Section
-
-### HISTORIC ###
-# Needed for Null data symbol
-df_historic <- df_complete %>%
-  filter(ProjectGroup == "Historic Uncultched") %>%
-  mutate(SectionName = factor(SectionName, levels = lv3))
-
-NumLiveStats_FIG_Historic <- NumLiveStats_ALL %>%
-  filter(ProjectGroup == "Historic Uncultched") %>% # limits to Historic Uncultched only
-    mutate(SectionName = factor(SectionName, levels = lv3))
-
-NumLiveStats_FIGURE_Historic <- NumLiveStats_FIG_Historic %>%
-  ggplot(aes(x = as.factor(Year), 
-             y = NumLiveMeanDensity_modeled,
-             fill = SectionName)) + 
+``` {r NumLive Figures and Tables}
+##### Bar graphs for modeled mean NumLive density by ProjectGroup 
+### INTERTIDAL ###
+# By StationNumber
+NumLiveStats_FIGURE_Intertidal <- NumLiveStats_Intertidal_ALL %>%
+  ggplot(aes(x = fct_inorder(as.factor(StationName)), 
+             y = NumLiveMeanDensity_modeled)) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
-    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, ymax = NumLiveUpperDensity_modeled), width = 0.3) + # Add error bars
-  # Add symbol for years with no data
-    geom_point(
-      data = subset(df_historic, !has_data),
-      aes(x = as.factor(Year),
-          y = ceiling(max(NumLiveStats_FIG_Historic$NumLiveMeanDensity_modeled, na.rm = TRUE) * 0.5),
-          group = SectionName),
-          shape = 4,   # X shape
-          size = 4,
-          stroke = 1.3,
-          color = "black",
-          inherit.aes = FALSE
-          ) +
-      facet_wrap(~SectionName, nrow = 1) +
-  
-      scale_x_discrete("Year", 
-                       expand = c(0.005, 0), 
+      geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, 
+                      ymax = NumLiveUpperDensity_modeled),
+                      width = 0.3, 
+                      position = position_dodge(width = 0.9)) + # Add error bars
+      scale_x_discrete("Station Name", 
+                       expand = c(0.1, 0), 
                        guide = guide_axis(angle = -45)) +
       scale_y_continuous("Mean Oyster Density (per m2)", 
                          expand = c(0, 0),
-                         limits = c(0, ceiling(max(NumLiveStats_FIG_Historic$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
-                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_Historic$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
-      ggtitle("Modeled Mean Oyster Density on Historic Uncultched Reefs by Year and Section") + 
+                         limits = c(0, ceiling(max(NumLiveStats_Intertidal_ALL$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_Intertidal_ALL$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Oyster Density by Intertidal Station") + 
       BaseForm +
       theme(legend.position = "bottom",
             plot.title = element_text(hjust = 0, vjust = 0)) 
 
-print(NumLiveStats_FIGURE_Historic)
+print(NumLiveStats_FIGURE_Intertidal)
 
-### RESTORATION ###
-## NFWF-2021 ##
-# Needed for Null data symbol
-df_nfwf2021 <- df_complete %>%
-  filter(ProjectGroup == "NFWF-2021" &
-           Year > 2021 &
-           SectionName != "West") %>%
-  mutate(SectionName = factor(SectionName, levels = lv3))
-
-NumLiveStats_FIG_NFWF2021 <- NumLiveStats_ALL %>%
-  filter(ProjectGroup == "NFWF-2021") %>% # limits to NFWF-2021 only
-    mutate(SectionName = factor(SectionName, levels = lv3))
-
-NumLiveStats_FIGURE_NFWF2021 <- NumLiveStats_FIG_NFWF2021 %>%
-  ggplot(aes(x = as.factor(Year), 
-             y = NumLiveMeanDensity_modeled,
-             fill = SectionName)) + 
+### SUBTIDAL ###
+# By Project Group. For this report we will only show the current year
+NumLiveStats_FIGURE_Subtidal <- NumLiveStats_Subtidal_ALL %>%
+  filter(Year == 2026) %>% # For this report we will only show the current year
+  ggplot(aes(x = fct_inorder(as.factor(ProjectGroup)), 
+             y = NumLiveMeanDensity_modeled)) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
-    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, ymax = NumLiveUpperDensity_modeled), width = 0.3) + # Add error bars
-  # Add symbol for years with no data
-    geom_point(
-      data = subset(df_nfwf2021, !has_data),
-      aes(x = as.factor(Year),
-          y = ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveMeanDensity_modeled, na.rm = TRUE) * 0.5),
-          group = SectionName),
-          shape = 4,   # X shape
-          size = 4,
-          stroke = 1.3,
-          color = "black",
-          inherit.aes = FALSE
-          ) +
-      facet_wrap(~SectionName, nrow = 1) +
-  
-      scale_x_discrete("Year", 
-                       expand = c(0.005, 0), 
+    geom_errorbar(aes(ymin = NumLiveLowerDensity_modeled, 
+                      ymax = NumLiveUpperDensity_modeled),
+                      width = 0.3, 
+                      position = position_dodge(width = 0.9)) + # Add error bars
+      scale_x_discrete("Project Group", 
+                       expand = c(0.05, 0), 
                        guide = guide_axis(angle = -45)) +
       scale_y_continuous("Mean Oyster Density (per m2)", 
                          expand = c(0, 0),
-                         limits = c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
-                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_FIG_NFWF2021$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
-      ggtitle("Modeled Mean Oyster Density on NFWF-2021 Reefs by Year and Section") + 
+                         limits = c(0, ceiling(max(NumLiveStats_Subtidal_ALL$NumLiveUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(NumLiveStats_Subtidal_ALL$NumLiveUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Oyster Density by Project Group in 2026") + 
       BaseForm +
       theme(legend.position = "bottom",
             plot.title = element_text(hjust = 0, vjust = 0)) 
 
-print(NumLiveStats_FIGURE_NFWF2021)
+print(NumLiveStats_FIGURE_Subtidal)
 
-# Summary Table for the Appendix
-NumLiveStats_TABLE <- NumLiveStats_ALL %>%
-  select(ProjectGroup,
-         Year,
-         SectionName, 
+
+##### Summary Tables for the Appendix
+### INTERTIDAL
+NumLiveStats_TABLE_Intertidal <- NumLiveStats_Intertidal_ALL %>%
+  select(StationNameNumber,
          NumLiveDensityMean_raw,
          NumLiveDensitySD_raw,
          NumLiveMeanDensity_modeled,
          NumLiveLowerDensity_modeled,
-         NumLiveUpperDensity_modeled) %>%
-  arrange(ProjectGroup,
-          SectionName,
-          Year)
-  
-kable(NumLiveStats_TABLE,
+         NumLiveUpperDensity_modeled) 
+
+kable(NumLiveStats_TABLE_Intertidal,
       digits = 1,
-      col.names = c("Project", "Year", "Section",
+      col.names = c("Station Name & Number",  
       "Raw Mean Density", "Raw SD",
       "Modeled Mean Density", "LCL 95%", "UCL 95%"),
-      caption = "Raw and Modeled Mean Densities of Oysters. Density is expressed in number of oysters per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. NA indicates that no samples were collected. ")
+      caption = "Raw and Modeled Mean Densities of Live Oysters on Intertidal reefs in 2026. Density is expressed in individuals per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
 
-# Diagnostic Table for the Appendix
+### SUBTIDAL
+NumLiveStats_TABLE_Subtidal <- NumLiveStats_Subtidal_ALL %>%
+  filter(Year == 2026) %>% # For this report we will only show the current year
+  select(ProjectGroup,
+         NumLiveDensityMean_raw,
+         NumLiveDensitySD_raw,
+         NumLiveMeanDensity_modeled,
+         NumLiveLowerDensity_modeled,
+         NumLiveUpperDensity_modeled) 
+
+kable(NumLiveStats_TABLE_Subtidal,
+      digits = 1,
+      col.names = c("Project Group",  
+      "Raw Mean Density", "Raw SD",
+      "Modeled Mean Density", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Densities of Live Oysters on Subtidal reefs in 2026. Density is expressed in individuals per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+
+
+##### Diagnostic Table for the Appendix
+diag_NumLive_Intertidal <- extract_diagnostics(NumLive_Intertidal,  "Intertidal")
 diag_NumLive_Historic <- extract_diagnostics(NumLive_Historic,  "Historic Uncultched")
-diag_NumLive_NFWF2021 <- extract_diagnostics(NumLive_NFWF2021,  "NFWF-2021")
-
+diag_NumLive_RESTORE_2017 <- extract_diagnostics(NumLive_RESTORE_2017,  "RESTORE-2017")
+diag_NumLive_NFWF_2021 <- extract_diagnostics(NumLive_NFWF_2021,  "NFWF-2021")
+diag_NumLive_NFWF_2024 <- extract_diagnostics(NumLive_NFWF_2024,  "NFWF-2024")
 # Combine into a single Table
-NumLive_Diagnostic_Table <- rbind(diag_NumLive_Historic, diag_NumLive_NFWF2021)
-kable(NumLive_Diagnostic_Table)
+NumLive_Diagnostic_Table <- rbind(diag_NumLive_Intertidal, diag_NumLive_Historic,
+                                      diag_NumLive_RESTORE_2017, diag_NumLive_NFWF_2021,
+                                      diag_NumLive_NFWF_2024)
+kable(NumLive_Diagnostic_Table, digits =2)
+# Cleanup
+rm(diag_NumLive_Intertidal, diag_NumLive_Historic, diag_NumLive_RESTORE_2017, diag_NumLive_NFWF_2021, diag_NumLive_NFWF_2024)
 
 ```
-
 
 
 ``` {r Size Distribution Figures}
@@ -857,8 +1109,6 @@ ShellHeightsReportYrX$ProjectGroup <- factor(ShellHeightsReportYrX$ProjectGroup,
                                              levels = ProjectGroupOrder)
 
 
-
-
 SH_Distribution_ReportYr <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin, y = PercentMeasured)) +
   geom_col() +
   facet_wrap(~ ProjectGroup, ncol = 1, scales = "free_y") +
@@ -872,193 +1122,404 @@ SH_Distribution_ReportYr <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin
 
 print(SH_Distribution_ReportYr)
 
-
 ```
 
 
-``` {r NumLegalStats}
+``` {r NumLegal Stats}
+## Generate raw mean and SD
 # Determine which stations have enough legal oysters to merit inclusion in the modeling process
-# For this we will only include stations whose raw mean is greater than 1 legal oysters PER QUADRAT
-QuadStatsLegal_List <- QuadStats %>% # Determine raw mean per quadrat 
+# For this we will only include stations whose raw mean density is greater than 11.1 legal oyster/m2 OR 200 bags per acre
+NumLegalStats_RAW <- QuadStats %>% # Determine raw mean per quadrat 
   filter(Year == ReportYear) %>%
-  group_by(FixedLocationID) %>%
-  summarise(N = sum(!is.na(Num_Legal_76_plus)),
-              Num_Legal_76_plus_Mean = mean(Num_Legal_76_plus, na.rm = TRUE)) 
-QuadStatsLegal_NoModel <- QuadStatsLegal_List %>%
-  filter(Num_Legal_76_plus_Mean < 2)
-QuadStatsLegal_YesModel <- QuadStatsLegal_List %>%
-  filter(Num_Legal_76_plus_Mean >= 2)
-rm(QuadStatsLegal_List)
+  group_by(FixedLocationID,
+           StationNumber) %>%
+  summarise_ALL() %>%
+  arrange(StationNumber) %>%
+  select(-matches("Weight"),
+         -matches("Live"),
+         -matches("Drill"))
+NumLegal_NoModel <- NumLegalStats_RAW %>%
+  filter(NumLegalDensityMean_raw < 11.1)
+NumLegal_YesModel <- NumLegalStats_RAW %>%
+  filter(NumLegalDensityMean_raw >= 11.1)
 
-# Round Legal Number to a whole number
-QuadStatsLegal <- QuadStats %>%
+# Create data frame containing only NumLegal data that will be modeled.
+NumLegal_QuadStats <- QuadStats %>%
+  select(QuadratID, FixedLocationID, TripDate, StationName, StationNumber, ParcelName, StationNameNumber, ProjectGroup,
+         Year, NumLegal, Comments) %>%
   filter(Year == ReportYear) %>%
-  right_join(QuadStatsLegal_YesModel,
-            by = c("FixedLocationID")) %>%
-  mutate(NumLegal = round(Num_Legal_76_plus))
+  filter(FixedLocationID %in% NumLegal_YesModel$FixedLocationID)
 
-# Analysis indicates ......
+```
 
+``` {r NumLegal Model selection, eval = FALSE}
 # Figure out which data distribution to use
-# Historic
-hist(subset(QuadStatsLegal, ProjectGroup == "Historic Uncultched")$NumLegal)
-# NFWF-2021
-hist(subset(QuadStatsLegal, ProjectGroup == "NFWF-2021")$NumLegal)
+# ALL
+hist(NumLegal_QuadStats$NumLegal)
+# negative binomial, range 0 - 120, peak at 0
 
-# FixedLocationID 0024
-hist(subset(QuadStatsLegal, FixedLocationID == "0024")$NumLegal)
-# FixedLocationID 0309
-hist(subset(QuadStatsLegal, FixedLocationID == "0309")$NumLegal)
-# FixedLocationID 0310
-hist(subset(QuadStatsLegal, FixedLocationID == "0310")$NumLegal)
-# FixedLocationID 0311
-hist(subset(QuadStatsLegal, FixedLocationID == "0311")$NumLegal)
-# data distributions appear similar between reefs
+# Each FixedLocationID
+for (id in unique(NumLegal_QuadStats$FixedLocationID)) {
+  hist(
+    subset(NumLegal_QuadStats, FixedLocationID == id)$NumLegal,
+    main = paste("FixedLocationID:", id),
+    xlab = "NumLegal"
+  )
+}
+# A variety of distributions including normal and negative binomial
+
 
 ### Testing pooled vs. reef-specific means
 # Model A (pooled)
 m_pooled <- glmmTMB(NumLegal ~ 1,
                     family = nbinom2,
-                    data = QuadStatsLegal)
+                    data = NumLegal_QuadStats)
 # Model B (reef-specific means)
 m_Reef_Specific <- glmmTMB(NumLegal ~ FixedLocationID,
                      family = nbinom2,
-                     data = QuadStatsLegal)
+                     data = NumLegal_QuadStats)
 # Model C (ProjectGroup-specific means)
 m_Project_Specific <- glmmTMB(NumLegal ~ ProjectGroup,
                      family = nbinom2,
-                     data = QuadStatsLegal)
+                     data = NumLegal_QuadStats)
 # Compared
 anova(m_pooled, m_Reef_Specific, m_Project_Specific)
-#### Results indicate adding ProjectGroup massively improved model fit (ΔAIC = 11, p < 0.001). Adding reef-specific means marginally improved model fit and was not statistically significant (ΔAIC = 0.3, p = 0.12) Thus models for each ProjectGroup were used.
-
-
-### Testing to see if each reef needs its own dispersion parameter
-## Model with shared dispersion:
-m1 <- glmmTMB(NumLegal ~ FixedLocationID,
-              dispformula = ~1,
-              family = nbinom2,
-              data = QuadStatsLegal)
-# Model with reef-specific dispersion:
-m2 <- glmmTMB(NumLegal ~ FixedLocationID,
-              dispformula = ~FixedLocationID,
-              family = nbinom2,
-              data = QuadStatsLegal)
-# Model with ProjectGroup-specific dispersion:
-m3 <- glmmTMB(NumLegal ~ ProjectGroup,
-              dispformula = ~ProjectGroup,
-              family = nbinom2,
-              data = QuadStatsLegal)
-# Compare:
-anova(m1, m2, m3)
-#### Results indicate adding reef-specific dispersion did not improve model fit (ΔAIC = -2.3, p = 0.35), and the difference was not statistically significant. Adding ProjectGroup dispersion found similar results (ΔAIC = -1.5, p = 0.054). Thus, no extra dispersion parameter will be used.
-
+#### Results indicate adding ProjectGroup massively improved model fit (ΔAIC = 234, p < 0.001). Adding reef-specific means improved model fit even more (ΔAIC = 279, p < 0.001) Thus models for each Reef were used.
 
 ### Testing to see if zero inflation varies strongly among reef
 ## Without zero inflation:
 m0 <- glmmTMB(NumLegal ~ FixedLocationID,
               ziformula = ~0,
               family = nbinom2,
-              data = QuadStatsLegal)
+              data = NumLegal_QuadStats)
 # With zero inflation:
 mzi <- glmmTMB(NumLegal ~ FixedLocationID,
                ziformula = ~1,
                family = nbinom2,
-               data = QuadStatsLegal)
+               data = NumLegal_QuadStats)
 # Compare:
 anova(m0, mzi)
-#### Results indicate adding reef-specific zero inflation did not help fit and was not significant (p = 1)
-#### Manual checking revealed that there are no zero values in NumLegal, thus zero-inflation shouldn't be necessary
+#### Results indicate adding reef-specific zero inflation massively improved model fit (ΔAIC = 44, p < 0.001).
+#### Manual checking revealed that there are zero values in NumLegal, thus zero-inflation may be necessary
 
+#######################################################
+### Model Selection per FixedLocationID (Reef)
+#######################################################
 
-
-### Historic
-# Negative binomial out performed Poisson
-NumLegal_Historic <- glmmTMB(NumLegal ~ 1,
-              family = nbinom2,
-              data = QuadStatsLegal,
-              subset = ProjectGroup == "Historic Uncultched")
-
+# 0391
+m_0391_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0391")) ### BEST
+m_0391_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0391"))
+m_0391_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0391"))
+m_0391_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0391"))
 # Check goodness of fit
-simulateResiduals(NumLegal_Historic, n = 1000, plot = T)
+AIC(m_0391_nb, m_0391_nb_zi, m_0391_po, m_0391_po_zi)
+simulateResiduals(m_0391_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-
-
-### NFWF-2021
-# Negative binomial out performed Poisson
-NumLegal_NFWF2021 <- glmmTMB(NumLegal ~ FixedLocationID,
-              family = nbinom2,
-              data = QuadStatsLegal,
-              subset = ProjectGroup == "NFWF-2021")
-
+# 0393
+m_0393_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0393")) ### BEST
+m_0393_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0393"))
+m_0393_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0393"))
+m_0393_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0393"))
 # Check goodness of fit
-simulateResiduals(NumLegal_NFWF2021, n = 1000, plot = T)
+AIC(m_0393_nb, m_0393_nb_zi, m_0393_po, m_0393_po_zi)
+simulateResiduals(m_0393_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
+# 0394
+m_0394_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0394")) ### BEST
+m_0394_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0394"))
+m_0394_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0394"))
+m_0394_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0394"))
+# Check goodness of fit
+AIC(m_0394_nb, m_0394_nb_zi, m_0394_po, m_0394_po_zi)
+simulateResiduals(m_0394_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
+# 0395
+m_0395_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0395")) 
+m_0395_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0395")) ### BEST
+m_0395_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0395"))
+m_0395_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0395"))
+# Check goodness of fit
+AIC(m_0395_nb, m_0395_nb_zi, m_0395_po, m_0395_po_zi)
+simulateResiduals(m_0395_nb_zi, n = 1000, plot = T)
+## nbinom2, zero inflation has good fit
 
+# 0397
+m_0397_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0397")) ### BEST
+m_0397_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0397"))
+m_0397_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0397"))
+m_0397_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0397"))
+# Check goodness of fit
+AIC(m_0397_nb, m_0397_nb_zi, m_0397_po, m_0397_po_zi)
+simulateResiduals(m_0397_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
+# 0398
+m_0398_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0398")) 
+m_0398_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0398")) ### BEST
+m_0398_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0398"))
+m_0398_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0398"))
+# Check goodness of fit
+AIC(m_0398_nb, m_0398_nb_zi, m_0398_po, m_0398_po_zi)
+simulateResiduals(m_0398_nb_zi, n = 1000, plot = T)
+## nbinom2, zero inflation has good fit
 
+# 0399
+m_0399_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0399")) ### BEST
+m_0399_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0399")) 
+m_0399_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0399"))
+m_0399_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0399"))
+# Check goodness of fit
+AIC(m_0399_nb, m_0399_nb_zi, m_0399_po, m_0399_po_zi)
+simulateResiduals(m_0399_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-# Look at summaries
-summary(NumLegal_Historic)
-summary(NumLegal_NFWF2021)
+# 0400
+m_0400_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0400")) 
+m_0400_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0400")) ### BEST
+m_0400_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0400"))
+m_0400_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0400"))
+# Check goodness of fit
+AIC(m_0400_nb, m_0400_nb_zi, m_0400_po, m_0400_po_zi)
+simulateResiduals(m_0400_nb_zi, n = 1000, plot = T)
+## nbinom2, zero inflation has good fit
 
+# 0501
+m_0501_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0501")) ### BEST
+m_0501_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0501")) 
+m_0501_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0501"))
+m_0501_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0501"))
+# Check goodness of fit
+AIC(m_0501_nb, m_0501_nb_zi, m_0501_po, m_0501_po_zi)
+simulateResiduals(m_0501_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-# Create dataframe to store 
-####### Put the modeled means into a data frame for plotting
-NumLegalStats_historic <- emmeans(NumLegal_Historic, ~ 1, type = "response") %>%
-  as.data.frame() %>%
-  mutate(ProjectGroup = "Historic Uncultched",
-         "1" = "0024") %>%
-  rename("FixedLocationID" = "1")
+# 0502
+m_0502_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0502")) ### BEST
+m_0502_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0502")) 
+m_0502_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0502"))
+m_0502_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0502"))
+# Check goodness of fit
+AIC(m_0502_nb, m_0502_nb_zi, m_0502_po, m_0502_po_zi)
+simulateResiduals(m_0502_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-NumLegalStats_nfwf2021 <- emmeans(NumLegal_NFWF2021, ~ FixedLocationID, type = "response") %>%
-  as.data.frame() %>%
-  mutate(ProjectGroup = "NFWF-2021")
+# 0503
+m_0503_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0503")) ### BEST
+m_0503_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0503")) 
+m_0503_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0503"))
+m_0503_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0503"))
+# Check goodness of fit
+AIC(m_0503_nb, m_0503_nb_zi, m_0503_po, m_0503_po_zi)
+simulateResiduals(m_0503_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-NumLegalStats_modeled <- bind_rows(NumLegalStats_historic, NumLegalStats_nfwf2021) %>%
-  rename(NumLegalMean_modeled = response,
-         NumLegalLower_modeled = asymp.LCL,
-         NumLegalUpper_modeled = asymp.UCL) %>%
-  mutate(NumLegalMeanDensity_modeled = NumLegalMean_modeled * 4,
-         NumLegalLowerDensity_modeled = NumLegalLower_modeled * 4,
-         NumLegalUpperDensity_modeled = NumLegalUpper_modeled * 4) %>%
-  select(-SE, -df, -ProjectGroup) %>%
-  mutate(NumLegalUpperDensity_modeled = case_when(
-    NumLegalMean_modeled <= 0 ~ 0,
-    TRUE ~ NumLegalUpperDensity_modeled
-  ))
+# 0509
+m_0509_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0509")) ### BEST
+m_0509_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0509")) 
+m_0509_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0509"))
+m_0509_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0509"))
+# Check goodness of fit
+AIC(m_0509_nb, m_0509_nb_zi, m_0509_po, m_0509_po_zi)
+simulateResiduals(m_0509_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-# Generate raw mean and SD
-NumLegalStats_RAW <- QuadStats %>%
-  filter(Year == ReportYear) %>%
-  group_by(FixedLocationID) %>%
-  group_by(ProjectGroup, FixedLocationID) %>%
-    summarise(N = sum(!is.na(Num_Legal_76_plus)),
-              NumLegal_76plus_Mean_raw = mean(Num_Legal_76_plus, na.rm = TRUE),
-              NumLegal_76_plus_SD_raw = sd(Num_Legal_76_plus, na.rm = TRUE)) %>%
-    mutate(NumLegal_76plus_DensityMean_raw = NumLegal_76plus_Mean_raw * 4,
-           NumLegal_76plus_DensitySD_raw = NumLegal_76_plus_SD_raw * 4) %>%
-  arrange(FixedLocationID) %>%
-  select(-matches("Live|Weight|Drill"))
+# 0510
+m_0510_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0510")) ### BEST
+m_0510_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0510")) 
+m_0510_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0510"))
+m_0510_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0510"))
+# Check goodness of fit
+AIC(m_0510_nb, m_0510_nb_zi, m_0510_po, m_0510_po_zi)
+simulateResiduals(m_0510_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
 
-NumLegalStats_ALL <- right_join(NumLegalStats_modeled, 
-                              NumLegalStats_RAW, 
-                              by = c("FixedLocationID")) %>%
-  left_join(FixedLocations1,
-            by = c("FixedLocationID")) %>%
-  mutate(ParcelArea = case_when( # For parcels with no Area (Historic bars) assign area as 1 acre
-    is.na(ParcelArea) ~ 1,
-    TRUE ~ ParcelArea),
-    LowerBagsPerAcre = (NumLegalLowerDensity_modeled * 4047) / 225,
-    HarvestableBags = case_when( # Only reefs with LowerBags perAcre is >= 400 are harvestable
-      LowerBagsPerAcre >= 400 ~ (LowerBagsPerAcre * ParcelArea) * 0.1,
-      TRUE ~ NA))
+# 0522
+m_0522_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0522")) ### BEST
+m_0522_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0522")) 
+m_0522_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0522"))
+m_0522_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0522"))
+# Check goodness of fit
+AIC(m_0522_nb, m_0522_nb_zi, m_0522_po, m_0522_po_zi)
+simulateResiduals(m_0522_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
+
+# 0524
+m_0524_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0524")) ### BEST
+m_0524_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0524")) 
+m_0524_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0524"))
+m_0524_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0524"))
+# Check goodness of fit
+AIC(m_0524_nb, m_0524_nb_zi, m_0524_po, m_0524_po_zi)
+simulateResiduals(m_0524_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
+
+# 0525
+m_0525_nb <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0525")) ### BEST
+m_0525_nb_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0525")) 
+m_0525_po <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0525"))
+m_0525_po_zi <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = poisson, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0525"))
+# Check goodness of fit
+AIC(m_0525_nb, m_0525_nb_zi, m_0525_po, m_0525_po_zi)
+simulateResiduals(m_0525_nb, n = 1000, plot = T)
+## nbinom2, no zero inflation has good fit
+
+rm(list = ls(pattern = "^m_0")) # remove selection models
+```
+
+``` {r NumLgal Models and Dataframes}
+# Analysis indicates that data from each FixedLocation should be modeled separately
+
+###############
+### Create models  
+###############
+
+NumLegal_0391 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0391")) ### BEST
+simulateResiduals(NumLegal_0391, n = 1000, plot = T)
+
+NumLegal_0393 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0393")) ### BEST
+simulateResiduals(NumLegal_0393, n = 1000, plot = T)
+
+NumLegal_0394 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0394")) ### BEST
+simulateResiduals(NumLegal_0394, n = 1000, plot = T)
+
+NumLegal_0395 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0395")) ### BEST
+simulateResiduals(NumLegal_0395, n = 1000, plot = T)
+
+NumLegal_0397 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0397")) ### BEST
+simulateResiduals(NumLegal_0397, n = 1000, plot = T)
+
+NumLegal_0398 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0398")) ### BEST
+simulateResiduals(NumLegal_0398, n = 1000, plot = T)
+
+NumLegal_0399 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0399")) ### BEST
+simulateResiduals(NumLegal_0399, n = 1000, plot = T)
+
+NumLegal_0400 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 1,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0400")) ### BEST
+simulateResiduals(NumLegal_0400, n = 1000, plot = T)
+
+NumLegal_0501 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0501")) ### BEST
+simulateResiduals(NumLegal_0501, n = 1000, plot = T)
+
+NumLegal_0502 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0502")) ### BEST
+simulateResiduals(NumLegal_0502, n = 1000, plot = T)
+
+NumLegal_0503 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0503")) ### BEST
+simulateResiduals(NumLegal_0503, n = 1000, plot = T)
+
+NumLegal_0509 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0509")) ### BEST
+simulateResiduals(NumLegal_0509, n = 1000, plot = T)
+
+NumLegal_0510 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0510")) ### BEST
+simulateResiduals(NumLegal_0510, n = 1000, plot = T)
+
+NumLegal_0522 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0522")) ### BEST
+simulateResiduals(NumLegal_0522, n = 1000, plot = T)
+
+NumLegal_0524 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0524")) ### BEST
+simulateResiduals(NumLegal_0524, n = 1000, plot = T)
+
+NumLegal_0525 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, ziformula = ~ 0,
+                     data = subset(NumLegal_QuadStats, FixedLocationID == "0525")) ### BEST
+simulateResiduals(NumLegal_0525, n = 1000, plot = T)
 
 
 ```
 
 
+#################
+#################
+#################
+### The following chunk needs to be based on Colin's Legal Oyster Abundance code
+#################
+#################
+#################
+
+
+
+
+### Leaving this in for using the column names and captions
 
 ``` {r NumLegalStats for Tables}
 
@@ -1115,313 +1576,6 @@ kable(NumLegalStats_TABLE_appendix,
 # # Combine into a single Table
 # NumLegal_Diagnostic_Table <- rbind(diag_NumLegal_Historic, diag_NumLegal_NFWF2021)
 # kable(NumLegal_Diagnostic_Table)
-
-```
-
-
-
-
-``` {r NumLegalStats LCL calculations A, eval = FALSE}
-### Looking at three ways to calculate the Lower Confidence level 95% for Legal densities
-
-######
-######
-######
-### A) emmeans → modeled mean per quadrat → multiply by n_quadrats
-
-# model: m (glmmTMB); reef name variable: FixedLocationID
-# choose reef(s) of interest
-
-# emm_all <- emmeans(m, ~ FixedLocationID, type = "response")
-# emm_df <- as.data.frame(emm_all)
-LCL_calcs_A <- NumLegalStats_modeled %>%
-  select(-LegalMeanDensity, -LegalLowerDensity, -LegalUpperDensity)
-
-print(LCL_calcs_A)
-######
-######
-######
-
-```
-
-```{r NumLegalStats LCL calculations B, eval = FALSE}
-### B) Colin’s explicit parametric bootstrap (draw mean, simulate NB per quadrat)
-
-#List of models we want to use for prediction and extrapolation.
-modList <- list(NumLegal_Historic, NumLegal_NFWF2021, NumLegal_NFWF2021, NumLegal_NFWF2021)
-
-#Add relevant model estimates to extrapDat. I just copied these from summary() as they are all nbinom and no zero-inflation
-extrapDat <- data.frame(LCL_calcs_A, 
-                        meanLog = c(2.6626, 3.4078, 3.1724, 3.0788), 
-                        meanLogSE = c(0.1431, 0.1069, 0.1532, 0.1540), 
-                        disp = c(4.21, 7.22, 7.22, 7.22),
-                        N = 15)
-
-
-#Final data frame called extrapDat2 is all set up for bootstrapping and to stor results
-
-extrapDat2 <- extrapDat %>% mutate(`Mean Total` = NA, `L95 Total` = NA, `U95 Total` = NA)
-
-nSims <- 1000
-#REady to bootstrap
-# had to remove nested if loops
-for (j in 1:nrow(extrapDat2)){
-  totalCount <- NULL
-  extrapolated <- NULL
-  for (i in 1:nSims){
-        extrapolated[i] <- sum(rnbinom(n = 1, 
-                                       mu = exp(rnorm(1, 
-                                                      mean = extrapDat2$meanLog[j], 
-                                                      sd = extrapDat2$meanLogSE[j])), 
-                                       size = extrapDat2$disp[j]))
-    
-     
-    totalCount <- c(totalCount, extrapolated[i])
-  }
-  extrapDat2$`Mean Total`[j] <- mean(totalCount)
-  extrapDat2$`L95 Total`[j] <- quantile(totalCount, 0.025)
-  extrapDat2$`U95 Total`[j] <- quantile(totalCount, 0.975)
-
-}
-
-print(extrapDat2)
-```
-
-``` {r NumLegalStats LCL calculations C historic, eval = FALSE}
-###C) Recommended: Model-based parametric bootstrap using simulate() (glmmTMB)
-
-# Build newdata that lists each quadrat/unit to be summed across reef
-# If you have actual quadrat rows, use them (one row per quadrat).
-# If you only know the number of quadrats per reef, create that many rows per reef.
-make_quadrat_df <- function(reef_id, n_quads) {
-  data.frame(
-    FixedLocationID = factor(rep(reef_id, n_quads)),
-    # include other covariates used in the model (Year, ProjectGroup, etc.)
-    #Year = NA,     # fill with relevant Year if model uses Year (or set to target Year)
-    stringsAsFactors = FALSE
-  )
-}
-
-# Example: create newdata for all reefs
-nd <- bind_rows(
-  make_quadrat_df("0024", 15)
-)
-
-# IMPORTANT: newdata must have all predictors used in model. If model has Year or other covariates,
-# you should fill them appropriately (e.g., Year = 2024, etc.)
-# Also ensure factor levels match model's levels.
-
-# Simulate responses:
-set.seed(14)
-nsim <- 1000
-sims <- simulate(NumLegal_Historic, nsim = nsim, newdata = nd)
-
-# sims is a list (or matrix) of simulated response vectors; each column is a replicate
-# For glmmTMB, simulate returns a list of nsim vectors.
-# Convert to matrix for aggregation:
-sims_mat <- do.call(cbind, sims)     # rows = quadrats in nd, cols = sims
-
-# Add FixedLocationID to nd for aggregation
-nd$FixedLocationID <- factor(nd$FixedLocationID, levels = levels(nd$FixedLocationID))
-
-# For each simulation replicate, sum by reef
-library(matrixStats)
-reef_ids <- unique(nd$FixedLocationID)
-mean_by_reef <- sapply(seq_len(nsim), function(i) {
-  tapply(sims_mat[, i], nd$FixedLocationID, mean)
-})
-# mean_by_reef is matrix (rows = reefs, cols = sims)
-# Convert to tidy table
-mean_by_reef_df <- data.frame(
-  simulation = seq_along(mean_by_reef),
-  FixedLocationID = names(mean_by_reef),
-  mean = as.numeric(mean_by_reef)
-)
-
-#colnames(mean_by_reef_df) <- as.character(reef_ids)  # replicate-wise columns: each col a reef? adjust orientation
-
-# Compute stats per reef:
-library(tidyr)
-# mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
-#   # rows are reefs, columns sims; we'll compute quantiles
-#   rownames_to_column("FixedLocationID") %>%
-#   pivot_longer(-FixedLocationID, names_to = "sim", values_to = "total")
-
-summary_table <- mean_by_reef_df %>%
-  group_by(FixedLocationID) %>%
-  summarize(
-    mean_total = mean(mean),
-    lcl_total = quantile(mean, 0.025),
-    ucl_total = quantile(mean, 0.975),
-    .groups = "drop"
-  )
-
-summary_table
-
-```
-
-
-``` {r NumLegalStats LCL calculations Restoration, eval = FALSE}
-###########################
-###########################
-###########################
-# Lazy version of code above, adjusted for Restoration
-###C) Recommended: Model-based parametric bootstrap using simulate() (glmmTMB)
-
-# Build newdata that lists each quadrat/unit to be summed across reef
-# If you have actual quadrat rows, use them (one row per quadrat).
-# If you only know the number of quadrats per reef, create that many rows per reef.
-make_quadrat_df <- function(reef_id, n_quads) {
-  data.frame(
-    FixedLocationID = factor(rep(reef_id, n_quads)),
-    # include other covariates used in the model (Year, ProjectGroup, etc.)
-    #Year = NA,     # fill with relevant Year if model uses Year (or set to target Year)
-    stringsAsFactors = FALSE
-  )
-}
-
-# Example: create newdata for all reefs
-nd <- bind_rows(
-  make_quadrat_df("0309", 15),
-  make_quadrat_df("0310", 15),
-  make_quadrat_df("0311", 15)
-)
-
-# IMPORTANT: newdata must have all predictors used in model. If model has Year or other covariates,
-# you should fill them appropriately (e.g., Year = 2024, etc.)
-# Also ensure factor levels match model's levels.
-
-# Simulate responses:
-set.seed(14)
-nsim <- 1000
-sims <- simulate(NumLegal_NFWF2021, nsim = nsim, newdata = nd)
-
-# sims is a list (or matrix) of simulated response vectors; each column is a replicate
-# For glmmTMB, simulate returns a list of nsim vectors.
-# Convert to matrix for aggregation:
-sims_mat <- do.call(cbind, sims)     # rows = quadrats in nd, cols = sims
-
-# Add FixedLocationID to nd for aggregation
-nd$FixedLocationID <- factor(nd$FixedLocationID, levels = levels(nd$FixedLocationID))
-
-# For each simulation replicate, sum by reef
-library(matrixStats)
-reef_ids <- unique(nd$FixedLocationID)
-mean_by_reef <- sapply(seq_len(nsim), function(i) {
-  tapply(sims_mat[, i], nd$FixedLocationID, mean)
-})
-# mean_by_reef is matrix (rows = reefs, cols = sims)
-# Convert to tidy table
-sum_by_reef_df <- as.data.frame(t(sum_by_reef))
-colnames(sum_by_reef_df) <- as.character(reef_ids)  # replicate-wise columns: each col a reef? adjust orientation
-
-
-# Compute stats per reef:
-library(tidyr)
-mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
-  # rows are reefs, columns sims; we'll compute quantiles
-  rownames_to_column("FixedLocationID") %>%
-  pivot_longer(-FixedLocationID, names_to = "sim", values_to = "mean")
-
-summary_table <- mean_by_reef_long %>%
-  group_by(FixedLocationID) %>%
-  summarize(
-    mean_total = mean(mean),
-    lcl_total = quantile(mean, 0.025),
-    ucl_total = quantile(mean, 0.975),
-    .groups = "drop"
-  )
-
-summary_table
-
-```
-
-
-
-``` {r NumLegalStats LCL calculations vC2, eval = FALSE}
-
-###############################################
-###############################################
-###############################################
-##### C v2 using chatGPT to make the above code work for multiple reefs and multiple models
-
-# 1. Store your reef IDs
-reef_ids <- c("0024", "0309", "0310", "0311")
-
-# 2. Store each model in a named list
-models <- list(
-  "0024" = NumLive_Historic,
-  "0309" = NumLegal_NFWF2021,
-  "0310" = NumLegal_NFWF2021,
-  "0311" = NumLegal_NFWF2021
-)
-
-# 3. Function to build newdata for a single reef
-make_quadrat_df <- function(reef_id, n_quads) {
-  data.frame(
-    FixedLocationID = factor(rep(reef_id, n_quads)),
-    # Include all covariates the model uses!
-    # Example (if model has Year):
-    # Year = 2024,
-    stringsAsFactors = FALSE
-  )
-}
-
-# 4. Number of simulations per reef
-nsim <- 1000
-set.seed(14)
-
-# 5. Loop over reefs and simulate
-library(dplyr)
-library(purrr)
-
-results <- map_dfr(reef_ids, function(reef) {
-
-  mod <- models[[reef]]
-  n_quads <- 15  # Insert real number of quadrats for that reef
-
-  # Build newdata for this reef
-  nd <- make_quadrat_df(reef, n_quads)
-
-  # Make sure factor levels match model
-  nd$FixedLocationID <- factor(nd$FixedLocationID,
-                               levels = mod$frame$FixedLocationID |> levels())
-
-  # Simulate
-  sims_mat <- simulate(mod, nsim = nsim, newdata = nd)
-  sims_mat <- as.matrix(sims_mat)
-
-  # Compute reef-wide means for each simulation
-  mean_by_sim <- colMeans(sims_mat)
-
-  # Return a tidy data frame
-  tibble(
-    reef_id = reef,
-    simulation = 1:nsim,
-    mean = mean_by_sim
-  )
-})
-
-
-mean_by_reef_df <- as.data.frame(results)
-
-# Compute stats per reef:
-library(tidyr)
-mean_by_reef_long <- as.data.frame(mean_by_reef) %>%
-  # rows are reefs, columns sims; we'll compute quantiles
-  rownames_to_column("FixedLocationID") %>%
-  pivot_longer(-FixedLocationID, names_to = "sim", values_to = "total")
-
-summary_table <- mean_by_reef_df %>%
-  group_by(reef_id) %>%
-  summarize(
-    mean_total = mean(mean),
-    lcl_total = quantile(mean, 0.025),
-    ucl_total = quantile(mean, 0.975),
-    .groups = "drop"
-  )
-
-summary_table
 
 ```
 

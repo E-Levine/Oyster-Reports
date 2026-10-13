@@ -40,12 +40,16 @@ summarise_ALL <- function(data) {
               NumLiveSD_raw = sd(NumLive, na.rm = TRUE),
               NumDrillsMean_raw = mean(NumDrills, na.rm = TRUE),
               NumDrillsSD_raw = sd(NumDrills, na.rm = TRUE),
+              NumLegalMean_raw = mean(NumLegal, na.rm = TRUE),
+              NumLegalSD_raw = sd(NumLegal, na.rm = TRUE),
               TotalWeightMean_raw = mean(TotalWeight, na.rm = TRUE),
               TotalWeightSD_raw = sd(TotalWeight, na.rm = TRUE)) %>%
     mutate(NumLiveDensityMean_raw = NumLiveMean_raw * 4,
            NumLiveDensitySD_raw = NumLiveSD_raw * 4,
            NumDrillDensityMean_raw = NumDrillsMean_raw * 4,
            NumDrillDensitySD_raw = NumDrillsSD_raw * 4,
+           NumLegalDensityMean_raw = NumLegalMean_raw * 4,
+           NumLegalDensitySD_raw = NumLegalSD_raw * 4,
            TotalWeightDensityMean_raw = TotalWeightMean_raw * 4,
            TotalWeightDensitySD_raw = TotalWeightSD_raw * 4)
   return(summarised_data)
