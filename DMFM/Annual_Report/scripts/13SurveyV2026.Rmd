@@ -73,7 +73,7 @@ maxSH <- max(ShellHeights_1$ShellHeight, na.rm = TRUE)
 
 
 # Prep data frame for creating SH distribution histogram for PROJECT YEAR
-ShellHeightsReportYrX <- ShellHeights_1 %>%
+ShellHeightsReportYrY <- ShellHeights_1 %>%
   filter(!is.na(ShellHeight),
   Year == ReportYear) %>%
   mutate(ShellHeightBin = cut(ShellHeight, 
@@ -99,6 +99,104 @@ maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 QuadStats2025 <- readxl::read_xlsx("C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/Annual_Report/data/QuadStats2025.xlsx")
 QuadStats <- union_all(QuadStats_, QuadStats2025)
 # Delete this chunk once 2025 data is entered, proofed, and checked
+```
+
+``` {r NFWF-2024 General Explore, eval = FALSE}
+# Exploring the NFWF-2024 General data to see if TotalWeight, NumLive, and ShellHeight data was affected by the 2026 Easthole Mortality Event.
+### 
+# Findings: TotalWeight differences were significant, but just barely, so will be treated together. NumLive differences were NOT significant, so will be treated together. ShellHeight differences were HIGHLY significant, so will not be treated together.
+###
+
+# Filter data frames for basic stats
+Qexplore <- QuadStats %>%
+  filter(ProjectGroup == "NFWF-2024 General")
+SHexplore <- ShellHeights_1 %>%
+  filter(ProjectGroup == "NFWF-2024 General")
+
+# Total Weight Summary by station name and Overall
+TWstation_summary <- Qexplore %>%
+  group_by(StationName) %>%
+  summarise(
+    meanTW   = mean(TotalWeight, na.rm = TRUE),
+    sd_TW    = sd(TotalWeight, na.rm = TRUE),
+    medianTW = median(TotalWeight, na.rm = TRUE),
+    maxTW    = max(TotalWeight, na.rm = TRUE),
+    minTW    = min(TotalWeight, na.rm = TRUE),
+    meanNL   = mean(NumLive, na.rm = TRUE),
+    sd_NL    = sd(NumLive, na.rm = TRUE),
+    medianNL = median(NumLive, na.rm = TRUE),
+    maxNL    = max(NumLive, na.rm = TRUE),
+    minNL    = min(NumLive, na.rm = TRUE))
+              
+TWoverall_summary <- Qexplore %>%
+  summarise(
+    StationName = "Overall",
+    meanTW   = mean(TotalWeight, na.rm = TRUE),
+    sd_TW    = sd(TotalWeight, na.rm = TRUE),
+    medianTW = median(TotalWeight, na.rm = TRUE),
+    maxTW    = max(TotalWeight, na.rm = TRUE),
+    minTW    = min(TotalWeight, na.rm = TRUE),
+    meanNL   = mean(NumLive, na.rm = TRUE),
+    sd_NL    = sd(NumLive, na.rm = TRUE),
+    medianNL = median(NumLive, na.rm = TRUE),
+    maxNL    = max(NumLive, na.rm = TRUE),
+    minNL    = min(NumLive, na.rm = TRUE))
+
+# Combine both summaries into one table
+TW_report <- bind_rows(TWstation_summary, TWoverall_summary)
+
+# ShellHeight Summary by station name
+SHstation_summary <- SHexplore %>%
+  group_by(StationName) %>%
+  summarise(
+    meanSH   = mean(ShellHeight, na.rm = TRUE),
+    sd_SH    = sd(ShellHeight, na.rm = TRUE),
+    medianSH = median(ShellHeight, na.rm = TRUE),
+    maxSH    = max(ShellHeight, na.rm = TRUE),
+    minSH    = min(ShellHeight, na.rm = TRUE))
+              
+SHoverall_summary <- SHexplore %>%
+  summarise(
+    StationName = "Overall",
+    meanSH   = mean(ShellHeight, na.rm = TRUE),
+    sd_SH    = sd(ShellHeight, na.rm = TRUE),
+    medianSH = median(ShellHeight, na.rm = TRUE),
+    maxSH    = max(ShellHeight, na.rm = TRUE),
+    minSH    = min(ShellHeight, na.rm = TRUE))
+
+# Combine both summaries into one table
+SH_report <- bind_rows(SHstation_summary, SHoverall_summary)
+
+# Combine both reports into a single FINAL Report & delete intermediate
+FINAL_report_NFWF2024General <- left_join(TW_report, SH_report, by = "StationName")
+rm(TWstation_summary, TWoverall_summary, TW_report, SHstation_summary, SHoverall_summary, SH_report)
+
+# Determine if Cat Point and Easthole data is statistically different
+# Total Weight
+# Check if variances are equal
+var_testTW <- var.test(TotalWeight ~ StationName, data = Qexplore)
+print(var_testTW)
+# Since variances are equal (p = 0.433), perform t-test
+t_test_equalTW <- t.test(TotalWeight ~ StationName, data = Qexplore, var.equal = TRUE)
+print(t_test_equalTW)
+# p = 0.044, which is statistically significant, but just barely, no data filtering needed
+
+# NumLive
+# Check if variances are equal
+var_testNL <- var.test(NumLive ~ StationName, data = Qexplore)
+print(var_testNL)
+# Since variances are equal (p = 0.191), perform t-test
+t_test_equalNL <- t.test(NumLive ~ StationName, data = Qexplore, var.equal = TRUE)
+print(t_test_equalNL)
+# p = 0.931, which is NOT statistically significant, no data filtering needed
+
+# Check if variances are equal
+var_testSH <- var.test(ShellHeight ~ StationName, data = SHexplore)
+print(var_testSH)
+# Since variances ARE NOT equal (p < 0.001), perform Welch's t-test, which is the safer default in R
+t_test_welchSH <- t.test(ShellHeight ~ StationName, data = SHexplore, var.equal = FALSE)
+print(t_test_welchSH)
+# p < 0.001, which is HIGHLY statistically significant, These should not be treated together
 ```
 
 
@@ -1104,7 +1202,8 @@ ShellHeightsReportYrGeneralAdjusted <- ShellHeights_1 %>%
   summarise(ProjectNumberMeasured = n()) %>%
   mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
 
-ShellHeightsReportYrX <- rbind(ShellHeightsReportYrX, ShellHeightsReportYrGeneralAdjusted) 
+ShellHeightsReportYrX <- rbind(ShellHeightsReportYrY, ShellHeightsReportYrGeneralAdjusted) %>%
+  filter(ProjectGroup != "Intertidal")
 ShellHeightsReportYrX$ProjectGroup <- factor(ShellHeightsReportYrX$ProjectGroup, 
                                              levels = ProjectGroupOrder)
 
@@ -1115,12 +1214,47 @@ SH_Distribution_ReportYr <- ggplot(ShellHeightsReportYrX, aes(x = ShellHeightBin
   scale_x_discrete(
     breaks = levels(ShellHeightsReportYrX$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrX$ShellHeightBin)), by = 3)]
   ) +
-  labs(title = paste0("Shell Height Distribution of Oysters Measured During ", ReportYear, " Survey"), 
+  labs(title = paste0("Shell Height Distribution of Subtidal Oysters Measured During ", ReportYear, " Survey"), 
        x = "Shell Height (mm)", 
        y = "Percent of Measurements Within Groups")  +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 print(SH_Distribution_ReportYr)
+
+# Intertidal by FixedLocationID
+# Prep data frame for creating SH distribution histogram for PROJECT YEAR
+# Excludes measurements from the 2026 Easthole mortality event
+ShellHeightsReportYrIntertidal <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight),
+  Year == ReportYear,
+  ProjectGroup == "Intertidal") %>%
+  mutate(ShellHeightBin = cut(ShellHeight, 
+                              breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(StationName) %>%
+  mutate(LocationTotal = n()) %>%
+  group_by(StationName, StationNumber, ShellHeightBin, LocationTotal) %>%
+  summarise(LocationNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (LocationNumberMeasured / LocationTotal) * 100) %>%
+  arrange(StationNumber) %>%
+  mutate(StationName = factor(StationName, levels = unique(StationName)))
+
+intertidal_labels <- unique(ShellHeightsReportYrIntertidal[, c("StationNumber", "StationName")])
+intertidal_labels2 <- setNames(as.character(intertidal_labels$StationName), as.character(intertidal_labels$StationNumber))
+
+SH_Distribution_ReportYr_Intertidal <- ggplot(ShellHeightsReportYrIntertidal, aes(x = ShellHeightBin, y = PercentMeasured)) +
+  geom_col() +
+  facet_wrap(~ StationNumber, ncol = 1, scales = "free_y", labeller = as_labeller(intertidal_labels2)) +
+  scale_x_discrete(
+    breaks = levels(ShellHeightsReportYrIntertidal$ShellHeightBin)[seq(1, length(levels(ShellHeightsReportYrIntertidal$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Intertidal Oysters Measured During ", ReportYear, " Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Reef Complex")  +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(SH_Distribution_ReportYr_Intertidal)
 
 ```
 
