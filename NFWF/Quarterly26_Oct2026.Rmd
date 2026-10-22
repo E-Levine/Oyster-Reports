@@ -1,0 +1,305 @@
+---
+output: 
+  word_document:
+  toc: true
+---
+
+```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
+# Set your variables
+ReportEnd <- as.Date("2026-09-30")  # Report End Date
+Database = "OysterLocalMD20261002"  # Set the local database to use
+Server = "localhost\\LOCALSQL" # Set the local Server to use
+```
+
+```{r PackageLoad, echo = FALSE, warning = FALSE, message = FALSE}
+# Load necessary R packages
+library(tidyverse) # Loads a number of very useful packages
+library(odbc) # Necessary for loading data from SQL Server
+library(DBI) # Necessary for loading data from SQL Server
+library(dbplyr) # Necessary for loading data from SQL Server
+library(lubridate) # Makes dealing with dates easier
+library(knitr) # Allows Dynamic Report generation (knit)
+library(rmarkdown) # Necessary for working with RMarkdown files
+library(ggpubr) # Increases the flexibility of ggplot2 generated plots
+library(patchwork) #Required for arranging multiple plots, more flexible
+library(scales) # Improves scales in plot labels
+library(plotrix) # needed for standard error calculations
+library(glmmTMB) # needed for modeled means
+library(DHARMa) # needed for model diagnostics
+library(performance) # needed for model diagnostics
+library(AICcmodavg) # needed for model selection
+library(emmeans) # needed to extract modeled means and CI of Fixed effects
+library(ggeffects) # needed to extract means and CI of Random effects 
+```
+
+```{r ConfigureChunks, warning=FALSE, include=FALSE}
+# Configure chunks
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.height = 10,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+
+ReportStart <- floor_date(ReportEnd %m-% months(14), unit = "month") 
+QuarterStart <- floor_date(ReportEnd %m-% months(2), unit = "month")
+Estuaries <- c("AB")
+```
+
+``` {r FUNCTIONS}
+# Create all Functions necessary for Report
+
+### Filter Functions ###
+# Survey
+FilterFunction1 <- function(data) {
+  data %>% 
+    mutate(TripDate = as.Date(substring(QuadratID, 8, 15), format = "%Y%m%d"),
+           FixedLocationID = substring(QuadratID, 19, 22),
+           Year = year(TripDate)) %>%
+    left_join(FixedLocations1, by = c("FixedLocationID")) %>%
+    mutate(TimeSinceCultched = as.numeric(interval(DateLastCultched, TripDate), "years")) %>%
+    mutate(ProjectGroup = case_when(
+      grepl("RESTORE", StationName) ~ "RESTORE-2017",
+      grepl("NFWF", StationName) & Year < 2019 ~ "NFWF-2015",
+      grepl("SBM Hotel", StationName) | grepl("SBM Bulkhead", StationName) ~ "Historic Uncultched",
+      grepl("SBM", StationName) & Year >= 2021 & TimeSinceCultched > 0 ~ "NFWF-2021",
+      grepl("NFWF21", StationName) ~ "NFWF-2021",
+      grepl("NFWF24-25", StationName) | grepl("NFWF24-26", StationName) ~ "NFWF-2024 General",
+      grepl("NFWF24", StationName) ~ "NFWF-2024 Pilot",
+      grepl("Intertidal", ParcelName) ~ "Intertidal",
+      TRUE ~ "Historic Uncultched")) 
+}
+###
+
+### Survey Functions ###
+summarise_ALL <- function(data) {
+  summarised_data <- data %>%
+    summarise(NumLiveMean_raw = mean(NumLive, na.rm = TRUE),
+              NumLiveSD_raw = sd(NumLive, na.rm = TRUE),
+              NumDrillsMean_raw = mean(NumDrills, na.rm = TRUE),
+              NumDrillsSD_raw = sd(NumDrills, na.rm = TRUE),
+              NumLegalMean_raw = mean(NumLegal, na.rm = TRUE),
+              NumLegalSD_raw = sd(NumLegal, na.rm = TRUE),
+              TotalWeightMean_raw = mean(TotalWeight, na.rm = TRUE),
+              TotalWeightSD_raw = sd(TotalWeight, na.rm = TRUE)) %>%
+    mutate(NumLiveDensityMean_raw = NumLiveMean_raw * 4,
+           NumLiveDensitySD_raw = NumLiveSD_raw * 4,
+           NumDrillDensityMean_raw = NumDrillsMean_raw * 4,
+           NumDrillDensitySD_raw = NumDrillsSD_raw * 4,
+           NumLegalDensityMean_raw = NumLegalMean_raw * 4,
+           NumLegalDensitySD_raw = NumLegalSD_raw * 4,
+           TotalWeightDensityMean_raw = TotalWeightMean_raw * 4,
+           TotalWeightDensitySD_raw = TotalWeightSD_raw * 4)
+  return(summarised_data)
+}
+
+###
+
+### Plot Functions
+  # Function to generate grouped bar plots with SD bars
+  # df is short for data frame
+generate_grouped_plot <- function(df, x_variable, x_label, y_variable, y_label, y_SD, UseColor, UseFill, title) {
+  
+  df <- df %>%
+    mutate(Upper = !!sym(y_variable) + !!sym(y_SD))
+  max_upper <- max(ungroup(df) %>%
+                     dplyr::select(Upper), na.rm = TRUE)
+  
+  plot_list <- df %>% 
+    ggplot(aes(x = factor(!!sym(x_variable), levels = unique(!!sym(x_variable))), 
+               y = !!sym(y_variable), 
+               color = !!sym(UseColor), 
+               fill = as.factor(!!sym(UseFill)))) + 
+    geom_bar(stat = "identity", 
+             position = position_dodge(width = 0.9),
+             color = "black") + 
+    geom_errorbar(aes(ymin = !!sym(y_variable), ymax = Upper), 
+                  position = position_dodge(width = 0.9), 
+                  width = 0.25, color = "black") + 
+    scale_x_discrete(x_label, expand = c(0.005, 0), 
+                     guide = guide_axis(angle = -45)) +
+    scale_y_continuous(y_label, expand = c(0, 0),
+                       limits = c(0, ceiling(max_upper * 1.05)),
+                       breaks = pretty(0:2 * ceiling(max(ungroup(df) %>% 
+                                                           dplyr::select(Upper), na.rm = TRUE) / 2))) + 
+    ggtitle(title) + 
+    BaseForm +
+    theme(legend.position = "bottom",
+          plot.title = element_text(hjust = 0, vjust = 0)) 
+  
+  return(plot_list)
+}
+
+```
+
+```{r DatabaseDownload}
+# Load Database Data
+# Connect to Local database server and pull all necessary data, then close connection 
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server", 
+                 Server = Server,
+                 Database = Database,
+                 Authentication = "ActiveDirectoryIntegrated")
+
+# Load Fixed location information
+dboFixedLocations <- tbl(con,in_schema("dbo", "FixedLocations")) %>%
+  collect() %>% 
+  filter(Estuary %in% Estuaries)
+
+# Load Survey Data
+hsdbSurveyQuadrat <- tbl(con,in_schema("hsdb", "SurveyQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+hsdbSurveySH <- tbl(con,in_schema("hsdb", "SurveySH")) %>%
+  collect() %>%
+  mutate(ShellHeight = as.integer(ShellHeight)) %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
+# Disconnect from database
+DBI::dbDisconnect(con)
+
+# Remove connection
+rm(con)
+```
+
+```{css}
+/* Sets the fonts for the RMarkdown output */
+p {
+    font-size: 8pt;
+  }
+
+p2 {
+  font-weight: bold;
+}
+
+h1 {
+  font-size: 18pt;
+  font-weight: bold;
+}
+
+h2 {
+  font-size: 14pt;
+  font-weight: bold;
+}
+
+h3 {
+  font-size: 12pt;
+  font-style: italic;
+}
+
+h4 {
+  font-size: 10pt;
+  text-indent: 5%;
+  font-weight: bold;
+}
+```
+
+``` {r Figure Formatting}
+#Base formatting for figure consistency
+BaseForm <- theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA), #Add border
+        plot.title = element_text(hjust = 0, vjust = -7, family = "serif", color = "black", size = 12), #Add plot title for section
+        axis.title = element_text(family = "serif", color = "black", size = 12), #Adjust axis title and text
+        axis.text = element_text(family = "serif", color = "black", size = 10),
+        axis.line = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.20, "cm"),
+        axis.ticks.length.y = unit(0.1, "cm"),
+        legend.position = "top", legend.justification = "right",  legend.box.spacing = unit(0.05, "line"), #Adjust legend position
+        legend.title = element_blank(), legend.key.height = unit(0.5, "line"), legend.key.width = unit(1, "lines"), #Adjust legend title and spacing
+        legend.text = element_text(family = "serif", color = "black", size = 9)) #Adjust legend text
+
+```
+
+``` {r BasicFilters}
+# Filter data frames so that only data collected for inclusion in the Report are present.
+
+### Location Data ###
+FixedLocations1 <- dboFixedLocations %>% 
+  mutate(StationNumber = as.numeric(StationNumber),
+         DateLastCultched = as.Date(DateLastCultched)) %>%
+  select(FixedLocationID,
+         Estuary,
+         StationName,
+         ParcelName,
+         StationNumber,
+         StationNameNumber,
+         DateLastCultched,
+         CultchDensity,
+         ParcelArea) %>% 
+  distinct()
+
+    ### Remove intermediate data frames
+rm(dboFixedLocations)
+
+######
+### Survey Data ###
+    ### QUADRATS ###  
+    # Survey QUADRATS #
+Quadrats_ALL <- hsdbSurveyQuadrat %>%
+  select(QuadratID,
+         NumLive,
+         NumDead,
+         NumDrills,
+         NumLegal,
+         TotalWeight,
+         Comments)  %>%
+  FilterFunction1() %>%
+  select(QuadratID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         CultchDensity,
+         Year,
+         NumLive,
+         NumDead,
+         NumDrills,
+         NumLegal,
+         TotalWeight,
+         Comments) %>%
+  filter(Year == 2026,
+         StationNumber > 500)
+    ###
+
+    ### SHELL HEIGHTS ###
+    # Survey SHELL HEIGHTS #
+ShellHeights_ALL <- hsdbSurveySH %>%
+  select(ShellHeightID, 
+         QuadratID, 
+         ShellHeight,
+         Comments) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         CultchDensity,
+         Year,
+         ShellHeight,
+         Comments) %>%
+  filter(Year == 2026,
+         StationNumber > 500)
+    ###
+
+    ### Remove intermediate data frames
+rm(hsdbSurveyQuadrat, hsdbSurveySH)
+    ###
+
+######
+ 
+```
+
+
