@@ -911,7 +911,7 @@ simulateResiduals(NumLive_NFWF_2024_nbinom2_random_p, n = 1000, plot = T)
 AIC(NumLive_NFWF_2024_nbinom2, NumLive_NFWF_2024_nbinom2_fixed, NumLive_NFWF_2024_nbinom2_random, NumLive_NFWF_2024_nbinom2_random_p)
 ## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Adding project group doesn't add anything to the fit
 
-## Modeling this data all together works well and ProjectGroup can be seperated out with the model
+## Modeling this data all together works well and ProjectGroup can be separated out with the model
 ```
 
 ``` {r NumLive Models and Dataframes}
@@ -1260,7 +1260,7 @@ print(SH_Distribution_ReportYr_Intertidal)
 
 
 ``` {r NumLegal Stats}
-## Generate raw mean and SD
+## Generate raw mean and SD; corresponds to Colin Stage A
 # Determine which stations have enough legal oysters to merit inclusion in the modeling process
 # For this we will only include stations whose raw mean density is greater than 11.1 legal oyster/m2 OR 200 bags per acre
 NumLegalStats_RAW <- QuadStats %>% # Determine raw mean per quadrat 
@@ -1276,6 +1276,7 @@ NumLegal_NoModel <- NumLegalStats_RAW %>%
   filter(NumLegalDensityMean_raw < 11.1)
 NumLegal_YesModel <- NumLegalStats_RAW %>%
   filter(NumLegalDensityMean_raw >= 11.1)
+qualifying_ids <- as.character(NumLegal_YesModel$FixedLocationID)
 
 # Create data frame containing only NumLegal data that will be modeled.
 NumLegal_QuadStats <- QuadStats %>%
@@ -1287,6 +1288,7 @@ NumLegal_QuadStats <- QuadStats %>%
 ```
 
 ``` {r NumLegal Model selection, eval = FALSE}
+# Corresponds to Colin Stage B
 # Figure out which data distribution to use
 # ALL
 hist(NumLegal_QuadStats$NumLegal)
@@ -1568,7 +1570,7 @@ rm(list = ls(pattern = "^m_0")) # remove selection models
 ```
 
 ``` {r NumLgal Models and Dataframes}
-# Analysis indicates that data from each FixedLocation should be modeled separately
+# Analysis indicates that data from each FixedLocation should be modeled separately, corresponds to Colin Stage A
 
 ###############
 ### Create models  
@@ -1638,6 +1640,18 @@ NumLegal_0525 <- glmmTMB(NumLegal ~ 1, dispformula = ~ 1, family = nbinom2, zifo
                      data = subset(NumLegal_QuadStats, FixedLocationID == "0525")) ### BEST
 simulateResiduals(NumLegal_0525, n = 1000, plot = T)
 
+###### Best-fitting models for each reef are recorded here.
+# After reviewing the AICc tables and DHARMa plots above, list the chosen model object for each reef, IN THE SAME ORDER as qualifying_ids. 
+modelList <- list(NumLegal_0391, NumLegal_0393, NumLegal_0394, NumLegal_0395, 
+                NumLegal_0397, NumLegal_0398, NumLegal_0399, NumLegal_0400, 
+                NumLegal_0501, NumLegal_0502, NumLegal_0503, NumLegal_0509, 
+                NumLegal_0510, NumLegal_0522, NumLegal_0524, NumLegal_0525)
+
+###### Per-reef quadrat counts straight from the data (used for sanity / sample sizes).
+dater_red <- NumLegal_QuadStats %>% 
+  filter(FixedLocationID %in% qualifying_ids) %>% 
+  group_by(FixedLocationID) %>% 
+  summarize(n = n())
 
 ```
 
@@ -1649,6 +1663,318 @@ simulateResiduals(NumLegal_0525, n = 1000, plot = T)
 #################
 #################
 #################
+
+``` {r Stage C Set Up}
+###### STAGE C SET-UP: pull each winning model's parameters into a table
+# Each fitted model boils down to a handful of numbers we'll reuse:
+#   - meanLog / meanLogSE : the average count on the log scale, and its uncertainty.
+#   - ziLogit / ziLogitSE : the "bare spot" probability on the logit scale, +
+#                           uncertainty (only meaningful for the zero-inflated reefs)
+#   - disp                : the negative-binomial dispersion (clumpiness); NA for Poisson
+#   - nbinom              : 1 if this reef's winner is negative binomial, else 0 (Poisson)
+#   - zi                  : 1 if this reef's winner has zero-inflation, else 0
+simDater <- data.frame(FixedLocationID = sort(unique(dater_red$FixedLocationID)), 
+                       nSamples = dater_red$n, 
+                       meanLog = NA, meanLogSE = NA, ziLogit = NA, ziLogitSE = NA, disp = NA, nbinom = NA, zi = NA) 
+
+set.seed(123)
+
+###### Populate simDater with each model's parameter values (for the validation in Stage C)
+for (i in 1:length(modelList)){
+  meanLog   <- unique(predict(modelList[[i]], type = "link",  se.fit = T)$fit)     # avg count, log scale
+  meanLogSE <- unique(predict(modelList[[i]], type = "link",  se.fit = T)$se.fit)  # its standard error
+  ziLogit   <- unique(predict(modelList[[i]], type = "zlink", se.fit = T)$fit)     # bare-spot prob, logit scale
+  ziLogitSE <- unique(predict(modelList[[i]], type = "zlink", se.fit = T)$se.fit)  # its standard error
+  # Dispersion: sigma() returns it for NB2; if NA (Poisson) fall back to the disp prediction.
+  disp      <- if_else(is.na(sigma(modelList[[i]]))==TRUE, unique(predict(modelList[[i]], type = "disp", se.fit = T)$fit), sigma(modelList[[i]]))
+  nbinom    <- if_else("nbinom2" %in% family(modelList[[i]]), 1, 0)                # NB2? 1/0
+  zi        <- if_else(modelList[[i]]$modelInfo$allForm$ziformula=="~Year"|modelList[[i]]$modelInfo$allForm$ziformula=="~1", 1, 0) # ZI present? 1/0
+  simDater[i,3:ncol(simDater)] <- c(meanLog, meanLogSE, ziLogit, ziLogitSE, disp, nbinom, zi)
+}
+
+```
+
+``` {r Stage C Validation}
+###### STAGE C VALIDATION: does the whole method actually work?
+# Before trusting the estimates, we stress-test the procedure on data where we
+# KNOW the truth. For each reef we:
+#   - Take the fitted parameters as "ground truth".
+#   - Simulate a fresh fake dataset of the same size (nSamples quadrats).
+#   - Re-fit the same model to that fake data and record its estimate.
+#   - Repeat thousands of times. If the method is good, the re-fitted estimates
+#     should cluster around the truth with little systematic offset.
+#   - We summarize the results by calculating RBias to assess systematic
+#     over/under-estimation and RRMSE to assess typical error size, both
+#     expressed as % of the truth.
+
+###### Desired number of simulation replicates per reef
+nSims <- 100
+
+###### Expand to one row per reef x simulation replicate (8 reefs x 5000 = 40,000 rows)
+simDater_exp <- simDater[rep(seq_len(nrow(simDater)), each = nSims), ] %>%
+  mutate(simRep = rep(seq_len(nSims), times = length(qualifying_ids)))
+
+###### Results container: one row per (reef, replicate); we'll fill in estimates/bias.
+resultsFile <- simDater_exp %>%
+  select(simRep, FixedLocationID, nSamples, meanLog, meanLogSE,
+         ziLogit, ziLogitSE, disp, nbinom, zi) %>%
+  mutate(trueMean = meanLog, estMean = NA_real_,
+         lwr = NA_real_, upr = NA_real_, bias = NA_real_)
+
+set.seed(123)
+
+###### Simulation loop
+###### NOTE: this fits thousands of models, so expect it to take a while to run.
+for (i in seq_len(nrow(resultsFile))) {
+  n_samp <- resultsFile$nSamples[i]
+  # Build a one-reef scratch frame (only row [1] of the parameter columns is used;
+  # they're just carried along). 'count' will hold the simulated quadrat counts.
+  simDat <- data.frame(
+    meanLog   = rep(resultsFile$meanLog[i],   n_samp),
+    meanLogSE = rep(resultsFile$meanLogSE[i], n_samp),
+    ziLogit   = rep(resultsFile$ziLogit[i],   n_samp),
+    ziLogitSE = rep(resultsFile$ziLogitSE[i], n_samp),
+    disp      = rep(resultsFile$disp[i],      n_samp),
+    nbinom    = rep(resultsFile$nbinom[i],    n_samp),
+    zi        = rep(resultsFile$zi[i],        n_samp),
+    count     = NA_real_
+  )
+  fit_result <- NULL
+
+  # Draw the "true" parameters ONCE per replicate, including their uncertainty:
+  #   sim_mu  = the average count this replicate is built around (exp of a log-scale draw)
+  #   sim_zi  = the bare-spot probability for this replicate (only if the reef has ZI)
+  sim_mu   <- exp(rnorm(1, mean = simDat$meanLog[1], sd = simDat$meanLogSE[1]))
+  sim_disp <- simDat$disp[1]
+  sim_zi   <- if (simDat$zi[1] > 0) plogis(rnorm(1, simDat$ziLogit[1], simDat$ziLogitSE[1])) else 0
+
+  # Generate the fake quadrat counts to match this reef's chosen model type,
+  # then re-fit the SAME model to them. For ZI: with probability sim_zi a quadrat
+  # is a forced "bare" zero; otherwise it's a normal count draw.
+  if (simDat$nbinom[1] == 1) {
+    if (simDat$zi[1] == 0) {
+      simDat$count <- rnbinom(n_samp, mu = sim_mu, size = sim_disp)
+      fit_result   <- try(sampFit <- glmmTMB(count ~ 1, family = nbinom2, ziformula = ~0, data = simDat), silent = TRUE)
+    } else {
+      simDat$count <- ifelse(rbinom(n_samp, 1, sim_zi) > 0, 0,
+                             rnbinom(n_samp, mu = sim_mu, size = sim_disp))
+      fit_result   <- try(sampFit <- glmmTMB(count ~ 1, family = nbinom2, ziformula = ~1, data = simDat), silent = TRUE)
+    }
+  } else {
+    if (simDat$zi[1] == 0) {
+      simDat$count <- rpois(n_samp, lambda = sim_mu)
+      fit_result   <- try(sampFit <- glmmTMB(count ~ 1, family = poisson, ziformula = ~0, data = simDat), silent = TRUE)
+    } else {
+      simDat$count <- ifelse(rbinom(n_samp, 1, sim_zi) > 0, 0,
+                             rpois(n_samp, lambda = sim_mu))
+      fit_result   <- try(sampFit <- glmmTMB(count ~ 1, family = poisson, ziformula = ~1, data = simDat), silent = TRUE)
+    }
+  }
+
+  # If the re-fit failed (rare), skip this replicate; its bias stays NA.
+  if (is.null(fit_result) || inherits(fit_result, "try-error")) {
+    next
+  }
+
+  # NEW: Check if TMB reached a true convergence problem (e.g., convergence code 1 or false convergence)
+  if (!is.null(sampFit$fit$convergence) && sampFit$fit$convergence != 0) {
+    next
+  }
+  
+  # Record the re-fitted estimate, its 95% interval, and the bias (estimate minus
+  # truth) on the actual-count scale.
+  resultsFile$estMean[i] <- fixef(sampFit)$cond[1]
+  cl_result <- try(CLs <- confint(sampFit, level = 0.95)[1, ], silent = TRUE)
+  if (!inherits(cl_result, "try-error")) {
+    resultsFile$lwr[i] <- CLs[1]
+    resultsFile$upr[i] <- CLs[2]
+  }
+  resultsFile$bias[i] <- exp(fixef(sampFit)$cond[1]) - exp(resultsFile$trueMean[i])
+
+  if (i %% 10 == 0) cat("Iteration", i, "of", nrow(resultsFile), "\n")  # progress ticker
+}
+
+###### Simulation performance summary (RRMSE and RBias)
+# Collapse the thousands of replicates per reef into two interpretable numbers:
+#   - RBias = average bias as a % of the true mean (near 0% = no systematic skew)
+#   - RRMSE = typical error size as a % of the true mean (smaller = more precise)
+EstimatedMeans <- resultsFile %>%
+  group_by(FixedLocationID) %>%
+  summarise(
+    true_mean = mean(trueMean),                # truth, log scale (constant within a reef)
+    est_mean  = mean(estMean, na.rm = TRUE),   # average re-fitted estimate, log scale
+    RBias     = mean(bias, na.rm = TRUE)        / mean(exp(trueMean), na.rm = TRUE) * 100,
+    RRMSE     = sqrt(mean(bias^2, na.rm = TRUE)) / mean(exp(trueMean), na.rm = TRUE) * 100
+  )
+
+###### Reshape for plotting: one tidy frame per metric.
+RRMSE_results <- EstimatedMeans %>%
+  pivot_longer(cols = c(RBias, RRMSE), names_to = "Metric", values_to = "Value") %>%
+  filter(Metric == "RRMSE") %>%
+  mutate(Metric = factor(Metric, levels = "RRMSE",
+                         labels = "Relative Root Mean Squared Error (% of true mean)"))
+
+RBIAS_results <- EstimatedMeans %>%
+  pivot_longer(cols = c(RBias, RRMSE), names_to = "Metric", values_to = "Value") %>%
+  filter(Metric == "RBias") %>%
+  mutate(Metric = factor(Metric, levels = "RBias",
+                         labels = "Relative Bias (% of true mean)"))
+
+# Bar chart of typical error (RRMSE) per reef. Lower bars = more reliable estimates.
+(RRMSE_plot <- ggplot(RRMSE_results, aes(x = FixedLocationID, y = Value)) +
+    geom_bar(stat = "identity", color = "black") +
+    scale_y_continuous(expand = expansion(add = c(0, 2))) +
+    theme_bw() +
+    theme(panel.grid.major.y = element_line(color = "grey90"),
+          panel.grid.minor.y = element_line(color = "grey90", linetype = "dashed"),
+          axis.text = element_text(color = "black"),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(x = NULL, y = "RRMSE (%)") +
+    facet_grid(~Metric))
+
+# Bar chart of systematic skew (RBias) per reef. Bars near zero = unbiased.
+(RBIAS_plot <- ggplot(RBIAS_results, aes(x = FixedLocationID, y = Value)) +
+    geom_bar(stat = "identity", color = "black") +
+    scale_y_continuous(expand = expansion(add = c(0.5, 0.1))) +
+    theme_bw() +
+    theme(panel.grid.major.y = element_line(color = "grey90"),
+          panel.grid.minor.y = element_line(color = "grey90", linetype = "dashed"),
+          axis.text = element_text(color = "black"),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(x = NULL, y = "Relative Bias (%)") +
+    facet_grid(~Metric))
+
+
+
+```
+
+``` {r Stage D Extrapolation}
+################################################################################
+##  EXTRAPOLATION
+################################################################################
+
+###### STAGE D SET-UP: reef areas and how many quadrats tile a whole reef
+#   - acres -> square meters (1 acre = 4046.86 m^2).
+#   - qm2 = number of 0.25 m^2 quadrats it would take to tile the whole reef
+#     ( = m2 * 4, since there are four 0.25 m^2 quadrats per square meter ).
+#   - That qm2 is the "scale-up factor" we use to go from one quadrat to the reef.
+areas <- FixedLocations1 %>%
+  filter(FixedLocationID %in% qualifying_ids) %>%
+  mutate(m2   = ParcelArea * 4046.86,
+         qm2  = round(m2 * 4, 0)) %>%
+  select(-Estuary,-SectionName,-DateLastCultched,-StationNameNumber)
+
+###### Build the table the extrapolation bootstrap will fill in, and load parameters.
+extrapDat <- data.frame(areas, meanLog = NA, meanLogSE = NA, ziLogit = NA, ziLogitSE = NA, disp = NA, nbinom = NA, zi = NA)
+
+###### Loop through models and populate extrapDat with the same parameters as before
+for (i in 1:length(modelList)){
+  meanLog   <- unique(predict(modelList[[i]], type = "link",  se.fit = T)$fit)
+  meanLogSE <- unique(predict(modelList[[i]], type = "link",  se.fit = T)$se.fit)
+  ziLogit   <- unique(predict(modelList[[i]], type = "zlink", se.fit = T)$fit)
+  ziLogitSE <- unique(predict(modelList[[i]], type = "zlink", se.fit = T)$se.fit)
+  disp      <- if_else(is.na(sigma(modelList[[i]]))==TRUE, unique(predict(modelList[[i]], type = "disp", se.fit = T)$fit), sigma(modelList[[i]]))
+  nbinom    <- if_else("nbinom2" %in% family(modelList[[i]]), 1, 0)
+  zi        <- if_else(modelList[[i]]$modelInfo$allForm$ziformula=="~Year"|modelList[[i]]$modelInfo$allForm$ziformula=="~1", 1, 0)
+  extrapDat[i,8:ncol(extrapDat)] <- c(meanLog, meanLogSE, ziLogit, ziLogitSE, disp, nbinom, zi)
+}
+
+###### STAGE D: EXTRAPOLATE each reef to its full acreage (parametric bootstrap)
+# Goal: a whole-reef total with a 95% range. We simulate each reef nSims times.
+#
+# THE SHORTCUT THAT MAKES THIS FAST AND EXACT: Instead of simulating every one of
+# (e.g.) hundreds of thousands of quadrats and adding them up, we use a math
+# identity:
+#       sum of n independent Poisson(mu)   = Poisson(n * mu)
+#       sum of n independent NB(mu, theta) = NB(n * mu, n * theta)
+# So one scaled draw == summing n individual draws, but instantly. For
+# zero-inflated reefs we first decide how many quadrats are NOT bare,
+#       n_active ~ Binomial(n_quad, 1 - bare_prob),
+# then take a single scaled draw over just those active quadrats.
+#
+# Per replicate we also re-draw the model's parameters (sim_mu, and the bare-spot
+# probability) so the final interval reflects model uncertainty, not just
+# sampling randomness.
+extrapDat2 <- extrapDat %>%
+  mutate(mean_total_oysters = NA_real_,
+         lcl95_total_oysters = NA_real_,
+         ucl95_total_oysters = NA_real_)
+
+for (j in seq_len(nrow(extrapDat2))) {
+  totalCount <- numeric(nSims)
+  n_quad     <- extrapDat2$qm2[j]                  # quadrats needed to tile this reef
+  for (i in seq_len(nSims)) {
+    sim_mu <- exp(rnorm(1, mean = extrapDat2$meanLog[j], sd = extrapDat2$meanLogSE[j]))  # avg/quadrat this rep
+    sim_zi <- plogis(rnorm(1, extrapDat2$ziLogit[j], extrapDat2$ziLogitSE[j]))           # bare-spot prob this rep
+    n_active <- if (extrapDat2$zi[j] == 1) rbinom(1, n_quad, 1 - sim_zi) else n_quad      # non-bare quadrats
+    if (n_active == 0) {
+      totalCount[i] <- 0
+    } else if (extrapDat2$nbinom[j] == 1) {
+      totalCount[i] <- rnbinom(1, mu = n_active * sim_mu, size = n_active * extrapDat2$disp[j])  # NB2, scaled
+    } else {
+      totalCount[i] <- rpois(1, lambda = n_active * sim_mu)                                       # Poisson, scaled
+    }
+  }
+  extrapDat2$mean_total_oysters[j]  <- mean(totalCount)              # point estimate = average sim total
+  extrapDat2$lcl95_total_oysters[j] <- quantile(totalCount, 0.025)   # lower 95% bound
+  extrapDat2$ucl95_total_oysters[j] <- quantile(totalCount, 0.975)   # upper 95% bound
+}
+
+
+
+
+################################################################################
+##  DENSITY SUMMARY
+################################################################################
+#   - Side-by-side of the simple raw density and the modeled (bootstrap) density,
+#     with the modeled 95% bounds.
+#   - All modeled densities come from the bootstrap totals divided by reef area,
+#     so the point estimate and its interval are on the same footing (no mixing
+#     of methods).
+#   - Raw density: quadrat mean / 0.25 converts a per-0.25-m^2 count to per-m^2.
+table1 <- extrapDat2 %>%
+  left_join(NumLegal_YesModel, by = "FixedLocationID") %>%
+  transmute(
+    Fixed_Location_ID                       = FixedLocationID,
+    Station_Name                            = ParcelName,
+    Reef_Acreage                            = round(ParcelArea, 2),
+    Modeled_Mean_Density_oysters_per_m2     = round(mean_total_oysters  / m2, 2),  # bootstrap mean / area
+    Modeled_LCL95_oysters_per_m2            = round(lcl95_total_oysters / m2, 2),  # lower bound / area
+    Modeled_UCL95_oysters_per_m2            = round(ucl95_total_oysters / m2, 2)   # upper bound / area
+  )
+
+kable(table1, title = "Summary of raw data and model predictions", subtitle = "Summarized mean (1) raw oyster density (±SD) and (2) model-estimated oyster density (±95% CLs) per square meter")
+
+################################################################################
+##  HARVEST DECISIONS
+################################################################################
+# Management-facing table, deliberately built on the LOWER 95% bound (LCL) of
+# each reef's total so the harvest call errs on the conservative side.
+#   - m2 density = total oysters spread over each reef's square meters
+#   - One bag = 225 oysters
+#   - Harvestable bags = 10% of the bag count
+table2 <- extrapDat2 %>%
+  transmute(
+    Fixed_Location_ID                          = FixedLocationID,
+    Station_Name                               = ParcelName,
+    Reef_Acreage                               = round(ParcelArea, 2),
+    Bootstrapped_Oysters_per_m2_LCL95          = round(lcl95_total_oysters / m2, 2),
+    Bootstrapped_Bags_per_acre_LCL95           = round((lcl95_total_oysters / 225) / ParcelArea, 0),
+    Bootstrapped_Harvestable_Bags_LCL95        = round((lcl95_total_oysters / 225) * 0.10, 0)
+  )
+
+# In the Quarto doc this table was rendered with gt() (chunk option echo=FALSE).
+kable(table2) 
+
+
+
+
+```
+
+
+
+
+
 
 
 
