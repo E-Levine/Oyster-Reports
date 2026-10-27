@@ -1655,13 +1655,8 @@ dater_red <- NumLegal_QuadStats %>%
 
 ```
 
-
 #################
-#################
-#################
-### The following chunk needs to be based on Colin's Legal Oyster Abundance code
-#################
-#################
+### The following chunks are based on Colin's Legal Oyster Abundance code
 #################
 
 ``` {r Stage C Set Up}
@@ -1920,9 +1915,7 @@ for (j in seq_len(nrow(extrapDat2))) {
   extrapDat2$ucl95_total_oysters[j] <- quantile(totalCount, 0.975)   # upper 95% bound
 }
 
-
-
-
+### Following tables match with Colin's output, but won't be used in the report
 ################################################################################
 ##  DENSITY SUMMARY
 ################################################################################
@@ -1966,59 +1959,52 @@ table2 <- extrapDat2 %>%
 # In the Quarto doc this table was rendered with gt() (chunk option echo=FALSE).
 kable(table2) 
 
-
-
-
 ```
-
-
-
-
-
-
-
-
 
 ### Leaving this in for using the column names and captions
 
 ``` {r NumLegalStats for Tables}
 
 # Summary Table for Report
-NumLegalStats_TABLE <- NumLegalStats_ALL %>%
-  filter(!is.na(NumLegalMean_modeled)) %>%
-  select(FixedLocationID, 
-         ProjectGroup,
+NumLegalStats_TABLE <- extrapDat2 %>%
+  ungroup() %>%
+  mutate(NumLegalLowerDensity_modeled = round(lcl95_total_oysters / m2, 2),
+         LowerBagsPerAcre = as.numeric(round((lcl95_total_oysters / 225) / ParcelArea, 0)), # Calculated from LCL 
+         HarvestableBags0 = round((lcl95_total_oysters / 225) * 0.10, 0)) %>% # Estimated Harvestable Bags (10% of Total bags)
+  mutate(HarvestableBags = case_when(
+    is.na(LowerBagsPerAcre) ~ NA_character_, 
+    LowerBagsPerAcre < 400 ~ "NA<sup>1</sup>",
+    StationNumber == 398 ~ "NA<sup>2</sup>",
+    StationNumber == 399 ~ "NA<sup>2</sup>",
+    StationNumber > 500 ~ "NA<sup>3</sup>",
+    .default = as.character(HarvestableBags0))) %>%
+  arrange(StationNumber) %>%
+  select(FixedLocationID,
          StationNumber,
-         StationNameNumber,
+         ParcelName,
          ParcelArea,
          NumLegalLowerDensity_modeled,
-         LowerBagsPerAcre, # Calculated from LCL 
-         HarvestableBags) %>% # Estimated Harvestable Bags (10% of Total bags)
-  arrange(ProjectGroup,
-          StationNumber) %>%
-  select(-StationNumber)
+         LowerBagsPerAcre,  
+         HarvestableBags)
 
 kable(NumLegalStats_TABLE,
       digits = 1,
+      escape = FALSE,
       col.names = c("FixedLocationID", "Project", "Station Name", "Reef Acreage",
       "Modeled Mean Density (LCL 95%)", "Estimated Bags per Acre (LCL 95%)", "Estimated Harvestable Bags (LCL 95%)"),
-      caption = "Modeled Mean Densities of legal-sized oysters (≥76 mm shell height) on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. LCL = Lower Confidence Limit. NA indicates reef densities do not meet the required 400 bags per acre threshold for harvest. Reefs with a raw mean density at or below 8 legal-size oysters/m² (144 bags/acre) were not modeled. Raw and modeled mean densities for all reefs sampled available in Appendix A. ")
+      caption = "Modeled Mean Densities of legal-sized oysters (≥76 mm shell height) on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. LCL = Lower Confidence Limit. NA indicates 1) reef densities do not meet the required 400 bags per acre threshold for harvest, or 2) reefs are outside water approved for harvest, or 3) reefs have been cultched too recently to allow harvest. Reefs with a raw mean density at or below 11.1 legal-size oysters/m² (200 bags/acre) were not modeled. Raw and modeled mean densities for all reefs sampled available in Appendix A. ")
 
 # Summary Table for the Appendix
-NumLegalStats_TABLE_appendix <- NumLegalStats_ALL %>%
+NumLegalStats_TABLE_appendix <- left_join(NumLegalStats_RAW, NumLegalStats_TABLE, by = "FixedLocationID") %>%
   select(FixedLocationID, 
-         ProjectGroup,
-         N,
+         N, #
          StationNumber,
-         StationNameNumber,
-         ParcelArea,
-         NumLegal_76plus_DensityMean_raw,
-         NumLegal_76plus_DensitySD_raw,
-         NumLegalMeanDensity_modeled,
-         NumLegalLowerDensity_modeled,
-         NumLegalUpperDensity_modeled) %>%
-  arrange(ProjectGroup,
-          StationNumber) %>%
+         StationNameNumber, #
+         ParcelArea, #
+         NumLegalDensityMean_raw,
+         NumLegalDensitySD_raw,
+         NumLegalLowerDensity_modeled, %>% 
+  arrange(StationNumber) %>%
   select(-StationNumber)
   
 kable(NumLegalStats_TABLE_appendix,
@@ -2026,7 +2012,7 @@ kable(NumLegalStats_TABLE_appendix,
       col.names = c("FixedLocationID", "Project", "N", "Station Name", "Reef Acreage",
       "Raw Mean Density (Legal)", "Raw SD (Legal)",
       "Modeled Mean Density (Legal)", "LCL 95% (Legal)", "UCL 95% (Legal)"),
-      caption = "Raw and Modeled Mean Densities of Legal-sized oysters on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. N = Number of quadrats collected, SD = Standard deviation. LCL = Lower confidence limit. UCL = Upper confidence limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 8 per square meter were not modeled. ")
+      caption = "Raw and Modeled Mean Densities of Legal-sized oysters on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. N = Number of quadrats collected, SD = Standard deviation. LCL = Lower confidence limit. UCL = Upper confidence limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 11.1 per square meter were not modeled. ")
 
 # I may leave this out since r2() does not support models of class `glmmTMB` without random effects and from nbinom2-family with log-link-function.
 # # Diagnostic Table for the Appendix
