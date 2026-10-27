@@ -302,4 +302,505 @@ rm(hsdbSurveyQuadrat, hsdbSurveySH)
  
 ```
 
+``` {r BasicStats}
+### Set Project Group order to display
+ProjectGroupOrder <- c("NFWF-2024", "NFWF-2024 Pilot", "NFWF-2024 General", "NFWF-2024 General Adjusted",
+                       "Pilot HIGH", "Pilot LOW", "General", "General Adjusted")
+QuadStats <- Quadrats_ALL %>%
+  # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
+  filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1"))
+ShellHeights_1 <- ShellHeights_ALL %>%
+  # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
+  filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1")) 
 
+# Prep data frame for creating SH distribution histogram 
+ShellHeights_2 <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight)) %>%
+  mutate(Treatment = case_when(
+      StationNumber == 525 ~ "NFWF-2024-Cat-Point",
+      StationNumber == 526 ~ "NFWF-2024-Easthole",
+      CultchDensity == 1600 ~ "Low-Relief",
+      CultchDensity == 3200 ~ "High-Relief",
+      TRUE ~ "ERROR")) %>%
+  mutate(ShellHeightBin = cut(ShellHeight, 
+                              breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
+                              right = TRUE,
+                              include.lowest = TRUE)) %>% # puts measures in 5 mm bins
+  group_by(Treatment) %>%
+  mutate(ProjectTotal = n()) %>%
+  group_by(Treatment, ShellHeightBin, ProjectTotal) %>%
+  summarise(ProjectNumberMeasured = n()) %>%
+  mutate(PercentMeasured = (ProjectNumberMeasured / ProjectTotal) * 100)
+
+# Determine number of oysters measured during ReportYear
+ShellHeightsReportYr <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight)) 
+# Determine size of largest oyster measure during ReportYear 
+maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
+
+```
+
+``` {r NFWF-2024 General Explore, eval = FALSE}
+# Exploring the NFWF-2024 General data to see if TotalWeight, NumLive, and ShellHeight data was affected by the 2026 Easthole Mortality Event.
+### 
+# Findings: TotalWeight differences were significant, but just barely, so will be treated together. NumLive differences were NOT significant, so will be treated together. ShellHeight differences were HIGHLY significant, so will not be treated together.
+###
+
+# Filter data frames for basic stats
+Qexplore <- QuadStats %>%
+  filter(ProjectGroup == "NFWF-2024 General")
+SHexplore <- ShellHeights_1 %>%
+  filter(ProjectGroup == "NFWF-2024 General")
+
+# Total Weight Summary by station name and Overall
+TWstation_summary <- Qexplore %>%
+  group_by(StationName) %>%
+  summarise(
+    meanTW   = mean(TotalWeight, na.rm = TRUE),
+    sd_TW    = sd(TotalWeight, na.rm = TRUE),
+    medianTW = median(TotalWeight, na.rm = TRUE),
+    maxTW    = max(TotalWeight, na.rm = TRUE),
+    minTW    = min(TotalWeight, na.rm = TRUE),
+    meanNL   = mean(NumLive, na.rm = TRUE),
+    sd_NL    = sd(NumLive, na.rm = TRUE),
+    medianNL = median(NumLive, na.rm = TRUE),
+    maxNL    = max(NumLive, na.rm = TRUE),
+    minNL    = min(NumLive, na.rm = TRUE))
+              
+TWoverall_summary <- Qexplore %>%
+  summarise(
+    StationName = "Overall",
+    meanTW   = mean(TotalWeight, na.rm = TRUE),
+    sd_TW    = sd(TotalWeight, na.rm = TRUE),
+    medianTW = median(TotalWeight, na.rm = TRUE),
+    maxTW    = max(TotalWeight, na.rm = TRUE),
+    minTW    = min(TotalWeight, na.rm = TRUE),
+    meanNL   = mean(NumLive, na.rm = TRUE),
+    sd_NL    = sd(NumLive, na.rm = TRUE),
+    medianNL = median(NumLive, na.rm = TRUE),
+    maxNL    = max(NumLive, na.rm = TRUE),
+    minNL    = min(NumLive, na.rm = TRUE))
+
+# Combine both summaries into one table
+TW_report <- bind_rows(TWstation_summary, TWoverall_summary)
+
+# ShellHeight Summary by station name
+SHstation_summary <- SHexplore %>%
+  group_by(StationName) %>%
+  summarise(
+    meanSH   = mean(ShellHeight, na.rm = TRUE),
+    sd_SH    = sd(ShellHeight, na.rm = TRUE),
+    medianSH = median(ShellHeight, na.rm = TRUE),
+    maxSH    = max(ShellHeight, na.rm = TRUE),
+    minSH    = min(ShellHeight, na.rm = TRUE))
+              
+SHoverall_summary <- SHexplore %>%
+  summarise(
+    StationName = "Overall",
+    meanSH   = mean(ShellHeight, na.rm = TRUE),
+    sd_SH    = sd(ShellHeight, na.rm = TRUE),
+    medianSH = median(ShellHeight, na.rm = TRUE),
+    maxSH    = max(ShellHeight, na.rm = TRUE),
+    minSH    = min(ShellHeight, na.rm = TRUE))
+
+# Combine both summaries into one table
+SH_report <- bind_rows(SHstation_summary, SHoverall_summary)
+
+# Combine both reports into a single FINAL Report & delete intermediate
+FINAL_report_NFWF2024General <- left_join(TW_report, SH_report, by = "StationName")
+rm(TWstation_summary, TWoverall_summary, TW_report, SHstation_summary, SHoverall_summary, SH_report)
+
+# Determine if Cat Point and Easthole data is statistically different
+# Total Weight
+# Check if variances are equal
+var_testTW <- var.test(TotalWeight ~ StationName, data = Qexplore)
+print(var_testTW)
+# Since variances are equal (p = 0.433), perform t-test
+t_test_equalTW <- t.test(TotalWeight ~ StationName, data = Qexplore, var.equal = TRUE)
+print(t_test_equalTW)
+# p = 0.044, which is statistically significant, but just barely, no data filtering needed
+
+# NumLive
+# Check if variances are equal
+var_testNL <- var.test(NumLive ~ StationName, data = Qexplore)
+print(var_testNL)
+# Since variances are equal (p = 0.191), perform t-test
+t_test_equalNL <- t.test(NumLive ~ StationName, data = Qexplore, var.equal = TRUE)
+print(t_test_equalNL)
+# p = 0.931, which is NOT statistically significant, no data filtering needed
+
+# Check if variances are equal
+var_testSH <- var.test(ShellHeight ~ StationName, data = SHexplore)
+print(var_testSH)
+# Since variances ARE NOT equal (p < 0.001), perform Welch's t-test, which is the safer default in R
+t_test_welchSH <- t.test(ShellHeight ~ StationName, data = SHexplore, var.equal = FALSE)
+print(t_test_welchSH)
+# p < 0.001, which is HIGHLY statistically significant, These should not be treated together
+```
+
+``` {r TotalWeight Model selection, eval = FALSE}
+# Figure out which data distribution to use
+# ALL
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$TotalWeight) 
+# normal, range 0 - 30, strong peak at 12; 
+
+# NFWF-2024 General
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$TotalWeight) 
+# normal, range 5 - 20, strong peak at 14; 
+
+# NFWF-2024 Pilot
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$TotalWeight) 
+# normal, range 0 - 30, peak at 12
+
+# Pilot HIGH
+hist(subset(QuadStats, CultchDensity == 3200)$TotalWeight)
+# normal, range 5 - 30, peak at 12
+
+# Pilot LOW
+hist(subset(QuadStats, CultchDensity == 1600)$TotalWeight)
+# normal, range 0 - 30, peak at 12
+
+#############
+##### Distributions, ranges, and peaks are all the same. OK to model together
+#############
+
+### NFWF-2024 ALL Model ###
+## Choose distribution family
+TotalWeight_NFWF_2024_gamma <- glmmTMB(TotalWeight ~ 1, 
+                      family = Gamma(link = "log"), 
+                      data = QuadStats)
+TotalWeight_NFWF_2024_gaussian <- glmmTMB(TotalWeight ~ 1, 
+                      family = gaussian(link = "identity"), 
+                      data = QuadStats)
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF_2024_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_2024_gamma, TotalWeight_NFWF_2024_gaussian)
+## Gamma has good fit and AIC
+
+## Add effects
+TotalWeight_NFWF_2024_gamma_CD <- glmmTMB(TotalWeight ~ CultchDensity, 
+                      family = Gamma(link = "log"), 
+                      data = QuadStats)
+TotalWeight_NFWF_2024_gamma_CDfactor <- glmmTMB(TotalWeight ~ factor(CultchDensity), 
+                      family = Gamma(link = "log"), 
+                      data = QuadStats)
+TotalWeight_NFWF_2024_gamma_CD_random <- glmmTMB(TotalWeight ~ CultchDensity + (1 | FixedLocationID), 
+                      family = Gamma(link = "log"), 
+                      data = QuadStats)
+TotalWeight_NFWF_2024_gamma_CDfactor_random <- glmmTMB(TotalWeight ~ factor(CultchDensity) + (1 | FixedLocationID), # BEST
+                      family = Gamma(link = "log"), 
+                      data = QuadStats)
+# Check goodness of fit
+simulateResiduals(TotalWeight_NFWF_2024_gamma_CD, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gamma_CDfactor, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gamma_CD_random, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_2024_gamma_CDfactor_random, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_2024_gamma_CD, TotalWeight_NFWF_2024_gamma_CDfactor, TotalWeight_NFWF_2024_gamma_CD_random, TotalWeight_NFWF_2024_gamma_CDfactor_random)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Treating CultchDensity as a factor improves fit
+
+# post-hoc test
+# 1. Get estimated marginal means (on the original response scale)
+em_cultch <- emmeans(TotalWeight_NFWF_2024, ~ factor(CultchDensity), type = "response")
+
+# 2. Perform pairwise comparisons with a Tukey adjustment
+pairwise_comparisons <- pairs(em_cultch, adjust = "tukey")
+
+# View the results
+print(em_cultch)
+print(pairwise_comparisons)
+
+# Convert comparisons to a dataframe and display
+pairwise_comparisons %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of Substrate Density Across Different Treatments")
+
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed no statistically significant differences in total oyster weight among any of the tested cultch densities (all p > 0.05). The highest estimated average weight occurred at a cultch density of 1,600 (Mean = 16.3 ± 1.47), followed by 3,200 (Mean = 14.6 ± 1.31) and 800 (Mean = 12.5 ± 1.52). While oysters at a density of 1,600 were approximately 12.2% heavier than those at a density of 3,200 (Ratio = 1.122), this difference was not statistically significant (p = 0.639), suggesting that increasing cultch density beyond 1,600 yields no additional weight accumulation benefit."
+
+```
+
+``` {r TotalWeight Models and Dataframes}
+###############
+### Create model
+###############
+
+### NFWF-2024 ALL Model ###
+TotalWeight_NFWF_2024 <- glmmTMB(TotalWeight ~ factor(CultchDensity) + (1 | FixedLocationID), # BEST
+                      family = Gamma(link = "log"), 
+                      data = QuadStats)
+# Check goodness of fit & summary
+simulateResiduals(TotalWeight_NFWF_2024, n = 1000, plot = T)
+summary(TotalWeight_NFWF_2024)
+
+
+###############
+### Create dataframes to store values for plots and tables 
+###############
+
+# Generate Modeled Means, CI, and SE
+# emmeans needed to extract values of Random effects
+TotalWeightStats_Subtidal_modeled <- emmeans(TotalWeight_NFWF_2024, ~ CultchDensity, type = "response") %>%
+  as.data.frame() %>%
+  rename(TotalWeightMean_modeled = response,
+         TotalWeightLower_modeled = asymp.LCL,
+         TotalWeightUpper_modeled = asymp.UCL) %>%
+  mutate(TotalWeightMeanDensity_modeled = round((TotalWeightMean_modeled * 4), 1),
+         TotalWeightLowerDensity_modeled = round((TotalWeightLower_modeled * 4), 1),
+         TotalWeightUpperDensity_modeled = round((TotalWeightUpper_modeled * 4), 1)) %>%
+  select(-df) %>%
+  mutate(TotalWeightUpperDensity_modeled = case_when(
+    TotalWeightMean_modeled <= 0 ~ 0,
+    TRUE ~ TotalWeightUpperDensity_modeled))
+
+# Generate raw mean and SD
+TotalWeightStats_Subtidal_RAW <- QuadStats %>%
+  group_by(CultchDensity) %>%
+  summarise_ALL() %>%
+  arrange(CultchDensity) %>%
+  select(-matches("Num"))
+
+# Combine into single table and remove intermediate dataframes
+TotalWeightStats_Subtidal_ALL <- left_join(TotalWeightStats_Subtidal_modeled, 
+                              TotalWeightStats_Subtidal_RAW, 
+                              by = c("CultchDensity")) 
+
+
+
+```
+
+``` {r TotalWeight Figures and Tables}
+### SUBTIDAL ###
+# By Project Group. For this report we will only show the current year
+TotalWeightStats_FIGURE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
+  ggplot(aes(x = fct_inorder(as.factor(ProjectGroup)), 
+             y = TotalWeightMeanDensity_modeled)) + 
+      geom_bar(stat = "identity", 
+               position = position_dodge(width = 0.9)) +
+    geom_errorbar(aes(ymin = TotalWeightLowerDensity_modeled, 
+                      ymax = TotalWeightUpperDensity_modeled),
+                      width = 0.3, 
+                      position = position_dodge(width = 0.9)) + # Add error bars
+      scale_x_discrete("Project Group", 
+                       expand = c(0.05, 0), 
+                       guide = guide_axis(angle = -45)) +
+      scale_y_continuous("Mean Sample Weight Density (kg / m2)", 
+                         expand = c(0, 0),
+                         limits = c(0, ceiling(max(TotalWeightStats_Subtidal_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE)) * 1.05),
+                         breaks = pretty_breaks(n = 6)(c(0, ceiling(max(TotalWeightStats_Subtidal_ALL$TotalWeightUpperDensity_modeled, na.rm = TRUE))))) + 
+      ggtitle("Modeled Mean Sample Weight Density by Project Group in 2026") + 
+      BaseForm +
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0, vjust = 0)) 
+
+print(TotalWeightStats_FIGURE_Subtidal)
+
+
+##### Summary Tables for the Appendix
+
+
+### SUBTIDAL
+TotalWeightStats_TABLE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
+  select(CultchDensity,
+         TotalWeightDensityMean_raw,
+         TotalWeightDensitySD_raw,
+         TotalWeightMeanDensity_modeled,
+         TotalWeightLowerDensity_modeled,
+         TotalWeightUpperDensity_modeled) 
+
+kable(TotalWeightStats_TABLE_Subtidal,
+      digits = 1,
+      col.names = c("Project Group",  
+      "Raw Mean Density", "Raw SD",
+      "Modeled Mean Density", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Substrate Densities on NFWF-2024 reefs in 2026. Density is expressed in kilograms per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+
+
+```
+
+
+
+``` {r NumLive Model selection, eval = FALSE}
+# Figure out which data distribution to use
+# ALL
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$NumLive) 
+# nbinom, range 0 - 1000, strong peak at 100; 
+
+# NFWF-2024 General
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$NumLive) 
+# normal, range 50 - 300, strong peak at 175; 
+
+# NFWF-2024 Pilot
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$NumLive) 
+# nbinom, range 0 - 1000, strong peak at 250;
+
+# Pilot HIGH
+hist(subset(QuadStats, CultchDensity == 3200)$NumLive)
+# nbinom, range 150 - 1000, strong peak at 250;
+
+# Pilot LOW
+hist(subset(QuadStats, CultchDensity == 1600)$NumLive)
+# normal, range 0 - 1000, peak at 400
+
+#############
+##### a variety of distributions, though not strong. Ranges (except General), and peaks are all the same. More info needed to justify modeling together
+#############
+
+### Testing pooled vs. cultch density-specific means
+# Model A (pooled)
+m_pooled <- glmmTMB(NumLive ~ 1,
+                    family = nbinom2,
+                    data = QuadStats)
+simulateResiduals(m_pooled, n = 1000, plot = T)
+# Model B (reef-specific means)
+m_CD_Specific <- glmmTMB(NumLive ~ factor(CultchDensity),
+                     family = nbinom2,
+                     data = QuadStats)
+simulateResiduals(m_CD_Specific, n = 1000, plot = T)
+# Model C (ProjectGroup-specific means)
+m_Project_Specific <- glmmTMB(NumLive ~ ProjectGroup,
+                     family = nbinom2,
+                     data = QuadStats)
+simulateResiduals(m_Project_Specific, n = 1000, plot = T)
+# Model D Additive Control
+m_combined <- glmmTMB(NumLive ~ factor(CultchDensity) + ProjectGroup,
+                       family = nbinom2,
+                       data = QuadStats)
+simulateResiduals(m_combined, n = 1000, plot = T)
+# Model E
+m_CD_weighted <- glmmTMB(NumLive ~ factor(CultchDensity),
+                          dispformula = ~ factor(CultchDensity), # Solves the Levene test variance shift
+                          family = nbinom2,
+                          data = QuadStats)
+simulateResiduals(m_CD_weighted, n = 1000, plot = T)
+
+# Compared 
+anova(m_pooled, m_CD_Specific, m_Project_Specific, m_combined, m_CD_weighted)
+#### "Initial diagnostic plots revealed significant heteroscedasticity across groups (Levene's Test, p < 0.05). To account for this, we updated our negative binomial generalized linear model (m_CD_weighted) to explicitly model the dispersion parameter as a function of cultch density (dispformula = ~ factor(CultchDensity)). A likelihood ratio test confirmed this significantly improved overall model fit (\(\chi ^{2}\) = 18.52, df = 2, p < 0.001), successfully resolving the variance heterogeneity (Levene's Test, p > 0.05) and yielding the most parsimonious model with the lowest overall information criteria (AIC = 1415.2)."
+
+summary(m_CD_weighted)
+
+# post-hoc test
+# 1. Get estimated marginal means (on the original response scale)
+Live_em_cultch <- emmeans(m_CD_weighted, ~ factor(CultchDensity), type = "response")
+
+# 2. Perform pairwise comparisons with a Tukey adjustment
+Live_pairwise_comparisons <- pairs(Live_em_cultch, adjust = "tukey")
+
+# View the results
+print(Live_em_cultch)
+print(Live_pairwise_comparisons)
+
+# Convert comparisons to a dataframe and display
+Live_pairwise_comparisons %>%
+  as.data.frame() %>%
+  kable(digits = 3, caption = "omparison of Live Counts Across Different Treatments")
+
+# "The final weighted negative binomial model revealed that cultch density exerts a profound effect on both the abundance and the spatial distribution of live oysters (\(NumLive\)). Increasing cultch density from 800 to 1,600 resulted in a highly significant, 2.6-fold increase in live oyster abundance (\(p < 0.001\)), elevating the estimated mean count from 159 (95% CI: 143–177) to 414 (95% CI: 340–505) oysters per quadrat.
+# However, doubling the cultch density further to 3,200 yielded diminishing returns, resulting in an estimated mean of 430 oysters (95% CI: 364–507)—a value statistically indistinguishable from the 1,600 treatment (Ratio = 0.965, \(p = 0.960\)).
+# Concurrently, the dispersion sub-model indicated that higher cultch densities significantly increased environmental overdispersion (\(p < 0.001\) for both 1,600 and 3,200 treatments). This indicates that while higher cultch availability drastically expands overall settlement capacity, it promotes a highly clustered, patchy spatial distribution of live oysters across the reef matrix compared to the more uniform, low-density baseline."
+
+
+# "Although a localized mortality event occurred in one 800-density replicate two months prior to sampling, it did not significantly alter final live oyster abundance relative to its companion replicate (\(p = 0.93\)). However, the event significantly altered population structure, resulting in radically different size distributions among survivors (\(p < 0.0001\)). This decoupling of abundance and size highlights that while final numerical carrying capacity may be consistently constrained at lower cultch volumes, the underlying biomass, size-frequency distribution, and structural stability of the reef remain highly sensitive to episodic disturbance events."
+
+
+
+
+
+
+
+
+```
+
+``` {r NumLive Models and Dataframes}
+###############
+### Create model
+###############
+
+### NFWF-2024 ALL Model ###
+NumLive_NFWF_2024 <- glmmTMB(NumLive ~ factor(CultchDensity),
+                          dispformula = ~ factor(CultchDensity), # Solves the Levene test variance shift
+                          family = nbinom2,
+                          data = QuadStats)
+# Check goodness of fit & summary
+simulateResiduals(NumLive_NFWF_2024, n = 1000, plot = T)
+summary(NumLive_NFWF_2024)
+
+
+###############
+### Create dataframes to store values for plots and tables 
+###############
+
+# Generate Modeled Means, CI, and SE
+# emmeans needed to extract values of Random effects
+NumLiveStats_Subtidal_modeled <- emmeans(NumLive_NFWF_2024, ~ CultchDensity, type = "response") %>%
+  as.data.frame() %>%
+  rename(NumLiveMean_modeled = response,
+         NumLiveLower_modeled = asymp.LCL,
+         NumLiveUpper_modeled = asymp.UCL) %>%
+  mutate(NumLiveMeanDensity_modeled = round((NumLiveMean_modeled * 4), 1),
+         NumLiveLowerDensity_modeled = round((NumLiveLower_modeled * 4), 1),
+         NumLiveUpperDensity_modeled = round((NumLiveUpper_modeled * 4), 1)) %>%
+  select(-df) %>%
+  mutate(NumLiveUpperDensity_modeled = case_when(
+    NumLiveMean_modeled <= 0 ~ 0,
+    TRUE ~ NumLiveUpperDensity_modeled))
+
+# Generate raw mean and SD
+NumLiveStats_Subtidal_RAW <- QuadStats %>%
+  group_by(CultchDensity) %>%
+  summarise_ALL() %>%
+  arrange(CultchDensity) %>%
+  select(-matches("NumDrill"),
+         -matches("Total"),
+         -matches("Legal"))
+
+# Combine into single table and remove intermediate dataframes
+NumLiveStats_Subtidal_ALL <- left_join(NumLiveStats_Subtidal_modeled, 
+                              NumLiveStats_Subtidal_RAW, 
+                              by = c("CultchDensity")) 
+
+
+
+```
+
+``` {r NumLive Figures and Tables}
+### SUBTIDAL
+NumLiveStats_TABLE_Subtidal <- NumLiveStats_Subtidal_ALL %>%
+  select(CultchDensity,
+         NumLiveDensityMean_raw,
+         NumLiveDensitySD_raw,
+         NumLiveMeanDensity_modeled,
+         NumLiveLowerDensity_modeled,
+         NumLiveUpperDensity_modeled) 
+
+kable(NumLiveStats_TABLE_Subtidal,
+      digits = 0,
+      col.names = c("Project Group",  
+      "Raw Mean Density", "Raw SD",
+      "Modeled Mean Density", "LCL 95%", "UCL 95%"),
+      caption = "Raw and Modeled Mean Densities of Live Oysters on NFWF-2024 reefs in 2026. Density is expressed in oysters per square meter. SD = Standard Deviation. LCL = Lower Confidence Limit. UCL = Upper Confidence Limit. ")
+```
+
+
+``` {r Size Distribution Figures}
+### Size Distributions
+# Histograms
+
+SH_Distribution_Report <- ggplot(ShellHeights_2, aes(x = ShellHeightBin, y = PercentMeasured)) +
+  geom_col() +
+  facet_wrap(~ Treatment, ncol = 1, scales = "free_y") +
+  scale_x_discrete(
+    breaks = levels(ShellHeights_2$ShellHeightBin)[seq(1, length(levels(ShellHeights_2$ShellHeightBin)), by = 3)]
+  ) +
+  labs(title = paste0("Shell Height Distribution of Oysters Measured During 2026 Survey"), 
+       x = "Shell Height (mm)", 
+       y = "Percent of Measurements Within Groups")  +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(SH_Distribution_Report)
+
+
+```
