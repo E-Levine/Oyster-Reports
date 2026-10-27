@@ -6,8 +6,8 @@ output:
   html_document:
   word_document: NULL
 params:
-  Start_date: "2025-10-01"
-  End_date: "2025-12-30"
+  Start_date: "2026-07-01"
+  End_date: "2026-09-30"
 ---
 <style>
 .main-container {
@@ -100,24 +100,24 @@ Cage_df <- readWorkbook("../Summary data/CERP_PBC_Summary_Data.xlsx", sheet = 'S
 ```{r Data selection and cleaning}
 #
 ##Salinity
-WQ_Sal_CERP <- WQ_Sal_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_Sal > Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(-SL.N_RetDate_Sal, -SL.S_RetDate_Sal, -LX.N_RetDate_Sal, -LX.S_RetDate_Sal) %>% mutate(RetDate = as.yearmon(RetDate))
-WQ_Sal_CRE <- WQ_Sal_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_Sal > Start_date & CR.E_RetDate_Sal < End_date)  %>% rename(RetDate = CR.E_RetDate_Sal) %>% dplyr::select(-CR.W_RetDate_Sal)
+WQ_Sal_CERP <- WQ_Sal_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_Sal >= Start_date & SL.C_RetDate_Sal < End_date) %>% rename(RetDate = SL.C_RetDate_Sal) %>% dplyr::select(-SL.N_RetDate_Sal, -SL.S_RetDate_Sal, -LX.N_RetDate_Sal, -LX.S_RetDate_Sal) %>% mutate(RetDate = as.yearmon(RetDate))
+WQ_Sal_CRE <- WQ_Sal_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_Sal >= Start_date & CR.E_RetDate_Sal < End_date)  %>% rename(RetDate = CR.E_RetDate_Sal) %>% dplyr::select(-CR.W_RetDate_Sal)
 #
 #Secchi
-WQ_Sec_CERP <- WQ_Secchi_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_SP > Start_date & SL.C_RetDate_SP < End_date) %>% rename(RetDate = SL.C_RetDate_SP) %>% dplyr::select(-SL.N_RetDate_SP, -SL.S_RetDate_SP, -LX.N_RetDate_SP, -LX.S_RetDate_SP) %>% mutate(RetDate = as.yearmon(RetDate))
-WQ_Sec_CRE <- WQ_Secchi_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_SP > Start_date & CR.E_RetDate_SP < End_date)  %>% rename(RetDate = CR.E_RetDate_SP) %>% dplyr::select(-CR.W_RetDate_SP)
+WQ_Sec_CERP <- WQ_Secchi_s %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate_SP >= Start_date & SL.C_RetDate_SP < End_date) %>% rename(RetDate = SL.C_RetDate_SP) %>% dplyr::select(-SL.N_RetDate_SP, -SL.S_RetDate_SP, -LX.N_RetDate_SP, -LX.S_RetDate_SP) %>% mutate(RetDate = as.yearmon(RetDate))
+WQ_Sec_CRE <- WQ_Secchi_s %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate_SP >= Start_date & CR.E_RetDate_SP < End_date)  %>% rename(RetDate = CR.E_RetDate_SP) %>% dplyr::select(-CR.W_RetDate_SP)
 #
 #Dermo
-Dermo_CERP <- Dermo_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Dermo_CRE <- Dermo_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Dermo_CERP <- Dermo_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate >= Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Dermo_CRE <- Dermo_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate >= Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #Rcrt
-Rcrt_CERP <- Rcrt_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Rcrt_CERP <- Rcrt_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate >= Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Rcrt_CRE <- Rcrt_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate >= Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #Repro
-Repro_CERP <- Repro_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Repro_CRE <- Repro_df %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Repro_CERP <- Repro_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% subset(SL.C_RetDate >= Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-SL.N_RetDate, -SL.S_RetDate, -LX.N_RetDate, -LX.S_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Repro_CRE <- Repro_df %>% dplyr::select(starts_with("CR")) %>% subset(CR.E_RetDate >= Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 ##Survey counts
 Counts_CERP <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with("LX")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
@@ -132,8 +132,8 @@ SH_CERP <- SH_df %>% dplyr::select(AnalysisDate, starts_with("SL"), starts_with(
 SH_CRE <- SH_df %>% dplyr::select(AnalysisDate, starts_with("CR")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
 #
 ##Cages
-Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate > Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
-Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate > Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Cage_CERP <- Cage_df %>% dplyr::select(starts_with("SL"), starts_with("LX")) %>% dplyr::select(!contains("SD")) %>% subset(SL.C_RetDate >= Start_date & SL.C_RetDate < End_date) %>% rename(RetDate = SL.C_RetDate) %>% dplyr::select(-LX.N_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Cage_CRE <- Cage_df %>% dplyr::select(starts_with("CR")) %>% dplyr::select(!contains("SD")) %>% subset(CR.E_RetDate >= Start_date & CR.E_RetDate < End_date) %>% rename(RetDate = CR.E_RetDate) %>% dplyr::select(-CR.W_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #
 ```

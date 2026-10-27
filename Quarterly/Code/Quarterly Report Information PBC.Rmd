@@ -6,8 +6,8 @@ output:
   html_document:
   word_document: NULL
 params:
-  Start_date: "2025-10-01"
-  End_date: "2025-12-30"
+  Start_date: "2026-07-01"
+  End_date: "2026-09-30"
 ---
 <style>
 .main-container {
@@ -107,13 +107,13 @@ WQ_Sal_PBC <- WQ_Sal_s %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetD
 WQ_Sec_PBC <- WQ_Secchi_s %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate_SP > Start_date & LW.L_RetDate_SP < End_date) %>% rename(RetDate = LW.L_RetDate_SP) %>% dplyr::select(-LW.R_RetDate_SP)
 #
 #Dermo
-Dermo_PBC <- Dermo_df %>% dplyr::select(starts_with("LW")) %>% dplyr::select(!contains("SD")) %>% subset(LW.L_RetDate > Start_date & LW.L_RetDate < End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Dermo_PBC <- Dermo_df %>% dplyr::select(starts_with("LW")) %>% dplyr::select(!contains("SD")) %>% subset(LW.L_RetDate >= Start_date & LW.L_RetDate <= End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #Rcrt
-Rcrt_PBC <- Rcrt_df %>% dplyr::select(starts_with("LW")) %>% dplyr::select(!contains("SD")) %>% subset(LW.L_RetDate > Start_date & LW.L_RetDate < End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Rcrt_PBC <- Rcrt_df %>% dplyr::select(starts_with("LW")) %>% dplyr::select(!contains("SD")) %>% subset(LW.L_RetDate >= Start_date & LW.L_RetDate <= End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 #Repro
-Repro_PBC <- Repro_df %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate > Start_date & LW.L_RetDate < End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
+Repro_PBC <- Repro_df %>% dplyr::select(starts_with("LW")) %>% subset(LW.L_RetDate >= Start_date & LW.L_RetDate <= End_date) %>% rename(RetDate = LW.L_RetDate) %>% dplyr::select(-LW.R_RetDate) %>% mutate(RetDate = as.yearmon(RetDate))
 #
 ##Survey counts
 Counts_PBC <- Counts_df %>% dplyr::select(AnalysisDate, starts_with("LW")) %>%  mutate(AnalysisDate = as.yearmon(AnalysisDate)) %>% subset(AnalysisDate > (as.yearmon(End_date %m-% months(7))) & AnalysisDate < as.yearmon(End_date %m+% months(1))) %>% replace(is.na(.), -999)
