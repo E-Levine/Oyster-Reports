@@ -162,6 +162,7 @@ Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1) %>%
          StationName,
          StationNumber,
          ParcelName,
+         ParcelArea,
          StationNameNumber,
          ProjectGroup,
          TimeSinceCultched,

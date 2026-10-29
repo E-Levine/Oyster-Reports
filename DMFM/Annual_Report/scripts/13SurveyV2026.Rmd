@@ -96,7 +96,8 @@ maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 ```
 ``` {r 2025 Fix}
 # Import the 2025 data
-QuadStats2025 <- readxl::read_xlsx("C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/Annual_Report/data/QuadStats2025.xlsx")
+QuadStats2025 <- readxl::read_xlsx("C:/Users/Matthew.Davis/OneDrive - Florida Fish and Wildlife Conservation/Documents/Database/Repos/Oyster-Reports/DMFM/Annual_Report/data/QuadStats2025.xlsx") %>%
+  mutate(ParcelArea = NA)
 QuadStats <- union_all(QuadStats_, QuadStats2025)
 # Delete this chunk once 2025 data is entered, proofed, and checked
 ```
@@ -1266,12 +1267,17 @@ print(SH_Distribution_ReportYr_Intertidal)
 NumLegalStats_RAW <- QuadStats %>% # Determine raw mean per quadrat 
   filter(Year == ReportYear) %>%
   group_by(FixedLocationID,
-           StationNumber) %>%
-  summarise_ALL() %>%
+           StationNumber,
+           ParcelName,
+           ParcelArea,
+           StationName) %>%
+      summarise(NumLegalMean_raw = mean(NumLegal, na.rm = TRUE),
+              NumLegalSD_raw = sd(NumLegal, na.rm = TRUE)) %>%
+    mutate(NumLegalDensityMean_raw = NumLegalMean_raw * 4,
+           NumLegalDensitySD_raw = NumLegalSD_raw * 4) %>%
   arrange(StationNumber) %>%
-  select(-matches("Weight"),
-         -matches("Live"),
-         -matches("Drill"))
+  mutate(ParcelName =
+           if_else(is.na(ParcelName), StationName, ParcelName)) 
 NumLegal_NoModel <- NumLegalStats_RAW %>%
   filter(NumLegalDensityMean_raw < 11.1)
 NumLegal_YesModel <- NumLegalStats_RAW %>%
@@ -1929,8 +1935,8 @@ table1 <- extrapDat2 %>%
   left_join(NumLegal_YesModel, by = "FixedLocationID") %>%
   transmute(
     Fixed_Location_ID                       = FixedLocationID,
-    Station_Name                            = ParcelName,
-    Reef_Acreage                            = round(ParcelArea, 2),
+    Station_Name                            = ParcelName.x,
+    Reef_Acreage                            = round(ParcelArea.x, 2),
     Modeled_Mean_Density_oysters_per_m2     = round(mean_total_oysters  / m2, 2),  # bootstrap mean / area
     Modeled_LCL95_oysters_per_m2            = round(lcl95_total_oysters / m2, 2),  # lower bound / area
     Modeled_UCL95_oysters_per_m2            = round(ucl95_total_oysters / m2, 2)   # upper bound / area
@@ -1949,8 +1955,8 @@ kable(table1, title = "Summary of raw data and model predictions", subtitle = "S
 table2 <- extrapDat2 %>%
   transmute(
     Fixed_Location_ID                          = FixedLocationID,
-    Station_Name                               = ParcelName,
-    Reef_Acreage                               = round(ParcelArea, 2),
+    Station_Name                               = ParcelName.x,
+    Reef_Acreage                               = round(ParcelArea.x, 2),
     Bootstrapped_Oysters_per_m2_LCL95          = round(lcl95_total_oysters / m2, 2),
     Bootstrapped_Bags_per_acre_LCL95           = round((lcl95_total_oysters / 225) / ParcelArea, 0),
     Bootstrapped_Harvestable_Bags_LCL95        = round((lcl95_total_oysters / 225) * 0.10, 0)
@@ -1980,7 +1986,6 @@ NumLegalStats_TABLE <- extrapDat2 %>%
     .default = as.character(HarvestableBags0))) %>%
   arrange(StationNumber) %>%
   select(FixedLocationID,
-         StationNumber,
          ParcelName,
          ParcelArea,
          NumLegalLowerDensity_modeled,
@@ -1990,29 +1995,31 @@ NumLegalStats_TABLE <- extrapDat2 %>%
 kable(NumLegalStats_TABLE,
       digits = 1,
       escape = FALSE,
-      col.names = c("FixedLocationID", "Project", "Station Name", "Reef Acreage",
+      col.names = c("Fixed Location ID", "Station Name", "Reef Acreage",
       "Modeled Mean Density (LCL 95%)", "Estimated Bags per Acre (LCL 95%)", "Estimated Harvestable Bags (LCL 95%)"),
-      caption = "Modeled Mean Densities of legal-sized oysters (≥76 mm shell height) on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. LCL = Lower Confidence Limit. NA indicates 1) reef densities do not meet the required 400 bags per acre threshold for harvest, or 2) reefs are outside water approved for harvest, or 3) reefs have been cultched too recently to allow harvest. Reefs with a raw mean density at or below 11.1 legal-size oysters/m² (200 bags/acre) were not modeled. Raw and modeled mean densities for all reefs sampled available in Appendix A. ")
+      caption = "Modeled Mean Densities of legal-sized oysters (≥76 mm shell height) on reefs sampled in 2026. Density is expressed in number of legal-sized oysters per square meter. LCL = Lower Confidence Limit. NA indicates 1) reef densities do not meet the required 400 bags per acre threshold for harvest, or 2) reefs are outside water approved for harvest, or 3) reefs have been cultched too recently to allow harvest. Reefs with a raw mean density at or below 11.1 legal-size oysters/m² (200 bags/acre) were not modeled. Raw and modeled mean densities for all reefs sampled available in Appendix A. ")
 
 # Summary Table for the Appendix
 NumLegalStats_TABLE_appendix <- left_join(NumLegalStats_RAW, NumLegalStats_TABLE, by = "FixedLocationID") %>%
+  mutate(ReefArea = if_else(
+    is.na(ParcelArea.x), ParcelArea.y, ParcelArea.x)) %>%
   select(FixedLocationID, 
-         N, #
-         StationNumber,
-         StationNameNumber, #
-         ParcelArea, #
+         StationNumber.x,
+         ParcelName.x, #
+         ReefArea, #
          NumLegalDensityMean_raw,
          NumLegalDensitySD_raw,
-         NumLegalLowerDensity_modeled, %>% 
-  arrange(StationNumber) %>%
-  select(-StationNumber)
+         NumLegalLowerDensity_modeled) %>% 
+  arrange(StationNumber.x) %>%
+  rename(StationNumber = StationNumber.x,
+         ParcelName = ParcelName.x)
   
 kable(NumLegalStats_TABLE_appendix,
       digits = 1,
-      col.names = c("FixedLocationID", "Project", "N", "Station Name", "Reef Acreage",
+      col.names = c("Fixed Location ID", "Station Number", "Station Name",  "Reef Acreage",
       "Raw Mean Density (Legal)", "Raw SD (Legal)",
-      "Modeled Mean Density (Legal)", "LCL 95% (Legal)", "UCL 95% (Legal)"),
-      caption = "Raw and Modeled Mean Densities of Legal-sized oysters on reefs sampled in 2024. Density is expressed in number of legal-sized oysters per square meter. N = Number of quadrats collected, SD = Standard deviation. LCL = Lower confidence limit. UCL = Upper confidence limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 11.1 per square meter were not modeled. ")
+      "Modeled Mean Density (Legal) LCL 95%"),
+      caption = "Raw and Modeled Mean Densities of Legal-sized oysters on reefs sampled in 2026. Density is expressed in number of legal-sized oysters per square meter. SD = Standard deviation. LCL = Lower confidence limit. NA indicates means were not modeled. Reefs with a raw mean density at or below 11.1 per square meter were not modeled. ")
 
 # I may leave this out since r2() does not support models of class `glmmTMB` without random effects and from nbinom2-family with log-link-function.
 # # Diagnostic Table for the Appendix
@@ -2025,8 +2032,45 @@ kable(NumLegalStats_TABLE_appendix,
 
 ```
 
+``` {r Dead Live}
+# DeadLive Ratios
+DeadLiveRatios <- QuadStats %>%
+  mutate(DLR = NumDead / NumLive) %>%
+  group_by(Year,
+           FixedLocationID,
+           ProjectGroup,
+           StationName) %>%
+  summarise(DLR_Mean = mean(DLR, na.rm = TRUE))
+  
+DLR_good <- DeadLiveRatios %>%
+  filter(Year == 2026,
+         ProjectGroup != "Historic Uncultched",
+         ProjectGroup != "Intertidal",
+         FixedLocationID != "0395",
+         FixedLocationID != "0397",
+         FixedLocationID != "0526")
+DLR_good_mean <- mean(DLR_good$DLR_Mean)
+DLR_good_mediean <- median(DLR_good$DLR_Mean)
 
+# Drils
+Drills <- QuadStats %>%
+  group_by(Year,
+           FixedLocationID,
+           ProjectGroup,
+           StationName) %>%
+  summarise(Drills_Mean = mean(NumDrills, na.rm = TRUE))
+  
+DLR_good <- DeadLiveRatios %>%
+  filter(Year == 2026,
+         ProjectGroup != "Historic Uncultched",
+         ProjectGroup != "Intertidal",
+         FixedLocationID != "0395",
+         FixedLocationID != "0397",
+         FixedLocationID != "0526")
+DLR_good_mean <- mean(DLR_good$DLR_Mean)
+DLR_good_mediean <- median(DLR_good$DLR_Mean)
 
+```
 
 
 
