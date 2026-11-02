@@ -132,66 +132,98 @@ output_shared_data <- function(Shared_file, sheet_name){
 #
 #Check data ranges for summary data:
 date_range_check <- function(file_path){
-  ##Load wb and get all sheets
+  ##Load wb and get all sheets of raw data, excluding summarized data
   if(exists("wb")){wb <- wb} else {wb <- loadWorkbook(file_path)}
-  sheet_names <- getSheetNames(file_path)
+  sheet_names <- getSheetNames(file_path) %>%
+    .[!grepl("mean|sum", ., ignore.case = TRUE)]
   # Initialize a list to store min and max dates for each sheet
   date_ranges <- list()
+  
   # Loop through each sheet
   for (sheet in sheet_names) {
     # Read the sheet into a data frame
     sheet_data <- read.xlsx(file_path, sheet = sheet)
-    # Check if the "Date" column exists
-    if ("Date" %in% names(sheet_data)) {
-      # Extract the Date column
-      date_column <- sheet_data$Date
-      # Check if the Date column is of Date type
-      if (inherits(date_column, "Date")) {
-        # Calculate min and max dates and store in the list
-        min_date <- min(date_column, na.rm = TRUE)
-        max_date <- max(date_column, na.rm = TRUE)
-        date_ranges[[sheet]] <- list(min_date = min_date, max_date = max_date)
-      } else {
-        #If Cate column is not of Date type, convert, get min and max dates, and store in the list
-        date_column <- as.Date(date_column, origin = "1899-12-30")
-        min_date <- min(date_column, na.rm = TRUE)
-        max_date <- max(date_column, na.rm = TRUE)
-        date_ranges[[sheet]] <- list(min_date = min_date, max_date = max_date)
-        warning(paste("The 'Date' column in sheet", sheet, "was not loaded as Date type. Column was transformed and may need checked."))
-      }
-    } else {
-      warning(paste("The 'Date' column does not exist in sheet", sheet))
+    
+    # Convert Date column if necessary
+    if (!inherits(sheet_data$Date, "Date")) {
+      sheet_data$Date <- as.Date(sheet_data$Date, origin = "1899-12-30")
+      warning(paste(
+        "The 'Date' column in sheet", sheet,
+        "was not loaded as Date type. Column was transformed and may need checked."
+      ))
     }
+
+    # Group by DBKey and calculate date ranges
+    date_ranges[[sheet]] <- sheet_data %>%
+      group_by(DBKEY) %>%
+      summarise(
+        min_date = if (all(is.na(Date))) as.Date(NA) else min(Date, na.rm = TRUE),
+        max_date = if (all(is.na(Date))) as.Date(NA) else max(Date, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      mutate(Sheet = sheet, .before = 1)
   }
-  data_ranges_table <- date_ranges %>% as.data.frame() %>% 
-    pivot_longer(cols = everything(), names_to = "Column_Name", values_to = "Value") %>% 
-    mutate(Station = sub("\\..*", "", Column_Name), Param = sub(".*\\.", "", Column_Name)) %>% 
-    dplyr::select(-Column_Name) %>% pivot_wider(names_from = "Param", values_from = "Value")
+  
+  # Combine results from all sheets
+  data_ranges_table <- bind_rows(date_ranges)
+  
   return(data_ranges_table)
   print(data_ranges_table)
+
 }
 #
 #Create summary data, add to workbook, create sheet as needed. 
 data_summary_output <- function(Station_list, Dates, Summary_sheet_name, Summ_type){
+  #
+  # Get all sheet names and remove summary sheets
+  all_sheets <- getSheetNames(shared_file_path)
+  all_sheets <- all_sheets[
+    !grepl("Mean|Sum", all_sheets, ignore.case = TRUE) &
+      all_sheets != Summary_sheet_name
+  ]
+  #
+  #Filter sheets if specific stations are provided; otherwise use all sheets
+  if (!all(is.na(Station_list))) {
+    sheets_to_load <- all_sheets[
+      vapply(all_sheets, function(sheet) {
+        sheet_data <- read.xlsx(shared_file_path, sheet = sheet)
+        # Search all columns for any matching Station_list values
+        any(as.character(unlist(sheet_data)) %in% as.character(Station_list), na.rm = TRUE)
+      }, logical(1))]
+    
+    if (length(sheets_to_load) == 0) {
+      stop("None of the specified Station_list values were found in any worksheet.")
+    }
+  } else {
+    sheets_to_load <- all_sheets
+  }
   
   ## Read all sheets into a list of data frames and name sheets, name list elements with sheet names
-  sheets_data <- lapply(Summarize_stations, function(sheet) {
+  sheets_data <- lapply(sheets_to_load, function(sheet) {
     read.xlsx(shared_file_path, sheet = sheet) %>% 
-      mutate(Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), Date = as.Date(Date, origin = "1899-12-30")) %>%
-      filter(Date >= Date_range[1] & Date <= Date_range[2]) %>% dplyr::select(-Site, -DBKEY, -Data_Station)
+      mutate(Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), 
+             Date = as.Date(Date, origin = "1899-12-30")) %>%
+      filter(Date >= Date_range[1] & Date <= Date_range[2],
+             if (all(is.na(Station_list))) TRUE
+             else DBKEY %in% Station_list) %>% 
+      dplyr::select(-any_of(c("Site", "Data_Station")))
   })
+  
   # Rename the Date_Type column to include the sheet name for clarity
   sheets_data <- lapply(seq_along(sheets_data), function(i) {
     df <- sheets_data[[i]]
-    sheet_name <- Summarize_stations[i]
+    # Get matching DBKEY value
+    dbkey_name <- unique(na.omit(as.character(df$DBKEY)))
+    sheet_name <- sheets_to_load[i]
     # Check if the required columns exist
     if ("Analysis_Date" %in% names(df) && Data_type %in% names(df)) {
       # Rename the Measurements column to include the sheet name
-      colnames(df)[which(names(df) == Data_type)] <- paste(sheet_name, Data_type, sep = "_")
+      colnames(df)[which(names(df) == Data_type)] <- paste(sheet_name, Data_type, dbkey_name[1], sep = "_")
     }
+    df <- df %>% dplyr::select(-DBKEY)
     return(df)
   })
-  names(sheets_data) <- Summarize_stations
+  names(sheets_data) <- sheets_to_load
   #
   # Merge all data frames
   merged_data <- Reduce(function(x, y) merge(x, y, by = c("Analysis_Date", "Estuary", "Date"), all = TRUE), sheets_data)
@@ -200,11 +232,11 @@ data_summary_output <- function(Station_list, Dates, Summary_sheet_name, Summ_ty
   summ_type_clean <- tolower(Summ_type)
   if(summ_type_clean == "sum"){
     Summarized_data <- merged_data %>% 
-      mutate(SUMM = rowSums(select(., 4:ncol(.)), na.rm = TRUE)) %>%
+      mutate(SUMM = rowSums(dplyr::select(., 4:ncol(.)), na.rm = TRUE)) %>%
       rename(!!Site_sum_name := SUMM)
   } else if (summ_type_clean == "mean"){
     Summarized_data <- merged_data %>% 
-      mutate(MEAN = rowMeans(select(., 4:ncol(.)), na.rm = TRUE)) %>%
+      mutate(MEAN = rowMeans(dplyr::select(., 4:ncol(.)), na.rm = TRUE)) %>%
       rename(!!Site_sum_name := MEAN)
   } else {
     stop(paste0("Error: Unknown Summ_type '", Summ_type, "'. Expected 'Mean' or 'Sum'."))
@@ -224,9 +256,16 @@ data_summary_output <- function(Station_list, Dates, Summary_sheet_name, Summ_ty
     wb <- loadWorkbook(shared_file_path)
     # Get the existing data from the specified sheet, add new data, keep only newest data if duplicates, and write back to same sheet
     existing_data <- read.xlsx(shared_file_path, sheet = Site_sum_name) %>% 
-      mutate(Age = "Older", Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), Date = as.Date(Date, origin = "1899-12-30"))
-    combined_data <- rbind(existing_data, Summarized_data %>% mutate(Age = "Newer")) %>% group_by(Date) %>% arrange(Date, Age) %>% slice(1)
-    combined_data <- combined_data %>% dplyr::select(-Age) %>% arrange(Date)
+      mutate(Age = "Older", Analysis_Date = as.Date(Analysis_Date, origin = "1899-12-30"), 
+             Date = as.Date(Date, origin = "1899-12-30"))
+    combined_data <- rbind(existing_data, Summarized_data %>% 
+                             mutate(Age = "Newer")) %>% 
+      group_by(Date) %>% 
+      arrange(Date, Age) %>% 
+      slice(1)
+    combined_data <- combined_data %>% 
+      dplyr::select(-Age) %>% 
+      arrange(Date)
     writeData(wb, sheet = Site_sum_name, combined_data)
     # Save the workbook
     saveWorkbook(wb, shared_file_path, overwrite = TRUE)

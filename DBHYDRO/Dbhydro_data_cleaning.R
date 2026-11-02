@@ -18,17 +18,20 @@ source("DBHYDRO_Functions.R")
 # List of stations:
 Stations <- read_xlsx("Shared_data/DBHYDRO_stations.xlsx")
 #
-Data_type <- c("Turb") #Current options: "Flow", "Rain", "Sali"
+Data_type <- c("Turb") #Current options: "Flow", "Rain", "Sali", "Turb
 Estuary_code <- c("LW") #two-letter site code
 Site_code <- c(NA) #Is the data attributable to a specific site? If so then include code, otherwise (or if unsure) NA
 Station_name <- c("LWL20") #station ID with special characters removed
-Version <- "New" #"New" file or sheet started for the station, or "Adding" new data to an existing file
+DBkey <- c("WZ73AVG") #DB key if needed to filter
+Version <- "Adding" #"New" file or sheet started for the station, or "Adding" new data to an existing file
 #
 # Filter to possible stations based on parameters set above. 
 #Check and update/filter more as needed to assign ID
 (Stations_f <- Stations %>%
     filter(Data_Type == Data_type &
-           Estuary == Estuary_code) %>%
+           Estuary == Estuary_code &
+           Station == Station_name &
+           (is.na(DBkey) | DBKey == DBkey)) %>%
     filter(if (!is.na(Site_code)) {
       Site == Site_code
     } else {
@@ -101,10 +104,10 @@ output_shared_data(shared_file_path, Station_name)
 #
 ##Check all possible sheets and dates available:
 date_range_check(shared_file_path)
-##Use table to select stations by name and date range:
-Summarize_stations <- c("LWL19", "LWL20") #List of all stations
-Date_range <- c(as.Date("2023-10-01"), as.Date("2026-05-31")) #Min and max dates inclusive
-Site_sum_name <- c("LWMean") #Column name for summary data
+##Use table to select stations (DBKEY) by name and date range:
+Summarize_stations <- c("393AVG", "WZ74AVG") #List of all stations
+Date_range <- c(as.Date("2001-01-01"), as.Date("2026-10-31")) #Min and max dates inclusive
+Site_sum_name <- c("LWAvgMean") #Column name for summary data
 Summ_type <- c("Mean") #Summarization type: Sum or Mean
 #
 data_summary_output(Summarize_stations, Date_range, Site_sum_name, Summ_type)
