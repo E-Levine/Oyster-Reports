@@ -1265,3 +1265,248 @@ fs_m_range %>%
 #
 #
 #
+#### Curves total F vs turbidity ----
+#
+### Flow vs turbidity
+#
+## Daily flow vs daily mean turbidity
+head(flow_t)
+#flow_t <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow) %>% pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+turb_t <- Turb_raw %>% 
+  dplyr::select(-LWAvgMean) %>%
+  rename_with(~ sub("(_Turb).*", "\\1", .x)) %>% 
+  pivot_longer(cols = c(LWL20_Turb, LWL19_Turb), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>%
+  drop_na(Turb)
+#
+left_join(flow_t %>% filter(Station == "S155") %>% group_by(Date) %>% summarise(Flow = sum(Flow, na.rm = T)), 
+          turb_t %>% filter(Station == "LWL19")%>% group_by(Date) %>% summarise(Turb = mean(Turb, na.rm = T))) %>%
+  ggplot(aes(Flow, Turb))+ geom_point()
+#
+models_ft_d <- fit_flow_turb_models(flow_data = flow_t, 
+                                    associated_data = turb_t,
+                                    flow_col = "Flow",
+                                    other_col = "Turb")
+#Limit to desired models
+models_ft_d <- filter_models(models_ft_d, c("LWL20_S41", "LWL19_S44", "LWL20_South", "LWL19_North"), mode = "remove")
+names(models_ft_d$models)
+#Plot models
+(p4 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
+                       results = models_ft_d$models,
+                       model_name = "all",
+                       flow_col = "Flow",
+                       value_col = "Turb"))
+#
+ft_daily_model <- extract_model_coefficients(models_ft_d$models)
+ft_daily_model %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_daily_curves_",Sys.Date(),".png"),
+    plot = p4, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_ft_d$models)) {
+    
+    p0 <- ggplot_quad_fit(resultsdf = models_ft_d$data_lookup,
+                          results = models_ft_d$models,
+                          model_name = m_name,
+                          flow_col = "Flow",
+                          value_col = "Turb")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Turbidity (NTU)")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_turbidity_daily_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+##
+###
+##
+#
+#
+## Daily flow lag1 and lag2 vs daily turbidity
+flow_tlag <- flow_t %>% 
+  group_by(Station) %>%
+  mutate(Flow1 = lag(Flow, n = 1),
+         Flow2 = lag(Flow, n = 2))
+head(turb_t)
+#turb_t <- Turb_raw %>% dplyr::select(-LWMean) %>% pivot_longer(cols = c(LWL20_Turb, LWL19_Turb), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+#
+#
+models_ft_dlag <- fit_flow_turb_models(flow_data = flow_tlag %>% drop_na(), 
+                                       associated_data = turb_t,
+                                       flow_col = "Flow1",
+                                       other_col = "Turb")
+#Limit to desired models
+models_ft_dlag <- filter_models(models_ft_dlag, c("LWL20_S41", "LWL19_S44", "LWL20_South", "LWL19_North"), mode = "remove")
+names(models_ft_dlag$models)
+#Plot models
+(p5 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
+                       results = models_ft_dlag$models,
+                       model_name = "all",
+                       flow_col = "Flow1",
+                       value_col = "Turb"))
+#
+ft_dayLag1_model <- extract_model_coefficients(models_ft_dlag$models)
+ft_dayLag1_model %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag1_curves_",Sys.Date(),".png"),
+    plot = p5, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_ft_dlag$models)) {
+    
+    p0 <- ggplot_quad_fit(resultsdf = models_ft_dlag$data_lookup,
+                          results = models_ft_dlag$models,
+                          model_name = m_name,
+                          flow_col = "Flow1",
+                          value_col = "Turb")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow lag 1 day(cfs)",
+           y = "Turbidity (NTU)")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag1_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+models_ft_d2lag <- fit_flow_turb_models(flow_data = flow_tlag %>% drop_na(), 
+                                        associated_data = turb_t,
+                                        flow_col = "Flow2",
+                                        other_col = "Turb")
+#Limit to desired models
+models_ft_d2lag <- filter_models(models_ft_d2lag, c("LWL20_S41", "LWL19_S44", "LWL20_South", "LWL19_North"), mode = "remove")
+names(models_ft_d2lag$models)
+#Plot models
+(p6 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
+                       results = models_ft_d2lag$models,
+                       model_name = "all",
+                       flow_col = "Flow2",
+                       value_col = "Turb"))
+#
+ft_dayLag2_model <- extract_model_coefficients(models_ft_d2lag$models)
+ft_dayLag2_model %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag2_curves_",Sys.Date(),".png"),
+    plot = p6, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_ft_d2lag$models)) {
+    
+    p0 <- ggplot_quad_fit(resultsdf = models_ft_d2lag$data_lookup,
+                          results = models_ft_d2lag$models,
+                          model_name = m_name,
+                          flow_col = "Flow2",
+                          value_col = "Turb")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow lag 2 day(cfs)",
+           y = "Turbidity (NTU)")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_turbidity_dayLag2_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+##
+##
+#
+#
+## 7day and 14day flow vs daily mean turbidity 
+head(flow_t7)
+#flow_t7 <- Flow_df %>% dplyr::select(Analysis_Date, Estuary, Date, Sum7, Sum14, Sum7_155, Sum14_155) %>% pivot_longer(cols = c(Sum7, Sum14, Sum7_155, Sum14_155), names_to = "Station", values_to = "Flow")
+models_ft_d7 <- fit_flow_turb_models(flow_data = flow_t7, 
+                                     associated_data = turb_t,
+                                     flow_col = "Flow",
+                                     other_col = "Turb")
+#
+#Limit to desired models
+models_ft_d7 <- filter_models(models_ft_d7, c("LWL20_Sum7South" , "LWL20_Sum14South", "LWL19_Sum7North",  "LWL19_Sum14North"), mode = "remove")
+names(models_ft_d7$models)
+#
+#Plot models 
+(p7 <- ggplot_quad_fit(resultsdf = models_ft_d7$data_lookup,
+                       results = models_ft_d7$models,
+                       model_name = "all",
+                       flow_col = "Flow",
+                       value_col = "Turb"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_turbidity_7d_14d_curves_",Sys.Date(),".png"),
+    plot = p7, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_ft_d7$models)) {
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_ft_d7$data_lookup,
+                                results = models_ft_d7$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Turb")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Turbidity (NTU)")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_turbidity_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+ft_714_range <- extract_model_coefficients(models_ft_d7$models)
+ft_714_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+#
+#
+##
+##
+#
+#
+#
