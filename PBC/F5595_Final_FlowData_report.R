@@ -1510,3 +1510,267 @@ ft_714_range %>%
 #
 #
 #
+#### Curves total F vs sedimentation ----
+#
+### Total flow vs sedimentation rate
+head(Flow_df)
+head(Sediment_sec)
+head(Sediment_sta)
+#
+flow_d <- Flow_df %>% 
+  dplyr::select(Analysis_Date, Estuary, Date, Sum7:Sum28, Sum7_155:Sum28_South) %>%
+  pivot_longer(cols = c(Sum7:Sum28_South), names_to = "Station", values_to = "Flow")
+#
+sed_st <- Sediment_sta %>%
+  ungroup() %>%
+  dplyr::select(AnalysisDate, StationName, RateMean) %>%
+  rename(Date = AnalysisDate, Station = StationName) 
+sed_ns <- Sediment_sec %>%
+  ungroup() %>%
+  dplyr::select(AnalysisDate, Section, RateMean) %>%
+  rename(Date = AnalysisDate, Station = Section) 
+#
+# 
+#  By Stations:
+## 7, 14, 21, 28 day flow vs monthly sedimentation
+models_fds_d7 <- fit_flow_turb_models(flow_data = flow_d, 
+                                      associated_data = sed_st,
+                                      flow_col = "Flow",
+                                      other_col = "RateMean")
+#
+#Limit to desired models
+models_fds_d7 <- filter_models(models_fds_d7, c("LW-R4_Sum7South",  "LW-R4_Sum14South", "LW-R4_Sum21South", "LW-R4_Sum28South",
+                                                "LW-R3_Sum7North",  "LW-R3_Sum14North", "LW-R3_Sum21North", "LW-R3_Sum28North",
+                                                "LW-R2_Sum7North",  "LW-R2_Sum14North", "LW-R2_Sum21North", "LW-R2_Sum28North",
+                                                "LW-L3_Sum7North",  "LW-L3_Sum14North", "LW-L3_Sum21North", "LW-L3_Sum28North",
+                                                "LW-L2_Sum7South",  "LW-L2_Sum14South", "LW-L2_Sum21South","LW-L2_Sum28South",
+                                                "LW-L1_Sum7South",  "LW-L1_Sum14South", "LW-L1_Sum21South", "LW-L1_Sum28South"), 
+                               mode = "remove")
+#
+#Plot models 
+(p8 <- ggplot_quad_fit(resultsdf = models_fds_d7$data_lookup,
+                       results = models_fds_d7$models,
+                       model_name = "all",
+                       flow_col = "Flow",
+                       value_col = "RateMean"))
+#Optimal flow ranges & model formulas
+fd_s_range <- extract_model_coefficients(models_fds_d7$models)
+fd_s_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>% 
+  print(n = 75)
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_sediment_stations_curves_",Sys.Date(),".png"),
+    plot = p8, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fds_d7$models)) {
+    p0 <- ggplot_quad_fit(resultsdf = models_fds_d7$data_lookup,
+                          results = models_fds_d7$models,
+                          model_name = m_name,
+                          flow_col = "Flow",
+                          value_col = "RateMean")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Sedimentation rate")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_sedimentation_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+#  By Sections:
+## 7, 14, 21, 28 day flow vs monthly sedimentation
+models_fdn_d7 <- fit_flow_turb_models(flow_data = flow_d, 
+                                      associated_data = sed_ns,
+                                      flow_col = "Flow",
+                                      other_col = "RateMean")
+#Limit to desired models
+models_fdn_d7 <- filter_models(models_fdn_d7, c("NC_Sum7South",  "NC_Sum14South", "NC_Sum21South", "NC_Sum28South",
+                                                "SC_Sum7North",  "SC_Sum14North", "SC_Sum21North", "SC_Sum28North"), 
+                               mode = "remove")
+#
+#Plot models 
+(p9 <- ggplot_quad_fit(resultsdf = models_fdn_d7$data_lookup,
+                       results = models_fdn_d7$models,
+                       model_name = "all",
+                       flow_col = "Flow",
+                       value_col = "RateMean"))
+#Optimal flow ranges & model formulas
+fd_n_range <- extract_model_coefficients(models_fdn_d7$models)
+fd_n_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>%
+  print(n=25)
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_sediment_section_curves_",Sys.Date(),".png"),
+    plot = p9, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fdn_d7$models)) {
+    p0 <- ggplot_quad_fit(resultsdf = models_fdn_d7$data_lookup,
+                          results = models_fdn_d7$models,
+                          model_name = m_name,
+                          flow_col = "Flow",
+                          value_col = "RateMean")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Sedimentation rate")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_sedimentation_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+##
+###
+###
+##
+#
+#
+### Total flow vs organic weight
+head(flow_d)
+head(Sediment_sec)
+head(Sediment_sta)
+#
+#
+orw_st <- Sediment_sta %>%
+  ungroup() %>%
+  dplyr::select(AnalysisDate, StationName, OrgWtMean) %>%
+  rename(Date = AnalysisDate, Station = StationName) 
+orw_ns <- Sediment_sec %>%
+  ungroup() %>%
+  dplyr::select(AnalysisDate, Section, OrgWtMean) %>%
+  rename(Date = AnalysisDate, Station = Section) 
+#
+# 
+#  By Stations:
+## 7, 14, 21, 28 day flow vs monthly organic weight
+models_fdo_d7 <- fit_flow_turb_models(flow_data = flow_d, 
+                                      associated_data = orw_st,
+                                      flow_col = "Flow",
+                                      other_col = "OrgWtMean")
+#
+#Limit to desired models
+models_fdo_d7 <- filter_models(models_fdo_d7, c("LW-R4_Sum7South",  "LW-R4_Sum14South", "LW-R4_Sum21South", "LW-R4_Sum28South",
+                                                "LW-R3_Sum7North",  "LW-R3_Sum14North", "LW-R3_Sum21North", "LW-R3_Sum28North",
+                                                "LW-R2_Sum7North",  "LW-R2_Sum14North", "LW-R2_Sum21North", "LW-R2_Sum28North",
+                                                "LW-L3_Sum7North",  "LW-L3_Sum14North", "LW-L3_Sum21North", "LW-L3_Sum28North",
+                                                "LW-L2_Sum7South",  "LW-L2_Sum14South", "LW-L2_Sum21South","LW-L2_Sum28South",
+                                                "LW-L1_Sum7South",  "LW-L1_Sum14South", "LW-L1_Sum21South", "LW-L1_Sum28South"), 
+                               mode = "remove")
+
+##Plot models 
+(p10 <- ggplot_quad_fit(resultsdf = models_fdo_d7$data_lookup,
+                        results = models_fdo_d7$models,
+                        model_name = "all",
+                        flow_col = "Flow",
+                        value_col = "OrgWtMean"))
+#Optimal flow ranges & model formulas
+fo_s_range <- extract_model_coefficients(models_fdo_d7$models)
+fo_s_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>%
+  print(n=75)
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_organicwt_stations_curves_",Sys.Date(),".png"),
+    plot = p10, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fdo_d7$models)) {
+    p0 <- ggplot_quad_fit(resultsdf = models_fdo_d7$data_lookup,
+                          results = models_fdo_d7$models,
+                          model_name = m_name,
+                          flow_col = "Flow",
+                          value_col = "OrgWtMean")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Organic weight (g)")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_organicwt_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+#  By Sections:
+## 7, 14, 21, 28 day flow vs monthly sedimentation
+models_fon_d7 <- fit_flow_turb_models(flow_data = flow_d, 
+                                      associated_data = orw_ns,
+                                      flow_col = "Flow",
+                                      other_col = "OrgWtMean")
+#
+#Limit to desired models
+models_fon_d7 <- filter_models(models_fon_d7, c("NC_Sum7South",  "NC_Sum14South", "NC_Sum21South", "NC_Sum28South",
+                                                "SC_Sum7North",  "SC_Sum14North", "SC_Sum21North", "SC_Sum28North"), 
+                               mode = "remove")
+
+#Plot models 
+(p11 <- ggplot_quad_fit(resultsdf = models_fon_d7$data_lookup,
+                        results = models_fon_d7$models,
+                        model_name = "all",
+                        flow_col = "Flow",
+                        value_col = "OrgWtMean"))
+#Optimal flow ranges & model formulas
+fo_n_range <- extract_model_coefficients(models_fon_d7$models)
+fo_n_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name) %>%
+  print(n= 25)
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_organicwt_section_curves_",Sys.Date(),".png"),
+    plot = p11, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fon_d7$models)) {
+    p0 <- ggplot_quad_fit(resultsdf = models_fon_d7$data_lookup,
+                          results = models_fon_d7$models,
+                          model_name = m_name,
+                          flow_col = "Flow",
+                          value_col = "OrgWtMean")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Oragnic weight (g)")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Flow_organicwt_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#
+#
+#
+#
+#
