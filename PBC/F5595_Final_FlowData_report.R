@@ -1774,3 +1774,208 @@ if(runANDsavePlots == "Y"){
 #
 #
 #
+#### Curves mean F vs salinity ----
+#
+### Mean flow vs salinity
+#
+## Mean daily flow vs daily salinity
+flow_mt <- Flow_mean_df %>% 
+  dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow) %>%
+  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+sal_t <- Sali_raw %>%
+  rename_with(~ sub("(_Sali).*", "\\1", .x)) %>% 
+  pivot_longer(cols = c(LWL20_Sali, LWL19_Sali), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)")
+models_fs_md <- fit_flow_models(flow_data = flow_mt, 
+                                associated_data = sal_t,
+                                flow_col = "Flow",
+                                other_col = "Sali")
+#Limit to desired models
+models_fs_md <- filter_models(models_fs_md, c("LWL20_S41", "LWL20_South", "LWL19_S44", "LWL19_North"), mode = "remove")
+#Plot models
+(p <- ggplot_hyperbolic_fit(resultsdf = models_fs_md$data_lookup,
+                            results = models_fs_md$models,
+                            model_name = "all",
+                            flow_col = "Flow",
+                            value_col = "Sali"))
+#
+if(runANDsavePlots == "Y"){
+  # Save combined plot:
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_salinity_MEANdaily_curves_",Sys.Date(),".png"),
+    plot = p, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  # Save indivudal plots:
+  for (m_name in names(models_fs_md$models)) {
+    
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_fs_md$data_lookup,
+                                results = models_fs_md$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_salinity_MEANdaily_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_mdaily_range <- rbind(
+  flow_at_salinity_hyp2(models_fs_md$models, 10, models_fs_md$data_lookup) %>% mutate(Sal = "min", Flow = "max"), 
+  flow_at_salinity_hyp2(models_fs_md$models, 25, models_fs_md$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
+  left_join(
+    extract_model_coefficients(models_fs_md$models))
+#
+fs_mdaily_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+fs_mdaily_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+#
+##
+##
+#
+#
+## 7day and 14day flow vs daily salinity
+flow_mt7 <- Flow_mean_df %>% 
+  dplyr::select(Analysis_Date, Estuary, Date, Mean7, Mean14, Mean7_155, Mean14_155, Mean7_North, Mean14_North, Mean7_South, Mean14_South) %>%
+  pivot_longer(cols = c(Mean7, Mean14, Mean7_155, Mean14_155, Mean7_North, Mean14_North, Mean7_South, Mean14_South), names_to = "Station", values_to = "Flow")
+models_fs_md7 <- fit_flow_models(flow_data = flow_mt7, 
+                                 associated_data = sal_t,
+                                 flow_col = "Flow",
+                                 other_col = "Sali")
+#Limit to desired models
+models_fs_md7 <- filter_models(models_fs_md7, c("LWL20_Mean7South", "LWL20_Mean14South", "LWL19_Mean7North", "LWL19_Mean14North"), mode = "remove")
+#
+#Plot models
+(p2 <- ggplot_hyperbolic_fit(resultsdf = models_fs_md7$data_lookup,
+                             results = models_fs_md7$models,
+                             model_name = "all",
+                             flow_col = "Flow",
+                             value_col = "Sali"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_MEANsalinity_7d_14d_curves_",Sys.Date(),".png"),
+    plot = p2, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fs_md7$models)) {
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_fs_md7$data_lookup,
+                                results = models_fs_md7$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_MEANsalinity_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_m714_range <- rbind(
+  flow_at_salinity_hyp2(models_fs_md7$models, 10, models_fs_md7$data_lookup) %>% mutate(Sal = "min", Flow = "max"), 
+  flow_at_salinity_hyp2(models_fs_md7$models, 25, models_fs_md7$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
+  left_join(
+    extract_model_coefficients(models_fs_md7$models))
+#
+fs_m714_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+fs_m714_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+#
+##
+##
+#
+#
+## Monthly mean flow vs monthly salinity
+flow_mtm <- Flow_mean_df %>% 
+  dplyr::select(Analysis_Date, Estuary, S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow) %>%
+  pivot_longer(cols = c(S155_Flow, S41_Flow, S44_Flow, North_Flow, South_Flow), names_to = c("Station", ".value"), names_pattern = "(.*)_(.*)") %>%
+  group_by(Analysis_Date, Station) %>%
+  summarise(Flow = mean(Flow, na.rm = T)) %>%
+  rename(Date = Analysis_Date)
+sal_tm <- MeanSalinity %>%
+  pivot_longer(cols = c(-AnalysisDate, -Estuary), names_to = c("Station"), values_to = "Sali") %>%
+  rename(Date = AnalysisDate) 
+models_fs_mm <- fit_flow_models(flow_data = flow_mtm, 
+                                associated_data = sal_tm,
+                                flow_col = "Flow",
+                                other_col = "Sali")
+#Limit to desired models
+models_fs_mm <- filter_models(models_fs_mm, c("LW-R4_S44", "LWL19_S155","LWL20_S155", "LW-L1_S155",
+                                              "LW-L2_S155", "LW-L3_S155", "LW-R2_S155", "LW-R3_S155",
+                                              "LW-R4_S155", "SC_S155", "NC_S155", "LW-L3_S41",
+                                              "LW-L1_North", "LW-L2_North", "LW-L3_South", "LW-R2_South", "LW-R3_South", "LW-R4_North",
+                                              "NC_S44", "SC_S41", "NC_North", "SC_South"), 
+                              mode = "keep")
+#Plot models
+(p3 <- ggplot_hyperbolic_fit(resultsdf = models_fs_mm$data_lookup,
+                             results = models_fs_mm$models,
+                             model_name = "all",
+                             flow_col = "Flow",
+                             value_col = "Sali"))
+#
+if(runANDsavePlots == "Y"){
+  ggsave(
+    filename = paste0("PBC/Output/Flow/Flow_MEANsalinity_monthly_curves_",Sys.Date(),".png"),
+    plot = p3, width = 9, height = 5, units = "in", dpi = 300)
+  #
+  for (m_name in names(models_fs_mm$models)) {
+    p0 <- ggplot_hyperbolic_fit(resultsdf = models_fs_mm$data_lookup,
+                                results = models_fs_mm$models,
+                                model_name = m_name,
+                                flow_col = "Flow",
+                                value_col = "Sali")
+    plot0 <- p0 + 
+      base_theme +
+      scales_cont +
+      labs(x = "Flow (cfs)",
+           y = "Salinity")
+    ggsave(
+      filename = paste0("PBC/Output/Flow/Individual/Flow_MEANsalinity_monthly_",m_name,"_",Sys.Date(),".png"),
+      plot = plot0, width = 9, height = 5, units = "in", dpi = 300)
+  }
+} else {
+  message("Manually save plots using existing code or update 'runANDsavePlots' to 'Y'.")
+}
+#
+#Optimal flow ranges & model formulas
+fs_mm_range <- rbind(
+  flow_at_salinity_hyp2(models_fs_mm$models, 10, models_fs_mm$data_lookup) %>% mutate(Sal = "min", Flow = "max"), 
+  flow_at_salinity_hyp2(models_fs_mm$models, 25, models_fs_mm$data_lookup) %>% mutate(Sal = "max", Flow = "min")) %>%
+  left_join(
+    extract_model_coefficients(models_fs_mm$models))
+#
+fs_mm_range %>% 
+  dplyr::select(salinity_station, flow_station, Sal, Flow, flow_at_target) %>% distinct()
+fs_mm_range %>% 
+  dplyr::select(model_name, fit_stat) %>% 
+  distinct() %>% 
+  mutate(fit_stat = round(fit_stat, 4)) %>% 
+  arrange(model_name)
+#
+#
+#
+#
+#
