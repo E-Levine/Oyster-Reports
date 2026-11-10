@@ -1979,3 +1979,62 @@ fs_mm_range %>%
 #
 #
 #
+#### Output summary and results data ----
+#
+#
+# Create workbook
+wb <- createWorkbook()
+
+# Add each data frame to its own worksheet
+# MEAN FLOW
+addWorksheet(wb, "MF_sal_daily")
+writeData(wb, "MF_sal_daily", fs_mdaily_range)
+
+addWorksheet(wb, "F_sal_m7d14d")
+writeData(wb, "F_sal_m7d14d", fs_m714_range)
+
+addWorksheet(wb, "F_sal_mmonthly")
+writeData(wb, "F_sal_mmonthly", fs_mm_range)
+
+# TOTAL FLOW
+addWorksheet(wb, "F_sal_daily")
+writeData(wb, "F_sal_daily", fs_daily_range)
+
+addWorksheet(wb, "F_sal_7d14d")
+writeData(wb, "F_sal_7d14d", fs_714_range)
+
+addWorksheet(wb, "F_sal_monthly")
+writeData(wb, "F_sal_monthly", fs_m_range)
+
+addWorksheet(wb, "F_turb_daily")
+writeData(wb, "F_turb_daily", ft_daily_model)
+
+addWorksheet(wb, "F_turb_lag1")
+writeData(wb, "F_turb_lag1", ft_dayLag1_model)
+
+addWorksheet(wb, "F_turb_lag2")
+writeData(wb, "F_turb_lag2", ft_dayLag2_model)
+
+addWorksheet(wb, "F_turb_7d14d")
+writeData(wb, "F_turb_7d14d", ft_714_range)
+
+addWorksheet(wb, "F_sedi_sta")
+writeData(wb, "F_sedi_sta", fd_s_range)
+
+addWorksheet(wb, "F_sedi_sec")
+writeData(wb, "F_sedi_sec", fd_n_range)
+
+addWorksheet(wb, "F_orwt_sta")
+writeData(wb, "F_orwt_sta", fo_s_range)
+
+addWorksheet(wb, "F_orwt_sec")
+writeData(wb, "F_orwt_sec", fo_n_range)
+
+# Save workbook
+saveWorkbook(
+  wb,
+  file = "PBC/Output/LWL_Flow_Summary.xlsx",
+  overwrite = TRUE
+)
+#
+#
