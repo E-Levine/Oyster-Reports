@@ -2259,8 +2259,249 @@ A1tab %>%
     digits = 1) %>%
   # Caption
   set_caption(
-    caption = "Table A1. Average monthly salinity at natural reef (LWL) and restored reef (LWR) monitoring stations in Lake Worth Lagoon. Stations are arranged north to south (left to right) with relative proximity to C-51 denoted by the C-51 column in the table. Salinities are designated as falling within the target range of 10-20 (green) or above the target range (orange).") %>%
+    caption = "Table A1. Average monthly salinity at natural reef (LWL) and restored reef (LWR) monitoring stations in Lake Worth Lagoon from October 2023 - September 2026. Stations are arranged north to south (left to right) with relative proximity to C-51 denoted by the C-51 column in the table. Salinities are designated as falling within the target range of 10-20 (green) or above the target range (orange).") %>%
   # Automatically size columns
+  autofit()
+#
+#
+```
+
+```{r A2 table}
+#
+A2tab_L <- PBC_Sal %>% 
+    mutate(Month = month(RetDate, label = TRUE, abbr = TRUE),
+           StaCode = paste0(Site, Station),
+           Salinity_Category = factor(case_when(
+             Salinity < 10 ~ "Low",
+             Salinity >= 10 & Salinity <= 20 ~ "Opt",
+             Salinity > 20 ~ "High",
+             TRUE ~ NA_character_),
+             levels = c("Low", "Opt", "High"))) %>%
+  filter(grepl("^LWL", StaCode), StaCode != "LWL5") %>%
+  group_by(Month, StaCode, Salinity_Category) %>% 
+  summarise(N = n(), .groups = "drop") %>%
+  group_by(Month, StaCode) %>%
+  mutate(Percent = round(N / sum(N) * 100, 1)) %>%
+  ungroup() %>%
+  select(-N) %>%
+  complete(Month, StaCode, Salinity_Category,
+           fill = list(Percent = NA)) %>% 
+  pivot_wider(names_from = c(StaCode, Salinity_Category), 
+              values_from = Percent,
+              names_glue = "{StaCode}_{Salinity_Category}",
+              values_fill = NA) %>%
+    arrange(Month) %>%
+  bind_rows(
+    summarise(.,
+              Month = "Overall Average",
+              across(where(is.numeric), ~ round(mean(.x, na.rm = TRUE), 1))))
+#
+# Extract station and salinity category information
+headerA2_L <- data.frame(
+  col_keys = names(A2tab_L),
+  Station = c("Month", sub("_(Low|Opt|High)$", "", names(A2tab_L)[-1])),
+  Category = c("", sub("^.*_(Low|Opt|High)$", "\\1", names(A2tab_L)[-1]))
+)
+#
+#
+A2tab_R <- PBC_Sal %>% 
+    mutate(Month = month(RetDate, label = TRUE, abbr = TRUE),
+           StaCode = paste0(Site, Station),
+           Salinity_Category = factor(case_when(
+             Salinity < 10 ~ "Low",
+             Salinity >= 10 & Salinity <= 20 ~ "Opt",
+             Salinity > 20 ~ "High",
+             TRUE ~ NA_character_),
+             levels = c("Low", "Opt", "High"))) %>%
+  filter(grepl("^LWR", StaCode)) %>%
+  group_by(Month, StaCode, Salinity_Category) %>% 
+  summarise(N = n(), .groups = "drop") %>%
+  group_by(Month, StaCode) %>%
+  mutate(Percent = round(N / sum(N) * 100, 1)) %>%
+  ungroup() %>%
+  select(-N) %>%
+  complete(Month, StaCode, Salinity_Category,
+           fill = list(Percent = NA)) %>% 
+  pivot_wider(names_from = c(StaCode, Salinity_Category), 
+              values_from = Percent,
+              names_glue = "{StaCode}_{Salinity_Category}",
+              values_fill = NA) %>%
+    arrange(Month) %>%
+  bind_rows(
+    summarise(.,
+              Month = "Overall Average",
+              across(where(is.numeric), ~ round(mean(.x, na.rm = TRUE), 1))))
+#
+# Extract station and salinity category information
+headerA2_R <- data.frame(
+  col_keys = names(A2tab_R),
+  Station = c("Month", sub("_(Low|Opt|High)$", "", names(A2tab_R)[-1])),
+  Category = c("", sub("^.*_(Low|Opt|High)$", "\\1", names(A2tab_R)[-1]))
+)
+#
+#
+#
+A2tab_L %>%
+  flextable() %>%
+  #headers 
+  delete_part(part = "header") %>%
+  add_header_row(values = c("Month", rep(c("Low", "Opt", "High"), length(unique(headerA2_L$Station[-1])))),
+                 colwidths = rep(1, ncol(A2tab_L))) %>%
+  add_header_row(values = c("", unique(headerA2_L$Station[-1])),
+                 colwidths = c(1, rep(3, length(unique(headerA2_L$Station[-1]))))) %>%
+  add_header_row(values = c("", "Lake Worth"),
+                 colwidths = c(1, length(names(A2tab_L)[-1]))) %>%
+  merge_v(j = "Month", part = "header") %>%
+  # Remove all default borders
+  border_remove() %>%
+  # Font
+  font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(size = 10, part = "all") %>%
+  # Header formatting
+  bold(part = "header") %>%
+  # Alignment
+  align(
+    j = c("Month"),
+    align = "left",
+    part = "all") %>%
+  align(
+    j = c("LWL1_Low",
+          "LWL1_Opt",
+          "LWL1_High",
+          "LWL2_Low",
+          "LWL2_Opt",
+          "LWL2_High",
+          "LWL3_Low",
+          "LWL3_Opt",
+          "LWL3_High"),
+    align = "center",
+    part = "all") %>%
+  # All borders
+  border_inner_h(border = fp_border(color = "black", width = 1), part = "all") %>%
+  border_inner_v(border = fp_border(color = "black", width = 1), part = "all") %>%
+  # Header and bottom borders
+  hline_top(border = fp_border(color = "black", width = 2), part = "header") %>%
+  hline_bottom(border = fp_border(color = "black", width = 2), part = "header") %>%
+  hline_bottom(border = fp_border(color = "black", width = 2), part = "body") %>%
+  # Bold values
+  bold(j = 1, part = "body") %>%
+  bold(i = 13, part = "body") %>%
+    # Number formatting
+  colformat_double(
+    j = names(A2tab_L)[sapply(A2tab_L, is.numeric)],
+    digits = 1) %>%
+  # Color cells 
+  Reduce(
+    f = function(table, col) {
+      bg(table,
+         i = as.formula(paste0("~ `", col, "` > 0")),
+         j = col,
+         bg = "#B8E3E9",
+         part = "body")},
+    x = grep("Low", names(A2tab_L), value = TRUE),
+    init = .) %>%
+  Reduce(
+    f = function(table, col) {
+      bg(table,
+         i = as.formula(paste0("~ `", col, "` > 0")),
+         j = col,
+         bg = "#C5F3C5",
+         part = "body")},
+    x = grep("Opt", names(A2tab_L), value = TRUE),
+    init = .) %>%
+  Reduce(
+    f = function(table, col) {
+      bg(table,
+         i = as.formula(paste0("~ `", col, "` > 0")),
+         j = col,
+         bg = "#FAE2B2",
+         part = "body")},
+    x = grep("High", names(A2tab_L), value = TRUE),
+    init = .)  %>%
+  # Caption
+  set_caption(
+    caption = "Table A2. Percentage of time from October 2023 – September 2026 in which monthly salinity was below the target window of 10-20 (Low), within the optimal range (Opt) or above the target range (High) at monitoring stations in Lake Worth Lagoon.") %>%
+  # Automatically size columns
+  autofit()
+#
+#
+A2tab_R %>%
+  flextable() %>%
+  #headers 
+  delete_part(part = "header") %>%
+  add_header_row(values = c("Month", rep(c("Low", "Opt", "High"), length(unique(headerA2_R$Station[-1])))),
+                 colwidths = rep(1, ncol(A2tab_R))) %>%
+  add_header_row(values = c("", unique(headerA2_R$Station[-1])),
+                 colwidths = c(1, rep(3, length(unique(headerA2_R$Station[-1]))))) %>%
+  add_header_row(values = c("", "Lake Worth"),
+                 colwidths = c(1, length(names(A2tab_R)[-1]))) %>%
+  merge_v(j = "Month", part = "header") %>%
+  # Remove all default borders
+  border_remove() %>%
+  # Font
+  font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(size = 10, part = "all") %>%
+  # Header formatting
+  bold(part = "header") %>%
+  # Alignment
+  align(
+    j = c("Month"),
+    align = "left",
+    part = "all") %>%
+  align(
+    j = c("LWR2_Low",
+          "LWR2_Opt",
+          "LWR2_High",
+          "LWR3_Low",
+          "LWR3_Opt",
+          "LWR3_High",
+          "LWR4_Low",
+          "LWR4_Opt",
+          "LWR4_High"),
+    align = "center",
+    part = "all") %>%
+  # All borders
+  border_inner_h(border = fp_border(color = "black", width = 1), part = "all") %>%
+  border_inner_v(border = fp_border(color = "black", width = 1), part = "all") %>%
+  # Header and bottom borders
+  hline_top(border = fp_border(color = "black", width = 2), part = "header") %>%
+  hline_bottom(border = fp_border(color = "black", width = 2), part = "header") %>%
+  hline_bottom(border = fp_border(color = "black", width = 2), part = "body") %>%
+  # Bold values
+  bold(j = 1, part = "body") %>%
+  bold(i = 13, part = "body") %>%
+    # Number formatting
+  colformat_double(
+    j = names(A2tab_R)[sapply(A2tab_R, is.numeric)],
+    digits = 1) %>%
+  # Color cells 
+  Reduce(
+    f = function(table, col) {
+      bg(table,
+         i = as.formula(paste0("~ `", col, "` > 0")),
+         j = col,
+         bg = "#B8E3E9",
+         part = "body")},
+    x = grep("Low", names(A2tab_R), value = TRUE),
+    init = .) %>%
+  Reduce(
+    f = function(table, col) {
+      bg(table,
+         i = as.formula(paste0("~ `", col, "` > 0")),
+         j = col,
+         bg = "#C5F3C5",
+         part = "body")},
+    x = grep("Opt", names(A2tab_R), value = TRUE),
+    init = .) %>%
+  Reduce(
+    f = function(table, col) {
+      bg(table,
+         i = as.formula(paste0("~ `", col, "` > 0")),
+         j = col,
+         bg = "#FAE2B2",
+         part = "body")},
+    x = grep("High", names(A2tab_R), value = TRUE),
+    init = .) %>%
   autofit()
 #
 #
