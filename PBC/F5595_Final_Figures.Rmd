@@ -99,7 +99,7 @@ Position_color <- scale_color_manual("", labels = Positions, values = Stat_pal2,
 ```{r Data gather from summary file, include=FALSE}
 ###Water Quality
 WQ_Sal_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
-LW_Flow_raw <- readWorkbook("Data/LWL_WQ_Data.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(30) & Date <= End_date) %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, LWSum)
+LW_Flow_raw <- readWorkbook("Data/LWL_WQ_Data_report.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(30) & Date <= End_date) %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, LWSum)
 WQ_Tem_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
 WQ_pH_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
 WQ_DO_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
@@ -119,8 +119,7 @@ Sedi_pos <- readWorkbook("../Data/CERP_PBC_Summary_Data.xlsx", sheet = 'Sedi Pos
 #
 ##Salinity
 names(WQ_Sal_s) <- gsub("\\.", "", names(WQ_Sal_s))
-PBC_Sal <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate_Sal > Start_date & LWL_RetDate_Sal < End_date) %>% 
+PBC_Sal_all <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>% 
   rename("RetDate" = LWL_RetDate_Sal) %>% 
   dplyr::select(-LWR_RetDate_Sal) %>% 
   gather(SiteStation, Salinity, -RetDate) %>% 
@@ -129,6 +128,8 @@ PBC_Sal <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>%
   #Add legend placeholder for Flow data
   rbind(data.frame(RetDate = NA, SiteStation = 'LWL5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE)) %>% 
   rbind(data.frame(RetDate = NA, SiteStation = 'LWR5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE))
+PBC_Sal <- PBC_Sal_all %>%
+  filter(LWL_RetDate_Sal > Start_date & LWL_RetDate_Sal < End_date) %>% 
 #
 #
 #Flow 
@@ -146,49 +147,53 @@ LW_Flow <- rbind(LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "L
 #
 ##Temperature
 names(WQ_Tem_s) <- gsub("\\.", "", names(WQ_Tem_s))
-PBC_Temp <- WQ_Tem_s %>% 
+PBC_Temp_all <- WQ_Tem_s %>% 
   dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate_Temp > Start_date & LWL_RetDate_Temp < End_date) %>% 
   dplyr::select(-LWR_RetDate_Temp) %>% 
   rename("RetDate" = LWL_RetDate_Temp) %>%
   gather(SiteStation, Temperature, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
+PBC_Temp <- PBC_Temp_all %>%
+    filter(LWL_RetDate_Temp > Start_date & LWL_RetDate_Temp < End_date)
 #
 #
 #
 ##DO
 names(WQ_DO_s) <- gsub("\\.", "", names(WQ_DO_s))
-PBC_DO <- WQ_DO_s %>% 
+PBC_DO_all <- WQ_DO_s %>% 
   dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate_DO > Start_date & LWL_RetDate_DO < End_date) %>% 
   dplyr::select(-LWR_RetDate_DO) %>% 
   rename("RetDate" = LWL_RetDate_DO) %>% 
   gather(SiteStation, DO, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
+PBC_DO <- PBC_DO_all %>%
+    filter(LWL_RetDate_DO > Start_date & LWL_RetDate_DO < End_date)
 #
 #
 #
 ##pH
 names(WQ_pH_s) <- gsub("\\.", "", names(WQ_pH_s))
-PBC_pH <- WQ_pH_s %>% 
+PBC_pH_all <- WQ_pH_s %>% 
   dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate_pH > Start_date & LWL_RetDate_pH < End_date) %>% 
   dplyr::select(-LWR_RetDate_pH) %>% 
   rename("RetDate" = LWL_RetDate_pH) %>% 
   gather(SiteStation, pH, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
+PBC_pH <- PBC_pH_all %>%
+    filter(LWL_RetDate_pH > Start_date & LWL_RetDate_pH < End_date)
 #
 #
 #
 ##Secchi
 names(WQ_Secchi_s) <- gsub("\\.", "", names(WQ_Secchi_s))
-PBC_SP <- WQ_Secchi_s %>% 
+PBC_SP_all <- WQ_Secchi_s %>% 
   dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate_SP > Start_date & LWL_RetDate_SP < End_date) %>% 
   dplyr::select(-LWR_RetDate_SP) %>% 
   rename("RetDate" = LWL_RetDate_SP) %>% 
   gather(SiteStation, SP, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
+PBC_SP <- PBC_SP_all %>%
+    filter(LWL_RetDate_SP > Start_date & LWL_RetDate_SP < End_date)
 #
 #
 #
@@ -198,12 +203,14 @@ PBC_SP <- WQ_Secchi_s %>%
 #
 ####SURVEY DATA
 names(Counts_df) <- gsub("\\.", "", names(Counts_df))
+Surveys_all <- Counts_df %>% 
+  arrange(AnalysisDate) %>% 
+  dplyr::select(AnalysisDate, Survey)
 Surveys <- Counts_df %>% 
   arrange(AnalysisDate) %>% 
   filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% 
   dplyr::select(AnalysisDate, Survey)
-Counts <- Counts_df %>% 
-  filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% 
+Counts_all <- Counts_df %>% 
   dplyr::select(Survey, AnalysisDate, contains("LW")) %>% 
   gather(SiteStation, DataType, -Survey, -AnalysisDate) %>% 
   mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", 
@@ -218,13 +225,14 @@ Counts <- Counts_df %>%
          Helper = case_when(is.na(Mean) ~ "*", 
                             grepl("Winter", Survey) & is.na(Mean) ~ "*", 
                             grepl("Summer", Survey) & is.na(Mean) ~ "*", TRUE ~ NA))
+Counts <- Counts_all %>%
+    filter(AnalysisDate >= Start_date & AnalysisDate <= End_date)
 #
 #
 #
 names(SH_df) <- gsub("\\.", "", names(SH_df))
-SHs <- SH_df %>% 
+SHs_all <- SH_df %>% 
   dplyr::select(Survey, AnalysisDate, contains("LW")) %>% 
-  filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% 
   gather(SiteStation, Value, -Survey, -AnalysisDate) %>% 
   mutate(Measure = case_when(grepl("Mean", SiteStation) ~ "Mean", 
                              grepl("SD", SiteStation) ~ "SD", 
@@ -237,27 +245,29 @@ SHs <- SH_df %>%
                             grepl("Winter", Survey) & is.na(Mean) ~ "*", 
                             grepl("Summer", Survey) & is.na(Mean) ~ "*", 
                             TRUE ~ NA))
+SHs <- SHs_all %>%
+    filter(AnalysisDate >= Start_date & AnalysisDate <= End_date)
 #
 #
 #
 ####DERMO DATA
 names(Dermo_df) <- gsub("\\.", "", names(Dermo_df))
-DermoP <- Dermo_df %>% 
+DermoP_all <- Dermo_df %>% 
   dplyr::select(contains("LW")) %>% 
   dplyr::select(contains('RetDate')|contains('Pct'))  %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   dplyr::select(-LWR_RetDate)  %>% 
   rename("RetDate" = LWL_RetDate) %>% 
   gather(SiteStation, Value, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), 
          Station = as.factor(substr(SiteStation, 4, 4)), 
          Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+DermoP <- DermoP_all %>%
+    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
 #
 #
-DermoI <- Dermo_df %>% 
+DermoI_all <- Dermo_df %>% 
   dplyr::select(contains("LW")) %>% 
   dplyr::select(contains('RetDate')|-contains('Pct')) %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   dplyr::select(-LWR_RetDate)  %>% 
   rename("RetDate" = LWL_RetDate)  %>% 
   gather(SiteStation, Value, -RetDate) %>% 
@@ -269,28 +279,30 @@ DermoI <- Dermo_df %>%
          SiteStation = substr(SiteStation, 1, 4)) %>%  
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+DermoI <- DermoI_all %>%
+    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
 #
 #
 #
 ####REPRO DATA
 names(Repro_df) <- gsub("\\.", "", names(Repro_df))
-Repro_PBC <- Repro_df %>% 
+Repro_PBC_all <- Repro_df %>% 
   dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   dplyr::select(-LWR_RetDate)  %>% 
   rename("RetDate" = LWL_RetDate) %>% 
   gather(SiteStation, Value, -RetDate) %>% 
   mutate(Stage = factor(substr(SiteStation, 5, 7), levels = c("Ind", "Dev", "Rip", "Spe")), 
          Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), 
          Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
+Repro_PBC <- Repro_PBC_all %>%
+    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
 #
 #
 #
 ####RECRUITMENT DATA
 names(Rcrt_df) <- gsub("\\.", "", names(Rcrt_df))
-Recruits <- Rcrt_df %>% 
+Recruits_all <- Rcrt_df %>% 
   dplyr::select(contains("LW")) %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   dplyr::select(-LWR_RetDate)  %>% 
   rename("RetDate" = LWL_RetDate) %>% 
   gather(SiteStation, Value, -RetDate) %>% 
@@ -302,15 +314,16 @@ Recruits <- Rcrt_df %>%
          SiteStation = substr(SiteStation, 1, 4)) %>%  
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
+Recruits <- Recruits_all %>%
+    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
 #
 #
 #
 ####SEDIMENT DATA
 names(Sedi_sta) <- gsub("\\.", "", names(Sedi_sta))
 names(Sedi_pos) <- gsub("\\.", "", names(Sedi_pos))
-Sed_sta_rate <- Sedi_sta %>% 
+Sed_sta_rate_all <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Rate")) %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   rename("RetDate" = LWL_RetDate) %>% 
   dplyr::select(-LWR_RetDate) %>% 
   gather(SiteStation, Value, -RetDate) %>% 
@@ -324,9 +337,11 @@ Sed_sta_rate <- Sedi_sta %>%
   mutate(Helper = case_when(is.na(Mean) ~ "*", 
                             TRUE ~ NA),
          SiteStation = as.factor(paste0(Site, Station)))
-Sed_sta_org <- Sedi_sta %>% 
+Sed_sta_rate <- Sed_sta_rate_all %>%
+    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) 
+#
+Sed_sta_org_all <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Pct")) %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   rename("RetDate" = LWL_RetDate) %>% 
   dplyr::select(-LWR_RetDate) %>% 
   gather(SiteStation, Value, -RetDate) %>% 
@@ -340,9 +355,11 @@ Sed_sta_org <- Sedi_sta %>%
   mutate(Helper = case_when(is.na(Mean) ~ "*", 
                             TRUE ~ NA),
          SiteStation = as.factor(paste0(Site, Station)))
-Sed_sta_wt <- Sedi_sta %>% 
+Sed_sta_org <- Sed_sta_org_all %>%
+  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+#
+Sed_sta_wt_all <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Wt")) %>% 
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) %>% 
   rename("RetDate" = LWL_RetDate) %>% 
   dplyr::select(-LWR_RetDate) %>% 
   gather(SiteStation, Value, -RetDate) %>% 
@@ -355,11 +372,12 @@ Sed_sta_wt <- Sedi_sta %>%
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA),
          SiteStation = as.factor(paste0(Site, Station)))
+Sed_sta_wt <- Sed_sta_wt_all %>%
+    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
 #
-Sedi_positions <- Sedi_pos %>% 
+Sedi_positions_all <- Sedi_pos %>% 
   dplyr::select(-AnalysisDate) %>% 
   rename("RetDate" = North_RetDate) %>% 
-  filter(RetDate >= Start_date & RetDate <= End_date) %>% 
   gather(Info, Value, -RetDate) %>% 
   mutate(Position = factor(substr(Info, 1, 5)), 
          Measure = case_when(grepl("Mean", Info) ~ "Mean", 
@@ -373,6 +391,8 @@ Sedi_positions <- Sedi_pos %>%
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", 
                             TRUE ~ NA))
+Sedi_positions <- Sedi_positions_all %>%
+    filter(RetDate >= Start_date & RetDate <= End_date)
 #
 #
 ```
@@ -2160,6 +2180,10 @@ grid::grid.draw(Posi_fig)
 #
 ```
 
+\
+\
+\newpage
+
 **PBC Appendix Tables and Figures**
 
 Supplementary tables and figures of survey, recruitment, and reproductive activity data from 2015 through 2023. Figures are presented in the same format as the main in-text figures.
@@ -2169,14 +2193,14 @@ Supplementary tables and figures of survey, recruitment, and reproductive activi
 ```{r A1 table, Average monthly salinity per station}
 #
 A1tab <- full_join(
-  PBC_Sal %>% 
+  PBC_Sal_all %>% 
     mutate(Month = month(RetDate, label = TRUE, abbr = TRUE),
            StaCode = paste0(Site, Station)) %>%
     group_by(Month, StaCode) %>% 
     summarise(Salinity = mean(Salinity, na.rm = T)) %>% 
     pivot_wider(names_from = StaCode, values_from = Salinity) %>%
     dplyr::select(LWR4, LWL1, LWL2, LWR2, LWR3, LWL3),
-  PBC_Sal %>% 
+  PBC_Sal_all %>% 
     mutate(Month = month(RetDate, label = TRUE, abbr = TRUE)) %>%
     group_by(Month) %>% 
     summarise(`Monthly Ave` = mean(Salinity, na.rm = T))) %>%
@@ -2259,7 +2283,7 @@ A1tab %>%
     digits = 1) %>%
   # Caption
   set_caption(
-    caption = "Table A1. Average monthly salinity at natural reef (LWL) and restoraton reef (LWR) monitoring stations in Lake Worth Lagoon from October 2023 - September 2026. Stations are arranged north to south (left to right) with relative proximity to C-51 denoted by the C-51 column in the table. Salinities are designated as falling within the target range of 10-20 (green) or above the target range (orange).") %>%
+    caption = "Table A1. Average monthly salinity at natural reef (LWL) and restoraton reef (LWR) monitoring stations in Lake Worth Lagoon from September 2015 - September 2026. Stations are arranged north to south (left to right) with relative proximity to C-51 denoted by the C-51 column in the table. Salinities are designated as falling within the target range of 10-20 (green) or above the target range (orange). Lake Worth natural reef stations 1-3 and Lake Worth restoration stations 2 and 3 were sampled from September 2015 – September 2026. Lake Worth restoration reef station 1 was sampled from September 2015 – December 2021. Lake Worth restoration reef station 4 was sampled from September 2020 – September 2026.") %>%
   # Automatically size columns
   autofit()
 #
@@ -2420,7 +2444,7 @@ A2tab_L %>%
     init = .)  %>%
   # Caption
   set_caption(
-    caption = "Table A2. Percentage of time from October 2023 – September 2026 in which monthly salinity was below the target window of 10-20 (Low), within the optimal range (Opt) or above the target range (High) at monitoring stations in Lake Worth Lagoon.") %>%
+    caption = "Table A2. Percentage of time from September 2015 – September 2026 in which monthly salinity was below the target window of 10-20 (Low), within the optimal range (Opt) or above the target range (High) at monitoring stations in Lake Worth Lagoon. Lake Worth natural reef stations 1-3 and Lake Worth restoration stations 2 and 3 were sampled from September 2015 – September 2026. Lake Worth restoration reef station 1 was sampled from September 2015 – December 2021. Lake Worth restoration reef station 4 was sampled from September 2020 – September 2026.") %>%
   # Automatically size columns
   autofit()
 #
@@ -2574,9 +2598,72 @@ A3tab %>%
     digits = 1) %>%
   # Caption
   set_caption(
-    caption = "Table A3. Average monthly temperature (C) at natural reef (LWL) and restoration reef (LWR) monitoring stations in Lake Worth Lagoon from October 2023 - September 2026.") %>%
+    caption = "Table A3. Average monthly temperature (C) at natural reef (LWL) and restoration reef (LWR) monitoring stations in Lake Worth Lagoon from September 2015 - September 2026. Lake Worth natural reef stations 1-3 and Lake Worth restoration stations 2 and 3 were sampled from September 2015 – September 2026. Lake Worth restoration reef station 1 was sampled from September 2015 – December 2021. Lake Worth restoration reef station 4 was sampled from September 2020 – September 2026.") %>%
   # Automatically size columns
   autofit()
+#
+#
+```
+
+```{r A1 Figure, Survey, fig.cap = "**Figure A1.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef (top) and restored reef (bottom) stations during spring surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+#
+A1_Live_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Counts %>% 
+    filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_Live_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 17) +
+    geom_col(position = position_dodge(40), width = 25, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date))+
+    scale_y_continuous(expression("Live oysters / m"^2), 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+A1_live_fig <- gridExtra::arrangeGrob(
+  textGrob(expression("Live oysters / m"^2), rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_Live_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Live_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Live_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+grid::grid.draw(A1_live_fig)
 #
 #
 ```
