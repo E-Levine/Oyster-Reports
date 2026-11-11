@@ -2166,7 +2166,7 @@ Supplementary tables and figures of survey, recruitment, and reproductive activi
 \
 \
 
-```{r A1 table}
+```{r A1 table, Average monthly salinity per station}
 #
 A1tab <- full_join(
   PBC_Sal %>% 
@@ -2259,14 +2259,14 @@ A1tab %>%
     digits = 1) %>%
   # Caption
   set_caption(
-    caption = "Table A1. Average monthly salinity at natural reef (LWL) and restored reef (LWR) monitoring stations in Lake Worth Lagoon from October 2023 - September 2026. Stations are arranged north to south (left to right) with relative proximity to C-51 denoted by the C-51 column in the table. Salinities are designated as falling within the target range of 10-20 (green) or above the target range (orange).") %>%
+    caption = "Table A1. Average monthly salinity at natural reef (LWL) and restoraton reef (LWR) monitoring stations in Lake Worth Lagoon from October 2023 - September 2026. Stations are arranged north to south (left to right) with relative proximity to C-51 denoted by the C-51 column in the table. Salinities are designated as falling within the target range of 10-20 (green) or above the target range (orange).") %>%
   # Automatically size columns
   autofit()
 #
 #
 ```
 
-```{r A2 table}
+```{r A2 table, Percent low/opt/high monthly salinities}
 #
 A2tab_L <- PBC_Sal %>% 
     mutate(Month = month(RetDate, label = TRUE, abbr = TRUE),
@@ -2347,9 +2347,9 @@ A2tab_L %>%
   delete_part(part = "header") %>%
   add_header_row(values = c("Month", rep(c("Low", "Opt", "High"), length(unique(headerA2_L$Station[-1])))),
                  colwidths = rep(1, ncol(A2tab_L))) %>%
-  add_header_row(values = c("", unique(headerA2_L$Station[-1])),
+  add_header_row(values = c("Month", unique(headerA2_L$Station[-1])),
                  colwidths = c(1, rep(3, length(unique(headerA2_L$Station[-1]))))) %>%
-  add_header_row(values = c("", "Lake Worth"),
+  add_header_row(values = c("Month", "Lake Worth"),
                  colwidths = c(1, length(names(A2tab_L)[-1]))) %>%
   merge_v(j = "Month", part = "header") %>%
   # Remove all default borders
@@ -2431,9 +2431,9 @@ A2tab_R %>%
   delete_part(part = "header") %>%
   add_header_row(values = c("Month", rep(c("Low", "Opt", "High"), length(unique(headerA2_R$Station[-1])))),
                  colwidths = rep(1, ncol(A2tab_R))) %>%
-  add_header_row(values = c("", unique(headerA2_R$Station[-1])),
+  add_header_row(values = c("Month", unique(headerA2_R$Station[-1])),
                  colwidths = c(1, rep(3, length(unique(headerA2_R$Station[-1]))))) %>%
-  add_header_row(values = c("", "Lake Worth"),
+  add_header_row(values = c("Month", "Lake Worth"),
                  colwidths = c(1, length(names(A2tab_R)[-1]))) %>%
   merge_v(j = "Month", part = "header") %>%
   # Remove all default borders
@@ -2502,6 +2502,80 @@ A2tab_R %>%
          part = "body")},
     x = grep("High", names(A2tab_R), value = TRUE),
     init = .) %>%
+  autofit()
+#
+#
+```
+
+```{r A3 table, Average monthly temperature per station}
+#
+A3tab <- full_join(
+  PBC_Temp %>% 
+    mutate(Month = month(RetDate, label = TRUE, abbr = TRUE),
+           StaCode = paste0(Site, Station)) %>%
+    group_by(Month, StaCode) %>% 
+    summarise(Temperature = round(mean(Temperature, na.rm = T),2)) %>% 
+    pivot_wider(names_from = StaCode, values_from = Temperature),
+  PBC_Temp %>% 
+    mutate(Month = month(RetDate, label = TRUE, abbr = TRUE)) %>%
+    group_by(Month) %>% 
+    summarise(`Monthly Ave` = round(mean(Temperature, na.rm = T), 2))) %>%
+  ungroup() %>%
+  drop_na() %>%
+  bind_rows(
+    summarise(.,
+              Month = "Station Ave",
+              across(where(is.numeric), ~ round(mean(.x, na.rm = TRUE), 2))))  
+#
+A3tab %>%
+  flextable() %>%
+  # Font
+  font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(size = 10, part = "all") %>%
+  # Remove all default borders
+  border_remove() %>%
+  # Header and formatting
+  add_header_row(values = c("Month", "Lake Worth", "Lake Worth Restoration", "Monthly Ave"),
+                 colwidths = c(1, 3, 3, 1)) %>%
+  merge_v(j = "Month", part = "header") %>%
+  merge_v(j = "Monthly Ave", part = "header") %>%
+  bold(part = "header") %>%
+  # Alignment
+  align(
+    j = c("Month"),
+    align = "left",
+    part = "all") %>%
+  align(
+    j = c("LWR4",
+          "LWL1",
+          "LWL2",
+          "LWR2",
+          "LWR3",
+          "LWL3",
+          "Monthly Ave"),
+    align = "center",
+    part = "all") %>%
+  # All borders
+  border_inner_h(border = fp_border(color = "black", width = 1), part = "all") %>%
+  border_inner_v(border = fp_border(color = "black", width = 1), part = "all") %>%
+  # Header and bottom borders
+  hline_top(border = fp_border(color = "black", width = 2), part = "header") %>%
+  hline_bottom(border = fp_border(color = "black", width = 2), part = "header") %>%
+  hline(i = 12, border = fp_border(color = "black", width = 2), part = "body") %>%
+  hline_bottom(border = fp_border(color = "black", width = 2), part = "body") %>%
+  # Column borders
+  vline(j = c(1, 4, ncol(A3tab)-1), border = fp_border(color = "black", width = 2), part = "all") %>%
+  # Bold values
+  bold(j = 1, part = "body") %>%
+  bold(i = 13, part = "body") %>%
+  # Number formatting
+  colformat_double(
+    j = names(A3tab)[sapply(A3tab, is.numeric)],
+    digits = 1) %>%
+  # Caption
+  set_caption(
+    caption = "Table A3. Average monthly temperature (C) at natural reef (LWL) and restoration reef (LWR) monitoring stations in Lake Worth Lagoon from October 2023 - September 2026.") %>%
+  # Automatically size columns
   autofit()
 #
 #
