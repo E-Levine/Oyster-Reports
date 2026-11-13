@@ -43,11 +43,11 @@ pacman::p_load(odbc, DBI, dbplyr,
 Estuaries <- c("SL", "LX", "CR", "LW")
 Sites <- c("CR-E", "CR-W", "LW-L", "LW-R", "LX-N", "LX-S", "SL-C", "SL-N", "SL-S")
 LocationID_order <- c("0230", "0231", "0232", "0233",  #CR
-                      "0235", "0236", "0237", "0240", "0241", "0312", #LW
+                      "0235", "0236", "0237", "0234", "0235", "0239", "0240", "0241", "0312", #LW
                       "0242", "0243", "0244", "0246", "0247", "0249", #LX
                       "0255", "0256", "0257", "0261", "0262", "0264", "0269", "0270", "0271") #SL
 Station_order <- c("CR-E1", "CR-E2", "CR-W3", "CR-W4", #CR
-                   "LW-L1", "LW-L2", "LW-L3", "LW-R2", "LW-R3", "LW-R4", #LW
+                   "LW-L1", "LW-L2", "LW-L3", "LW-R1", "LW-R2", "LW-R3", "LW-R4", #LW
                    "LX-N1", "LX-N2", "LX-N3", "LX-S1", "LX-S2", "LX-S3", #LX
                    "SL-C1", "SL-C2", "SL-C3", "SL-N1", "SL-N2", "SL-N3", "SL-S1", "SL-S2", "SL-S3") #SL
 Date_exclusion <- c("CR-W4_RetDate", "CR-E2_RetDate", "LW-L2_RetDate", "LW-L3_RetDate", "LW-R3_RetDate", "LW-R4_RetDate", "LX-N2_RetDate", "LX-N3_RetDate", "LX-S2_RetDate", "LX-S3_RetDate", "SL-C2_RetDate", "SL-C3_RetDate", "SL-N2_RetDate", "SL-N3_RetDate", "SL-S2_RetDate", "SL-S3_RetDate")
@@ -472,7 +472,26 @@ for(i in WQ_params){
     #Join with existing data
     Station_summary <- left_join(Station_summary, Summary_jS, by = "AnalysisDate")
   #Clean columns for selection and output
-  Station_summ <- Station_summary %>% dplyr::select(-contains(Date_exclusion)) %>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
+  Station_summ <- Station_summary %>% dplyr::select(-contains(Date_exclusion)) %>% 
+    {
+    df <- .
+    # Identify matching R1/R2 RetDate columns, including any suffix
+    r1_cols <- grep("LW-R1_RetDate.*", names(df), value = TRUE)
+    r2_cols <- grep("LW-R2_RetDate.*", names(df), value = TRUE)
+
+    for (r2 in r2_cols) {
+      suffix <- sub("^LW-R2_RetDate", "", r2)
+      r1 <- paste0("LW-R1_RetDate", suffix)
+
+      if (r1 %in% names(df)) {
+        new_name <- paste0("LW-RetDate", suffix)
+        df[[new_name]] <- dplyr::coalesce(df[[r2]], df[[r1]])
+        df <- df %>% select(-all_of(c(r1, r2)))
+      }
+    }
+    df
+  }%>% 
+    rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
     mutate(across(where(is.numeric), round, 2)) %>% arrange(AnalysisDate)
   }
 }
@@ -577,7 +596,25 @@ for(j in Station_order){
   #Join with existing data
   Station_summary_D <- left_join(Station_summary_D, Summary_jD, by = "AnalysisDate")
   #Clean columns for selection and output
-  Station_summ_D <- Station_summary_D %>% dplyr::select(-contains(Date_exclusion)) %>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
+  Station_summ_D <- Station_summary_D %>% dplyr::select(-contains(Date_exclusion)) %>%
+    {
+    df <- .
+    # Identify matching R1/R2 RetDate columns, including any suffix
+    r1_cols <- grep("LW-R1_RetDate.*", names(df), value = TRUE)
+    r2_cols <- grep("LW-R2_RetDate.*", names(df), value = TRUE)
+
+    for (r2 in r2_cols) {
+      suffix <- sub("^LW-R2_RetDate", "", r2)
+      r1 <- paste0("LW-R1_RetDate", suffix)
+
+      if (r1 %in% names(df)) {
+        new_name <- paste0("LW-RetDate", suffix)
+        df[[new_name]] <- dplyr::coalesce(df[[r2]], df[[r1]])
+        df <- df %>% select(-all_of(c(r1, r2)))
+      }
+    }
+    df
+  }%>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
     mutate(across(where(is.numeric), round, 2)) %>% arrange(AnalysisDate)
   }
 
@@ -741,7 +778,25 @@ for(j in Station_order){
   #Join with existing data
   Station_summary_R <- left_join(Station_summary_R, Summary_jR, by = "AnalysisDate")
   #Clean columns for selection and output
-  Station_summ_R <- Station_summary_R %>% dplyr::select(-contains(Date_exclusion)) %>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
+  Station_summ_R <- Station_summary_R %>% dplyr::select(-contains(Date_exclusion)) %>%
+    {
+    df <- .
+    # Identify matching R1/R2 RetDate columns, including any suffix
+    r1_cols <- grep("LW-R1_RetDate.*", names(df), value = TRUE)
+    r2_cols <- grep("LW-R2_RetDate.*", names(df), value = TRUE)
+
+    for (r2 in r2_cols) {
+      suffix <- sub("^LW-R2_RetDate", "", r2)
+      r1 <- paste0("LW-R1_RetDate", suffix)
+
+      if (r1 %in% names(df)) {
+        new_name <- paste0("LW-RetDate", suffix)
+        df[[new_name]] <- dplyr::coalesce(df[[r2]], df[[r1]])
+        df <- df %>% select(-all_of(c(r1, r2)))
+      }
+    }
+    df
+  }%>% rename_with(~sub("(\\d)_RetDate", "_RetDate", .x)) %>%
     mutate(across(where(is.numeric), round, 2)) %>% arrange(AnalysisDate)
   }
 
