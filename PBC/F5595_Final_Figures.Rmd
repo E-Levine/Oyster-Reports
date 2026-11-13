@@ -38,11 +38,12 @@ pacman::p_load(odbc, DBI, dbplyr,
 PBC_sites <- c("LWL", "LWR")
 LWL_stations <- c("LWL1", "LWL2", "LWL3")
 LWR_stations <- c("LWR2", "LWR3", "LWR4")
+LWR_stations_all <- c("LWR1", LWR_stations)
 #
 # Station information
 StationInfo <- data.frame(
   Group = c("Lake Worth", "Lake Worth", "Lake Worth", "Lake Worth-Restoration", "Lake Worth-Restoration", "Lake Worth-Restoration"),
-  Type = c("Natural", "Natural", "Natural", "Restored", "Restored", "Restored"),
+  Type = c("Natural", "Natural", "Natural", "Restoration", "Restoration", "Restoration"),
   Station = c("1", "2", "3", "2", "3", "4"), 
   StationName = c("Audubon Island", "John's Island", "Hypoluxo Bird Island", "Grassy Flats", "Snook Island", "Tarpon Cove")
 )
@@ -99,7 +100,7 @@ Position_color <- scale_color_manual("", labels = Positions, values = Stat_pal2,
 ```{r Data gather from summary file, include=FALSE}
 ###Water Quality
 WQ_Sal_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Salinity Station', detectDates = TRUE, check.names = TRUE)
-LW_Flow_raw <- readWorkbook("Data/LWL_WQ_Data_report.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE) %>% filter(Date >= Start_date %m-% days(30) & Date <= End_date) %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, LWSum)
+LW_Flow_raw <- readWorkbook("Data/LWL_WQ_Data_report.xlsx", sheet = 'Flow_df', detectDates = TRUE, check.names = TRUE) %>% dplyr::select(Analysis_Date, Estuary, Date, S155_Flow, S41_Flow, S44_Flow, LWSum)
 WQ_Tem_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'Temp Station', detectDates = TRUE, check.names = TRUE)
 WQ_pH_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'pH Station', detectDates = TRUE, check.names = TRUE)
 WQ_DO_s <-  readWorkbook("../Data/CERP_PBC_WQ_Summary_Data.xlsx", sheet = 'DO Station', detectDates = TRUE, check.names = TRUE)
@@ -129,16 +130,29 @@ PBC_Sal_all <- WQ_Sal_s %>% dplyr::select(contains("LW")) %>%
   rbind(data.frame(RetDate = NA, SiteStation = 'LWL5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE)) %>% 
   rbind(data.frame(RetDate = NA, SiteStation = 'LWR5_Flow', Salinity = NA, Site = 'LWL', Station = '5', Helper = NA, stringsAsFactors = TRUE))
 PBC_Sal <- PBC_Sal_all %>%
-  filter(LWL_RetDate_Sal > Start_date & LWL_RetDate_Sal < End_date) %>% 
+  filter(RetDate > Start_date & RetDate < End_date) 
 #
 #
 #Flow 
-flow_maxScale <- ceiling(max(LW_Flow_raw$LWSum, na.rm = TRUE) / 100) * 100
+flow_raw_maxScale <- ceiling(max(LW_Flow_raw$LWSum, na.rm = TRUE) / 100) * 100
+flow_raw_step <- ceiling(flow_raw_maxScale / 3 / 100) * 100
+flow_raw_breaks <- seq(0, flow_raw_step * 3, by = flow_raw_step)
+flow_raw_max <- max(flow_raw_breaks)
+#
+LW_Flow <- LW_Flow_raw %>% 
+  filter(Date >= Start_date %m-% days(30) & Date <= End_date) 
+flow_maxScale <- ceiling(max(LW_Flow$LWSum, na.rm = TRUE) / 100) * 100
 flow_step <- ceiling(flow_maxScale / 3 / 100) * 100
 flow_breaks <- seq(0, flow_step * 3, by = flow_step)
 flow_max <- max(flow_breaks)
-LW_Flow <- rbind(LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWL"), 
+#
+LW_Flow_raw <- rbind(LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWL"), 
                     LW_Flow_raw %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWR")) %>%
+  mutate(Rescale = (LWSum)/(flow_raw_max)*(40-0)+0, #Rescale flow to salinity and flow axis limits for plotting
+         Rescale16 = (LWSum)/(flow_raw_max)*(16-0)+0,
+         Rescale10 = (LWSum)/(flow_raw_max)*(10-7)+7)
+LW_Flow <- rbind(LW_Flow %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWL"), 
+                    LW_Flow %>% dplyr::select(Date, LWSum) %>% mutate(Site = "LWR")) %>%
   mutate(Rescale = (LWSum)/(flow_max)*(40-0)+0, #Rescale flow to salinity and flow axis limits for plotting
          Rescale16 = (LWSum)/(flow_max)*(16-0)+0,
          Rescale10 = (LWSum)/(flow_max)*(10-7)+7)
@@ -154,7 +168,7 @@ PBC_Temp_all <- WQ_Tem_s %>%
   gather(SiteStation, Temperature, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
 PBC_Temp <- PBC_Temp_all %>%
-    filter(LWL_RetDate_Temp > Start_date & LWL_RetDate_Temp < End_date)
+    filter(RetDate > Start_date & RetDate < End_date)
 #
 #
 #
@@ -167,7 +181,7 @@ PBC_DO_all <- WQ_DO_s %>%
   gather(SiteStation, DO, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
 PBC_DO <- PBC_DO_all %>%
-    filter(LWL_RetDate_DO > Start_date & LWL_RetDate_DO < End_date)
+    filter(RetDate > Start_date & RetDate < End_date)
 #
 #
 #
@@ -180,7 +194,7 @@ PBC_pH_all <- WQ_pH_s %>%
   gather(SiteStation, pH, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
 PBC_pH <- PBC_pH_all %>%
-    filter(LWL_RetDate_pH > Start_date & LWL_RetDate_pH < End_date)
+    filter(RetDate > Start_date & RetDate < End_date)
 #
 #
 #
@@ -193,7 +207,7 @@ PBC_SP_all <- WQ_Secchi_s %>%
   gather(SiteStation, SP, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), Station = as.factor(substr(SiteStation, 4, 4)))
 PBC_SP <- PBC_SP_all %>%
-    filter(LWL_RetDate_SP > Start_date & LWL_RetDate_SP < End_date)
+    filter(RetDate > Start_date & RetDate < End_date)
 #
 #
 #
@@ -205,7 +219,9 @@ PBC_SP <- PBC_SP_all %>%
 names(Counts_df) <- gsub("\\.", "", names(Counts_df))
 Surveys_all <- Counts_df %>% 
   arrange(AnalysisDate) %>% 
-  dplyr::select(AnalysisDate, Survey)
+  dplyr::select(AnalysisDate, Survey) %>%
+  filter(grepl("Spring|Fall", Survey)) %>%
+  filter(AnalysisDate != "2023-01-01")
 Surveys <- Counts_df %>% 
   arrange(AnalysisDate) %>% 
   filter(AnalysisDate >= Start_date & AnalysisDate <= End_date) %>% 
@@ -262,7 +278,7 @@ DermoP_all <- Dermo_df %>%
          Station = as.factor(substr(SiteStation, 4, 4)), 
          Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 DermoP <- DermoP_all %>%
-    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+    filter(RetDate >= Start_date & RetDate <= End_date)
 #
 #
 DermoI_all <- Dermo_df %>% 
@@ -280,7 +296,7 @@ DermoI_all <- Dermo_df %>%
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 DermoI <- DermoI_all %>%
-    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+    filter(RetDate >= Start_date & RetDate <= End_date)
 #
 #
 #
@@ -295,7 +311,7 @@ Repro_PBC_all <- Repro_df %>%
          Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), 
          Helper = case_when(is.na(Value) ~ "*", TRUE ~ NA))
 Repro_PBC <- Repro_PBC_all %>%
-    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+    filter(RetDate >= Start_date & RetDate <= End_date)
 #
 #
 #
@@ -303,8 +319,9 @@ Repro_PBC <- Repro_PBC_all %>%
 names(Rcrt_df) <- gsub("\\.", "", names(Rcrt_df))
 Recruits_all <- Rcrt_df %>% 
   dplyr::select(contains("LW")) %>% 
-  dplyr::select(-LWR_RetDate)  %>% 
+  dplyr::select(-LWR_RetDate)  %>%
   rename("RetDate" = LWL_RetDate) %>% 
+  drop_na(RetDate) %>%
   gather(SiteStation, Value, -RetDate) %>% 
   mutate(Site = factor(substr(SiteStation, 1, 3), levels = c("LWL", "LWR")), 
          Station = as.factor(substr(SiteStation, 4, 4)), 
@@ -315,7 +332,7 @@ Recruits_all <- Rcrt_df %>%
   spread(Measure, Value) %>% 
   mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA))
 Recruits <- Recruits_all %>%
-    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+    filter(RetDate >= Start_date & RetDate <= End_date)
 #
 #
 #
@@ -338,7 +355,7 @@ Sed_sta_rate_all <- Sedi_sta %>%
                             TRUE ~ NA),
          SiteStation = as.factor(paste0(Site, Station)))
 Sed_sta_rate <- Sed_sta_rate_all %>%
-    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date) 
+    filter(RetDate >= Start_date & RetDate <= End_date) 
 #
 Sed_sta_org_all <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Pct")) %>% 
@@ -356,7 +373,7 @@ Sed_sta_org_all <- Sedi_sta %>%
                             TRUE ~ NA),
          SiteStation = as.factor(paste0(Site, Station)))
 Sed_sta_org <- Sed_sta_org_all %>%
-  filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+  filter(RetDate >= Start_date & RetDate <= End_date)
 #
 Sed_sta_wt_all <- Sedi_sta %>% 
   dplyr::select(contains("Ret") | contains("Wt")) %>% 
@@ -373,7 +390,7 @@ Sed_sta_wt_all <- Sedi_sta %>%
   mutate(Helper = case_when(is.na(Mean) ~ "*", TRUE ~ NA),
          SiteStation = as.factor(paste0(Site, Station)))
 Sed_sta_wt <- Sed_sta_wt_all %>%
-    filter(LWL_RetDate >= Start_date & LWL_RetDate <= End_date)
+    filter(RetDate >= Start_date & RetDate <= End_date)
 #
 Sedi_positions_all <- Sedi_pos %>% 
   dplyr::select(-AnalysisDate) %>% 
@@ -442,7 +459,7 @@ Survey_check <- Counts_df %>%
                         filter(str_detect(Survey, "Spring|Fall")) %>% 
                         rename_with(~str_remove(., "_LiveMean")) %>% 
                         gather("Station", "LiveCount", -Survey) %>% 
-  filter(grepl("LW", Station)) %>%
+  filter(grepl("LW", Station) & Station != "LWR1") %>%
   filter(is.na(LiveCount)) %>% 
   dplyr::select(Survey, Station)
 #
@@ -452,7 +469,7 @@ SH_check <- SH_df %>%
   filter(str_detect(Survey, "Spring|Fall")) %>% 
   rename_with(~str_remove(., "_SHMean")) %>% 
   gather("Station", "SH", -Survey) %>% 
-  filter(grepl("LW", Station)) %>%
+  filter(grepl("LW", Station) & Station != "LWR1") %>%
   filter(is.na(SH)) %>% 
   dplyr::select(Survey, Station)
 #
@@ -465,7 +482,7 @@ Dermo_check <- Dermo_df %>%
   dplyr::select(MonYr, contains("Mean")) %>% 
   rename_with(~str_remove(., "_Mean")) %>% 
   gather("Station", "Dermo", -MonYr)  %>% 
-  filter(grepl("LW", Station)) %>%
+  filter(grepl("LW", Station) & Station != "LWR1") %>%
   filter(is.na(Dermo)) %>% 
   dplyr::select(MonYr, Station)
 #
@@ -478,7 +495,7 @@ Repro_check <- Repro_df %>%
   dplyr::select(MonYr, contains("Dev")) %>% 
   rename_with(~str_remove(., "_Dev")) %>% 
   gather("Station", "Repro", -MonYr) %>% 
-  filter(grepl("LW", Station)) %>%
+  filter(grepl("LW", Station) & Station != "LWR1") %>%
   filter(is.na(Repro)) %>% 
   dplyr::select(MonYr, Station)
 #
@@ -491,7 +508,7 @@ Rcrt_check <- Rcrt_df %>%
   dplyr::select(MonYr, contains("Mean")) %>% 
   rename_with(~str_remove(., "_Mean")) %>% 
   gather("Station", "Spat", -MonYr) %>% 
-  filter(grepl("LW", Station)) %>%
+  filter(grepl("LW", Station) & Station != "LWR1") %>%
   filter(is.na(Spat)) %>% 
   dplyr::select(MonYr, Station)
 #
@@ -585,7 +602,8 @@ Percent organic weight\
 Sal_plot <- ggarrange(
   #LWL
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 20), alpha = 0.4, inherit.aes = FALSE, fill = "palegreen")+
     geom_line(data = PBC_Sal %>% filter(Site == "LWL"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_Sal %>% filter(Site == "LWL"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 3) +
@@ -604,7 +622,8 @@ Sal_plot <- ggarrange(
   NULL,
   #LWR
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 20), alpha = 0.4, inherit.aes = FALSE, fill = "palegreen")+
     geom_line(data = PBC_Sal %>% filter(Site == "LWR"), aes(RetDate, Salinity, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_Sal %>% filter(Site == "LWR"), aes(RetDate, Salinity, fill = Station, shape = Station), size = 3) +
@@ -634,7 +653,8 @@ annotate_figure(Sal_plot,
 Temp_plot <- ggarrange(
   #LWL
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
 geom_line(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Natural") +
@@ -652,7 +672,8 @@ geom_line(data = PBC_Temp %>% filter(Site == "LWL"), aes(RetDate, Temperature, c
   NULL,
   #LWR
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
   geom_line(data = PBC_Temp %>% filter(Site == "LWR"), aes(RetDate, Temperature, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_Temp %>% filter(Site == "LWR"), aes(RetDate, Temperature, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
@@ -681,7 +702,8 @@ annotate_figure(Temp_plot,
 DO_plot <- ggarrange(
   #LWL
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale16), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale16), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
 geom_line(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Natural") +
@@ -699,7 +721,8 @@ geom_line(data = PBC_DO %>% filter(Site == "LWL"), aes(RetDate, DO, color = Stat
   NULL,
   #LWR
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale16), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale16), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
   geom_line(data = PBC_DO %>% filter(Site == "LWR"), aes(RetDate, DO, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_DO %>% filter(Site == "LWR"), aes(RetDate, DO, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
@@ -728,7 +751,8 @@ annotate_figure(DO_plot,
 pH_plot <- ggarrange(
   #LWL
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale10), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWL"), aes(Date, Rescale10), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
 geom_line(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Natural") +
@@ -746,7 +770,8 @@ geom_line(data = PBC_pH %>% filter(Site == "LWL"), aes(RetDate, pH, color = Stat
   NULL,
   #LWR
   ggplot() +
-    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale10), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = LW_Flow %>% filter(Site == "LWR"), aes(Date, Rescale10), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
   geom_line(data = PBC_pH %>% filter(Site == "LWR"), aes(RetDate, pH, color = Station), linewidth = 0.7) +
     geom_point(data = PBC_pH %>% filter(Site == "LWR"), aes(RetDate, pH, fill = Station, shape = Station), size = 3) +
     labs(title = "Lake Worth-Restoration") +
@@ -774,7 +799,7 @@ annotate_figure(pH_plot,
 SP_plot <- ggarrange(
   PBC_SP %>% filter(Site == "LWL") %>%
     ggplot(aes(RetDate, SP, fill = Station)) + 
-    geom_col(position = position_dodge(13), width = 10, color = "black") + 
+    geom_col(position = position_dodge(19), width = 15, color = "black") + 
     labs(title = "Lake Worth-Natural") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
@@ -783,7 +808,7 @@ SP_plot <- ggarrange(
   NULL,
   PBC_SP %>% filter(Site == "LWR") %>%
     ggplot(aes(RetDate, SP, fill = Station)) + 
-    geom_col(position = position_dodge(13), width = 10, color = "black") + 
+    geom_col(position = position_dodge(19), width = 15, color = "black") + 
     labs(title = "Lake Worth-Restoration") +
     scale_y_reverse("% Secchi Penetration", expand = c(0,0), limits = c(100, 0), breaks = seq(0, 100, by = 20)) +
     scale_x_date("", expand= c(0,0), date_breaks = "2 months", date_labels = "%b %Y", limits = c(Start_date %m-% days(5), End_date %m-% days(5)))+
@@ -803,14 +828,15 @@ cat("<br>
     <br>")
 Survey_table <- Counts_df %>% 
   dplyr::select(Survey, contains("LiveMean")) %>% 
-  dplyr::select(Survey, contains("LW")) %>% 
+  dplyr::select(Survey, contains("LW"), -contains("LWR1")) %>% 
+  filter(Survey %in% Surveys$Survey) %>%
   drop_na() %>% 
   pivot_longer(c(-Survey),
     names_to = "SiteStation",
     values_to = "Mean") %>%
   mutate(
     Type = case_when(substr(SiteStation, 3, 3) == "L" ~ "Natural",
-                     TRUE ~ "Restored"),
+                     TRUE ~ "Restoration"),
     Station = substr(SiteStation, 4, 4)) %>%
   left_join(StationInfo) %>%
   group_by(Group, Type, Station, StationName) %>%
@@ -874,7 +900,7 @@ Survey_table %>%
   #set_table_properties(width = 6.5, layout = "fixed" ) %>%
   # Caption
   set_caption(
-    caption = "**Table 4.** Minimum, maximum, and mean live oyster density (oysters/m2) at each of the Lake Worth monitoring stations throughout the monitoring period.") %>%
+    caption = "Table 4. Minimum, maximum, and mean live oyster density (oysters/m2) at each of the Lake Worth monitoring stations throughout the monitoring period.") %>%
   # Automatically size columns
   autofit()
 cat("<br>
@@ -904,7 +930,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_Live_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -967,7 +994,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_Live_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -1030,7 +1058,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_Dead_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -1093,7 +1122,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_Dead_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -1156,7 +1186,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_SH_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -1219,7 +1250,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_SH_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 25, color = "black") + 
@@ -1269,7 +1301,8 @@ temp_flow <- LW_Flow %>%
 Nat_dermoP <- ggarrange(
   DermoP %>% filter(Site == "LWL" & Station == "1") %>%
     ggplot(aes(RetDate, Value, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Station 1") +
@@ -1283,7 +1316,8 @@ Nat_dermoP <- ggarrange(
   NULL,
   DermoP %>% filter(Site == "LWL" & Station == "2") %>%
     ggplot(aes(RetDate, Value, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Station 2") +
@@ -1297,7 +1331,8 @@ Nat_dermoP <- ggarrange(
   NULL,
   DermoP %>% filter(Site == "LWL" & Station == "3") %>%
     ggplot(aes(RetDate, Value, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Station 3") +
@@ -1328,7 +1363,8 @@ temp_flow <- LW_Flow %>%
 Res_dermoP <- ggarrange(
   DermoP %>% filter(Site == "LWR" & Station == "2") %>%
     ggplot(aes(RetDate, Value, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity", 
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Station 2") +
@@ -1342,7 +1378,8 @@ Res_dermoP <- ggarrange(
   NULL,
   DermoP %>% filter(Site == "LWR" & Station == "3") %>%
     ggplot(aes(RetDate, Value, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Station 3") +
@@ -1356,7 +1393,8 @@ Res_dermoP <- ggarrange(
   NULL,
   DermoP %>% filter(Site == "LWR" & Station == "4") %>%
     ggplot(aes(RetDate, Value, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
     labs(title = "Station 4") +
@@ -1387,7 +1425,8 @@ temp_flow <- LW_Flow %>%
 Nat_dermoI <- ggarrange(
   DermoI %>% filter(Site == "LWL" & Station == "1") %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
@@ -1402,7 +1441,8 @@ Nat_dermoI <- ggarrange(
   NULL,
   DermoI %>% filter(Site == "LWL" & Station == "2") %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
@@ -1417,7 +1457,8 @@ Nat_dermoI <- ggarrange(
   NULL,
   DermoI %>% filter(Site == "LWL" & Station == "3") %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
@@ -1449,7 +1490,8 @@ temp_flow <- LW_Flow %>%
 Res_dermoI <- ggarrange(
   DermoI %>% filter(Site == "LWR" & Station == "2") %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
@@ -1464,7 +1506,8 @@ Res_dermoI <- ggarrange(
   NULL,
   DermoI %>% filter(Site == "LWR" & Station == "3") %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
@@ -1479,7 +1522,8 @@ Res_dermoI <- ggarrange(
   NULL,
   DermoI %>% filter(Site == "LWR" & Station == "4") %>%
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), fill = rgb(156, 156, 156, maxColorValue = 255))+
+    geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255))+
     geom_col(position = position_dodge(12), width = 9, color = "black") +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), color = "black", position = position_dodge(12), width = 11) +
     geom_text(aes(y = 20, label = Helper, color = Station), position = position_dodge(12), size = 9)+
@@ -1546,7 +1590,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_Rcrt_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 15, color = "black") + 
@@ -1608,7 +1653,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_Rcrt_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
     geom_col(position = position_dodge(40), width = 15, color = "black") + 
@@ -1670,7 +1716,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_Sedi_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
@@ -1746,7 +1793,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_Sedi_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
@@ -1822,7 +1870,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_Orgc_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
@@ -1898,7 +1947,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_Orgc_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
@@ -1974,7 +2024,8 @@ for(i in seq_along(LWL_stations)){
   #
   Nat_Orgw_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
@@ -2050,7 +2101,8 @@ for(i in seq_along(LWR_stations)){
   #
   Res_Orgw_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_text(aes(y = HelperLocation, label = Helper, color = Station), position = position_dodge(40), size = 9) +
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(40), width = 17) +
@@ -2126,7 +2178,8 @@ for(i in seq_along(Sediment_list)){
   #
   Posi_list[[i]] <- df_temp %>% 
     ggplot(aes(RetDate, Mean, fill = Position))+ 
-    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+              fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
                   color = "black", position = position_dodge(19), width = 14) +
     geom_col(position = position_dodge(19), width = 17, color = "black") +
@@ -2180,14 +2233,11 @@ grid::grid.draw(Posi_fig)
 #
 ```
 
-\
-\
 \newpage
 
 **PBC Appendix Tables and Figures**
 
 Supplementary tables and figures of survey, recruitment, and reproductive activity data from 2015 through 2023. Figures are presented in the same format as the main in-text figures.
-\
 \
 
 ```{r A1 table, Average monthly salinity per station}
@@ -2290,7 +2340,9 @@ A1tab %>%
 #
 ```
 
-```{r A2 table, Percent low/opt/high monthly salinities}
+\newpage
+
+```{r A2 table, Percent low/opt/high monthly salinities, results='asis'}
 #
 A2tab_L <- PBC_Sal %>% 
     mutate(Month = month(RetDate, label = TRUE, abbr = TRUE),
@@ -2365,6 +2417,8 @@ headerA2_R <- data.frame(
 #
 #
 #
+cat("<br>",
+    "<br>")
 A2tab_L %>%
   flextable() %>%
   #headers 
@@ -2448,6 +2502,7 @@ A2tab_L %>%
   # Automatically size columns
   autofit()
 #
+cat("<br>")
 #
 A2tab_R %>%
   flextable() %>%
@@ -2457,7 +2512,7 @@ A2tab_R %>%
                  colwidths = rep(1, ncol(A2tab_R))) %>%
   add_header_row(values = c("Month", unique(headerA2_R$Station[-1])),
                  colwidths = c(1, rep(3, length(unique(headerA2_R$Station[-1]))))) %>%
-  add_header_row(values = c("Month", "Lake Worth"),
+  add_header_row(values = c("Month", "Lake Worth Restoration"),
                  colwidths = c(1, length(names(A2tab_R)[-1]))) %>%
   merge_v(j = "Month", part = "header") %>%
   # Remove all default borders
@@ -2528,8 +2583,12 @@ A2tab_R %>%
     init = .) %>%
   autofit()
 #
+cat("<br>",
+    "<br>")
 #
 ```
+
+\newpage
 
 ```{r A3 table, Average monthly temperature per station}
 #
@@ -2605,13 +2664,15 @@ A3tab %>%
 #
 ```
 
-```{r A1 Figure, Survey, fig.cap = "**Figure A1.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef (top) and restored reef (bottom) stations during spring surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 8.5, fig.width = 8, fig.fullwidth=TRUE}
+\newpage
+
+```{r A1 Figure, Survey, fig.cap = "**Figure A1.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef (top) and restoration reef (bottom) stations during spring surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
 #
 A1_Live_list <- list()
 for(i in seq_along(LWL_stations)){
   #
   Working_site <- paste(LWL_stations[i])
-  df_temp <- Counts %>% 
+  df_temp <- Counts_all %>% 
     filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
     rowwise() %>% 
     mutate(Upper = sum(Mean, SD, na.rm = TRUE))
@@ -2620,26 +2681,29 @@ for(i in seq_along(LWL_stations)){
   # Automatically determine a "pretty" y-axis range
   y_breaks <- pretty(c(0, max_upper))
   y_max <- max(y_breaks)
-  temp_flow <- LW_Flow %>% 
+  temp_flow <- LW_Flow_raw %>% 
     dplyr::select(Date, Site, LWSum) %>%
-    mutate(Rescale = LWSum / flow_max * y_max)
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
   #flow_scale <- flow_max/y_max
   #
   A1_Live_list[[i]] <- df_temp %>% 
     ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
-        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
     geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
-                  color = "black", position = position_dodge(40), width = 17) +
-    geom_col(position = position_dodge(40), width = 25, color = "black") + 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
     scale_x_date("Survey", 
-                 expand= c(0,0), labels = Surveys$Survey, breaks = Surveys$AnalysisDate, limits = c(Start_date, End_date))+
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+#, limits = c(Start_date, End_date))+
     scale_y_continuous(expression("Live oysters / m"^2), 
                        expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
                        sec.axis = sec_axis(
                          local({
-                           flow_scale <- flow_max/y_max
+                           flow_scale <- flow_raw_max/y_max
                            ~.*(flow_scale)}),
-                       breaks = flow_breaks))+
+                       breaks = flow_raw_breaks))+
        #coord_cartesian(ylim = c(0, y_max))+
     ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
                              substr(Working_site, 4, 4) == "2" ~ "Station 2", 
@@ -2656,14 +2720,962 @@ A1_live_fig <- gridExtra::arrangeGrob(
     ggplotGrob(A1_Live_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
     ggplotGrob(A1_Live_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
     ggplotGrob(A1_Live_list[[3]] + rremove("x.title") + rremove("y.title")),
-    ncol = 1, heights = c(0.9, 0.9, 1.1)),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
   textGrob("Flow (cfs)", rot = 270, 
                    gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
   ncol = 3,
   widths = c(1.5, 20, 1.5)
   )
 #
-grid::grid.draw(A1_live_fig)
+#
+A1_Res_Live_list <- list()
+for(i in seq_along(LWR_stations_all)){
+  #
+  Working_site <- paste(LWR_stations_all[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_Res_Live_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+
+    scale_y_continuous(expression("Live oysters / m"^2), 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1",
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             substr(Working_site, 4, 4) == "3" ~ "Station 3", 
+                             TRUE ~ "Station 4"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+#
+# Combine data from plots 1 and 4
+A1_combined <- bind_rows(
+  A1_Res_Live_list[[1]]$data %>% mutate(PlotGroup = "Station 1"),
+  A1_Res_Live_list[[4]]$data %>% mutate(PlotGroup = "Station 4"))
+# Recalculate the shared y-axis limits
+max_upper <- ceiling(max(A1_combined$Upper, na.rm = TRUE) * 1.05 * 10) / 10
+y_breaks <- pretty(c(0, max_upper))
+y_max <- max(y_breaks)
+# Recalculate flow rescaling using the shared y-axis
+temp_flow <- LW_Flow_raw %>%
+  dplyr::select(Date, Site, LWSum) %>%
+  mutate(Rescale = LWSum / flow_raw_max * y_max)
+# Create combined plot
+A1_Res_Live_combined <- A1_combined %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Station, group = interaction(Station, PlotGroup))) +
+  geom_area(data = temp_flow %>% filter(Site == "LWR"),
+            aes(Date, Rescale, group = 1), position = "identity", 
+            fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD),
+                color = "black", position = position_dodge(40), width = 107) +
+  geom_col(position = position_dodge(40), width = 145, color = "black") +
+  scale_x_date("Survey", expand = c(0, 0), labels = Surveys_all$Survey, breaks = Surveys_all$AnalysisDate) +
+  scale_y_continuous(expression("Live oysters / m"^2), expand = c(0, 0), limits = c(0, y_max),    
+                     breaks = y_breaks,
+                     sec.axis = sec_axis(
+                       ~ . * (flow_raw_max / y_max),
+                       breaks = flow_raw_breaks)) +
+  ggtitle("Station 1/Station 4") +
+  Station_fill + Station_color + BaseForm + PlotTitle +
+  Xnudge +
+  theme(legend.position = "none")
+#
+rm(i, Working_site, df_temp, max_upper, y_breaks, temp_flow, flow_scale)
+#
+A1_Res_live_fig <- gridExtra::arrangeGrob(
+  textGrob(expression("Live oysters / m"^2), rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_Res_Live_combined + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_Live_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_Live_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+#
+#
+gridExtra::grid.arrange(
+  A1_live_fig,
+  grid::nullGrob(),
+  A1_Res_live_fig,
+  ncol = 1,
+  heights = c(1, 0.05, 1)
+)
+#
+#
+```
+
+```{r A2 Figure, Fall Survey, fig.cap = "**Figure A2.**  Mean semi-annual number (± S.D.) of live oysters (colored bars) present at natural reef (top) and restoration reef (bottom) stations during fall surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+A1_LiveF_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & grepl("Fall", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_LiveF_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+#, limits = c(Start_date, End_date))+
+    scale_y_continuous(expression("Live oysters / m"^2), 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+A1_liveF_fig <- gridExtra::arrangeGrob(
+  textGrob(expression("Live oysters / m"^2), rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_LiveF_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_LiveF_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_LiveF_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+A1_Res_LiveF_list <- list()
+for(i in seq_along(LWR_stations_all)){
+  #
+  Working_site <- paste(LWR_stations_all[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Live", SiteStation) & grepl(Working_site, SiteStation) & grepl("Fall", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_Res_LiveF_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+
+    scale_y_continuous(expression("Live oysters / m"^2), 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1",
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             substr(Working_site, 4, 4) == "3" ~ "Station 3", 
+                             TRUE ~ "Station 4"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+#
+# Combine data from plots 1 and 4
+A1_combinedF <- bind_rows(
+  A1_Res_LiveF_list[[1]]$data %>% mutate(PlotGroup = "Station 1"),
+  A1_Res_LiveF_list[[4]]$data %>% mutate(PlotGroup = "Station 4"))
+# Recalculate the shared y-axis limits
+max_upper <- ceiling(max(A1_combinedF$Upper, na.rm = TRUE) * 1.05 * 10) / 10
+y_breaks <- pretty(c(0, max_upper))
+y_max <- max(y_breaks)
+# Recalculate flow rescaling using the shared y-axis
+temp_flow <- LW_Flow_raw %>%
+  dplyr::select(Date, Site, LWSum) %>%
+  mutate(Rescale = LWSum / flow_raw_max * y_max)
+# Create combined plot
+A1_Res_LiveF_combined <- A1_combinedF %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Station, group = interaction(Station, PlotGroup))) +
+  geom_area(data = temp_flow %>% filter(Site == "LWR"),
+            aes(Date, Rescale, group = 1), position = "identity", 
+            fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD),
+                color = "black", position = position_dodge(40), width = 107) +
+  geom_col(position = position_dodge(40), width = 145, color = "black") +
+  scale_x_date("Survey", expand = c(0, 0), labels = Surveys_all$Survey, breaks = Surveys_all$AnalysisDate) +
+  scale_y_continuous(expression("Live oysters / m"^2), expand = c(0, 0), limits = c(0, y_max),    
+                     breaks = y_breaks,
+                     sec.axis = sec_axis(
+                       ~ . * (flow_raw_max / y_max),
+                       breaks = flow_raw_breaks)) +
+  ggtitle("Station 1/Station 4") +
+  Station_fill + Station_color + BaseForm + PlotTitle +
+  Xnudge +
+  theme(legend.position = "none")
+#
+rm(i, Working_site, df_temp, max_upper, y_breaks, temp_flow, flow_scale)
+#
+A1_Res_liveF_fig <- gridExtra::arrangeGrob(
+  textGrob(expression("Live oysters / m"^2), rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_Res_LiveF_combined + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_LiveF_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_LiveF_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+#
+#
+gridExtra::grid.arrange(
+  A1_liveF_fig,
+  grid::nullGrob(),
+  A1_Res_liveF_fig,
+  ncol = 1,
+  heights = c(1, 0.05, 1)
+)
+#
+#
+```
+
+```{r A3 Figure, Dead Ratio, fig.cap = "**Figure A3.**  Mean semi-annual number (± S.D.) of dead oysters to dead and live oysters (colored bars) present at natural reef (top) and restoration reef (bottom) stations during spring surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+A1_Dead_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_Dead_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+#, limits = c(Start_date, End_date))+
+    scale_y_continuous("Ratio of Dead  Oysters", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+A1_Dead_fig <- gridExtra::arrangeGrob(
+  textGrob("Ratio of Dead Oysters", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_Dead_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Dead_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Dead_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+A1_Res_Dead_list <- list()
+for(i in seq_along(LWR_stations_all)){
+  #
+  Working_site <- paste(LWR_stations_all[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_Res_Dead_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+
+    scale_y_continuous("Ratio of Dead Oysters", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1",
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             substr(Working_site, 4, 4) == "3" ~ "Station 3", 
+                             TRUE ~ "Station 4"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+#
+# Combine data from plots 1 and 4
+A1_combined <- bind_rows(
+  A1_Res_Dead_list[[1]]$data %>% mutate(PlotGroup = "Station 1"),
+  A1_Res_Dead_list[[4]]$data %>% mutate(PlotGroup = "Station 4"))
+# Recalculate the shared y-axis limits
+max_upper <- ceiling(max(A1_combined$Upper, na.rm = TRUE) * 1.05 * 10) / 10
+y_breaks <- pretty(c(0, max_upper))
+y_max <- max(y_breaks)
+# Recalculate flow rescaling using the shared y-axis
+temp_flow <- LW_Flow_raw %>%
+  dplyr::select(Date, Site, LWSum) %>%
+  mutate(Rescale = LWSum / flow_raw_max * y_max)
+# Create combined plot
+A1_Res_Dead_combined <- A1_combined %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Station, group = interaction(Station, PlotGroup))) +
+  geom_area(data = temp_flow %>% filter(Site == "LWR"),
+            aes(Date, Rescale, group = 1), position = "identity", 
+            fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD),
+                color = "black", position = position_dodge(40), width = 107) +
+  geom_col(position = position_dodge(40), width = 145, color = "black") +
+  scale_x_date("Survey", expand = c(0, 0), labels = Surveys_all$Survey, breaks = Surveys_all$AnalysisDate) +
+  scale_y_continuous("Ratio of Dead Oysters", expand = c(0, 0), limits = c(0, y_max),    
+                     breaks = y_breaks,
+                     sec.axis = sec_axis(
+                       ~ . * (flow_raw_max / y_max),
+                       breaks = flow_raw_breaks)) +
+  ggtitle("Station 1/Station 4") +
+  Station_fill + Station_color + BaseForm + PlotTitle +
+  Xnudge +
+  theme(legend.position = "none")
+#
+rm(i, Working_site, df_temp, max_upper, y_breaks, temp_flow, flow_scale)
+#
+A1_Res_Dead_fig <- gridExtra::arrangeGrob(
+  textGrob("Ratio of Dead Oysters", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_Res_Dead_combined + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_Dead_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_Dead_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+#
+#
+gridExtra::grid.arrange(
+  A1_Dead_fig,
+  grid::nullGrob(),
+  A1_Res_Dead_fig,
+  ncol = 1,
+  heights = c(1, 0.05, 1)
+)
+#
+#
+```
+
+```{r A4 Figure, Fall Dead Ratio, fig.cap = "**Figure A4.**  Mean semi-annual number (± S.D.) of dead oysters to live and dead oysters (colored bars) present at natural reef (top) and restoration reef (bottom) stations during fall surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+A1_DeadF_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation) & grepl("Fall", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_DeadF_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+#, limits = c(Start_date, End_date))+
+    scale_y_continuous("Ratio of Dead Oysters", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+A1_DeadF_fig <- gridExtra::arrangeGrob(
+  textGrob("Ratio of Dead Oysters", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_DeadF_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_DeadF_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_DeadF_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+A1_Res_DeadF_list <- list()
+for(i in seq_along(LWR_stations_all)){
+  #
+  Working_site <- paste(LWR_stations_all[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Dead", SiteStation) & grepl(Working_site, SiteStation) & grepl("Fall", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A1_Res_DeadF_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+
+    scale_y_continuous("Ratio of Dead Oysters", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1",
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             substr(Working_site, 4, 4) == "3" ~ "Station 3", 
+                             TRUE ~ "Station 4"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+#
+# Combine data from plots 1 and 4
+A1_combinedF <- bind_rows(
+  A1_Res_DeadF_list[[1]]$data %>% mutate(PlotGroup = "Station 1"),
+  A1_Res_DeadF_list[[4]]$data %>% mutate(PlotGroup = "Station 4"))
+# Recalculate the shared y-axis limits
+max_upper <- ceiling(max(A1_combinedF$Upper, na.rm = TRUE) * 1.05 * 10) / 10
+y_breaks <- pretty(c(0, max_upper))
+y_max <- max(y_breaks)
+# Recalculate flow rescaling using the shared y-axis
+temp_flow <- LW_Flow_raw %>%
+  dplyr::select(Date, Site, LWSum) %>%
+  mutate(Rescale = LWSum / flow_raw_max * y_max)
+# Create combined plot
+A1_Res_DeadF_combined <- A1_combinedF %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Station, group = interaction(Station, PlotGroup))) +
+  geom_area(data = temp_flow %>% filter(Site == "LWR"),
+            aes(Date, Rescale, group = 1), position = "identity", 
+            fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD),
+                color = "black", position = position_dodge(40), width = 107) +
+  geom_col(position = position_dodge(40), width = 145, color = "black") +
+  scale_x_date("Survey", expand = c(0, 0), labels = Surveys_all$Survey, breaks = Surveys_all$AnalysisDate) +
+  scale_y_continuous("Ratio of Dead Oysters", expand = c(0, 0), limits = c(0, y_max),    
+                     breaks = y_breaks,
+                     sec.axis = sec_axis(
+                       ~ . * (flow_raw_max / y_max),
+                       breaks = flow_raw_breaks)) +
+  ggtitle("Station 1/Station 4") +
+  Station_fill + Station_color + BaseForm + PlotTitle +
+  Xnudge +
+  theme(legend.position = "none")
+#
+rm(i, Working_site, df_temp, max_upper, y_breaks, temp_flow, flow_scale)
+#
+A1_Res_DeadF_fig <- gridExtra::arrangeGrob(
+  textGrob("Ratio of Dead Oysters", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A1_Res_DeadF_combined + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_DeadF_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A1_Res_DeadF_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+#
+#
+gridExtra::grid.arrange(
+  A1_DeadF_fig,
+  grid::nullGrob(),
+  A1_Res_DeadF_fig,
+  ncol = 1,
+  heights = c(1, 0.05, 1)
+)
+#
+#
+```
+
+```{r A5 Figure, Shell heights, fig.cap = "**Figure A5.**  Mean semi-annual shell height (± S.D.) of live oysters (colored bars) present at natural reef (top) and restoration reef (bottom) stations during spring surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+A5_SH_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- SHs_all %>% 
+    filter(grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A5_SH_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+#, limits = c(Start_date, End_date))+
+    scale_y_continuous("Shell height (mm)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+A5_SH_fig <- gridExtra::arrangeGrob(
+  textGrob("Shell height (mm)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A5_SH_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A5_SH_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A5_SH_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+A5_Res_SH_list <- list()
+for(i in seq_along(LWR_stations_all)){
+  #
+  Working_site <- paste(LWR_stations_all[i])
+  df_temp <- SHs_all %>% 
+    filter(grepl(Working_site, SiteStation) & grepl("Spring", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A5_Res_SH_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+
+    scale_y_continuous("Shell height (mm)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1",
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             substr(Working_site, 4, 4) == "3" ~ "Station 3", 
+                             TRUE ~ "Station 4"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+#
+# Combine data from plots 1 and 4
+A5_combined <- bind_rows(
+  A5_Res_SH_list[[1]]$data %>% mutate(PlotGroup = "Station 1"),
+  A5_Res_SH_list[[4]]$data %>% mutate(PlotGroup = "Station 4"))
+# Recalculate the shared y-axis limits
+max_upper <- ceiling(max(A5_combined$Upper, na.rm = TRUE) * 1.05 * 10) / 10
+y_breaks <- pretty(c(0, max_upper))
+y_max <- max(y_breaks)
+# Recalculate flow rescaling using the shared y-axis
+temp_flow <- LW_Flow_raw %>%
+  dplyr::select(Date, Site, LWSum) %>%
+  mutate(Rescale = LWSum / flow_raw_max * y_max)
+# Create combined plot
+A5_Res_SH_combined <- A5_combined %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Station, group = interaction(Station, PlotGroup))) +
+  geom_area(data = temp_flow %>% filter(Site == "LWR"),
+            aes(Date, Rescale, group = 1), position = "identity", 
+            fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD),
+                color = "black", position = position_dodge(40), width = 107) +
+  geom_col(position = position_dodge(40), width = 145, color = "black") +
+  scale_x_date("Survey", expand = c(0, 0), labels = Surveys_all$Survey, breaks = Surveys_all$AnalysisDate) +
+  scale_y_continuous("Shell height (mm)", expand = c(0, 0), limits = c(0, y_max),    
+                     breaks = y_breaks,
+                     sec.axis = sec_axis(
+                       ~ . * (flow_raw_max / y_max),
+                       breaks = flow_raw_breaks)) +
+  ggtitle("Station 1/Station 4") +
+  Station_fill + Station_color + BaseForm + PlotTitle +
+  Xnudge +
+  theme(legend.position = "none")
+#
+rm(i, Working_site, df_temp, max_upper, y_breaks, temp_flow, flow_scale)
+#
+A5_Res_SH_fig <- gridExtra::arrangeGrob(
+  textGrob("Shell height (mm)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A5_Res_SH_combined + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A5_Res_SH_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A5_Res_SH_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+#
+#
+gridExtra::grid.arrange(
+  A5_SH_fig,
+  grid::nullGrob(),
+  A5_Res_SH_fig,
+  ncol = 1,
+  heights = c(1, 0.05, 1)
+)
+#
+#
+```
+
+```{r A6 Figure, Fall Shell heights, fig.cap = "**Figure A6.**  Mean semi-annual shell height (± S.D.) of live oysters (colored bars) present at natural reef (top) and restoration reef (bottom) stations during fall surveys in Lake Worth Lagoon from 2016 through 2026 and the mean daily flow rate (gray fill) at the S155 structure as recorded by the South Florida Water Management District. Please note the differences in the y-axis range among station plots.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+A6_SHF_list <- list()
+for(i in seq_along(LWL_stations)){
+  #
+  Working_site <- paste(LWL_stations[i])
+  df_temp <- SHs_all %>% 
+    filter(grepl(Working_site, SiteStation) & grepl("Fall", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A6_SHF_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWL"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+#, limits = c(Start_date, End_date))+
+    scale_y_continuous("Shell height (mm)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1", 
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             TRUE ~ "Station 3"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+rm(i, Working_site, df_temp, max_upper, y_breaks, y_max, temp_flow, flow_scale)
+#
+A6_SHF_fig <- gridExtra::arrangeGrob(
+  textGrob("Shell height (mm)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A6_SHF_list[[1]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A6_SHF_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A6_SHF_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+A6_Res_SHF_list <- list()
+for(i in seq_along(LWR_stations_all)){
+  #
+  Working_site <- paste(LWR_stations_all[i])
+  df_temp <- SHs_all %>% 
+    filter(grepl(Working_site, SiteStation) & grepl("Fall", Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  temp_flow <- LW_Flow_raw %>% 
+    dplyr::select(Date, Site, LWSum) %>%
+    mutate(Rescale = LWSum / flow_raw_max * y_max)
+  #flow_scale <- flow_max/y_max
+  #
+  A6_Res_SHF_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = Station)) + 
+        geom_area(data = temp_flow %>% filter(Site == "LWR"), aes(Date, Rescale, group = 1), position = "identity",
+                  fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE)+
+    geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(40), width = 57) +
+    geom_col(position = position_dodge(40), width = 75, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl("Spring", Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl("Spring", Survey)))$AnalysisDate)+
+    scale_y_continuous("Shell height (mm)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks,
+                       sec.axis = sec_axis(
+                         local({
+                           flow_scale <- flow_raw_max/y_max
+                           ~.*(flow_scale)}),
+                       breaks = flow_raw_breaks))+
+       #coord_cartesian(ylim = c(0, y_max))+
+    ggtitle(paste0(case_when(substr(Working_site, 4, 4) == "1" ~ "Station 1",
+                             substr(Working_site, 4, 4) == "2" ~ "Station 2", 
+                             substr(Working_site, 4, 4) == "3" ~ "Station 3", 
+                             TRUE ~ "Station 4"))) + 
+    Station_fill + Station_color + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.position = "none")
+}
+#
+# Combine data from plots 1 and 4
+A6_combinedF <- bind_rows(
+  A6_Res_SHF_list[[1]]$data %>% mutate(PlotGroup = "Station 1"),
+  A6_Res_SHF_list[[4]]$data %>% mutate(PlotGroup = "Station 4"))
+# Recalculate the shared y-axis limits
+max_upper <- ceiling(max(A6_combinedF$Upper, na.rm = TRUE) * 1.05 * 10) / 10
+y_breaks <- pretty(c(0, max_upper))
+y_max <- max(y_breaks)
+# Recalculate flow rescaling using the shared y-axis
+temp_flow <- LW_Flow_raw %>%
+  dplyr::select(Date, Site, LWSum) %>%
+  mutate(Rescale = LWSum / flow_raw_max * y_max)
+# Create combined plot
+A6_Res_SHF_combined <- A6_combinedF %>%
+  ggplot(aes(AnalysisDate, Mean, fill = Station, group = interaction(Station, PlotGroup))) +
+  geom_area(data = temp_flow %>% filter(Site == "LWR"),
+            aes(Date, Rescale, group = 1), position = "identity", 
+            fill = rgb(156, 156, 156, maxColorValue = 255), inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean, ymax = Mean + SD),
+                color = "black", position = position_dodge(40), width = 107) +
+  geom_col(position = position_dodge(40), width = 145, color = "black") +
+  scale_x_date("Survey", expand = c(0, 0), labels = Surveys_all$Survey, breaks = Surveys_all$AnalysisDate) +
+  scale_y_continuous("Shell height (mm)", expand = c(0, 0), limits = c(0, y_max),    
+                     breaks = y_breaks,
+                     sec.axis = sec_axis(
+                       ~ . * (flow_raw_max / y_max),
+                       breaks = flow_raw_breaks)) +
+  ggtitle("Station 1/Station 4") +
+  Station_fill + Station_color + BaseForm + PlotTitle +
+  Xnudge +
+  theme(legend.position = "none")
+#
+rm(i, Working_site, df_temp, max_upper, y_breaks, temp_flow, flow_scale)
+#
+A6_Res_SHF_fig <- gridExtra::arrangeGrob(
+  textGrob("Shell height (mm)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(A6_Res_SHF_combined + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A6_Res_SHF_list[[2]] + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(A6_Res_SHF_list[[3]] + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(0.8, 0.8, 1.2)),
+  textGrob("Flow (cfs)", rot = 270, 
+                   gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  ncol = 3,
+  widths = c(1.5, 20, 1.5)
+  )
+#
+#
+#
+#
+gridExtra::grid.arrange(
+  A6_SHF_fig,
+  grid::nullGrob(),
+  A6_Res_SHF_fig,
+  ncol = 1,
+  heights = c(1, 0.05, 1)
+)
 #
 #
 ```
