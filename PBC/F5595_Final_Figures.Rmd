@@ -85,8 +85,8 @@ Station_shape <- scale_shape_manual("",labels = Stations, values = setNames(c(21
 # All stations
 AllStat_pal <- c(rgb(0, 0, 228, maxColorValue = 255), rgb(245, 0, 0, maxColorValue = 255), rgb(0, 118, 0, maxColorValue = 255), rgb(66, 135, 245, maxColorValue = 255), rgb(240, 98, 129, maxColorValue = 255), rgb(98, 240, 105, maxColorValue = 255),  rgb(102, 0, 102, maxColorValue = 255))
 StationID <- c("LWL1" = "LWL1", "LWL2" = "LWL2", "LWL3" = "LWL3", "LWR1" = "LWR1", "LWR2" = "LWR2", "LWR3" = "LWR3", "LWR4" = "LWR4") 
-AllStation_fill <- scale_fill_manual("", labels = AllStations, values = setNames(AllStat_pal, 1:4), na.value = "#999999")
-AllStation_color <- scale_color_manual("", labels = AllStations, values = setNames(AllStat_pal, 1:4), na.value = "#999999")
+AllStation_fill <- scale_fill_manual("", labels = StationID, values = setNames(AllStat_pal, 1:4), na.value = "#999999")
+AllStation_color <- scale_color_manual("", labels = StationID, values = setNames(AllStat_pal, 1:4), na.value = "#999999")
 
 #Color to Stage
 Stat_pal3 <- c(rgb(255, 255, 255, maxColorValue = 255), rgb(153, 255, 255, maxColorValue = 255), rgb(0, 0, 255, maxColorValue = 255), rgb(0, 0, 102, maxColorValue = 255))
@@ -3939,6 +3939,154 @@ B1_live_fig <- gridExtra::arrangeGrob(
 gridExtra::grid.arrange(
   shared_legend,
   B1_live_fig,
+  ncol = 1,
+  heights = c(0.05, 1)
+)
+#
+#
+```
+
+```{r B2 Figure, Dead Ratio, fig.cap = "**Figure B2.**  Mean semi-annual ratio (± S.D.) of dead oysters to dead and live oysters present at natural reef (LW) and restoration reef (LWR) stations during spring (top) and fall (bottom) surveys from September 2015 through September 2026. ", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+Seasons <- c("Spring", "Fall")
+#
+B2_DR_list <- list()
+for(i in seq_along(Seasons)){
+  #
+  Working_season <- paste(Seasons[i])
+  df_temp <- Counts_all %>% 
+    filter(grepl("Dead", SiteStation) & grepl(Working_season, Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE),
+           StationID = as.factor(substr(SiteStation, 1, 4)))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  #
+  B2_DR_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = StationID)) + 
+        geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(250), width = 200) +
+    geom_col(position = position_dodge(250, preserve = "single"), width = 200, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl(Working_season, Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl(Working_season, Survey)))$AnalysisDate)+
+    scale_y_continuous("Ratio of dead oysters", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks)+
+    ggtitle(paste0(Working_season)) + 
+    scale_fill_manual(values = c(
+    "LWL1" = rgb(0, 0, 228, maxColorValue = 255), 
+    "LWL2" = rgb(245, 0, 0, maxColorValue = 255), 
+    "LWL3" = rgb(0, 118, 0, maxColorValue = 255), 
+    "LWR1" = rgb(66, 135, 245, maxColorValue = 255), 
+    "LWR2" = rgb(240, 98, 129, maxColorValue = 255), 
+    "LWR3" = rgb(98, 240, 105, maxColorValue = 255),  
+    "LWR4" = rgb(102, 0, 102, maxColorValue = 255))) + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.title = element_blank())+
+    guides(fill = guide_legend(nrow = 1), byrow = TRUE)
+}
+rm(i, Working_season, df_temp, max_upper, y_breaks, y_max)
+#
+get_legend <- function(myggplot) {
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+shared_legend <- get_legend(B2_DR_list[[1]])
+#
+B2_DR_fig <- gridExtra::arrangeGrob(
+  textGrob("Ratio of dead oysters", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(B2_DR_list[[1]] + theme(legend.position = "none") + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(B2_DR_list[[2]] + theme(legend.position = "none") + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(1.0, 1.2)),
+  ncol = 2,
+  widths = c(2, 20.5)
+  )
+#
+#
+gridExtra::grid.arrange(
+  shared_legend,
+  B2_DR_fig,
+  ncol = 1,
+  heights = c(0.05, 1)
+)
+#
+#
+```
+
+```{r B3 Figure, SHs, fig.cap = "**Figure B3.**  Mean semi-annual shell height (± S.D.) of live oysters present at natural reef (LW) and restoration reef (LWR) stations during spring (top) and fall (bottom) surveys from September 2015 through September 2026.", fig.height = 10, fig.width = 8, fig.fullwidth=TRUE}
+#
+Seasons <- c("Spring", "Fall")
+#
+B3_SH_list <- list()
+for(i in seq_along(Seasons)){
+  #
+  Working_season <- paste(Seasons[i])
+  df_temp <- SHs_all %>% 
+    filter(grepl(Working_season, Survey)) %>% 
+    rowwise() %>% 
+    mutate(Upper = sum(Mean, SD, na.rm = TRUE),
+           StationID = as.factor(substr(SiteStation, 1, 4)))
+  df_temp$HelperLocation <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10)/5
+  max_upper <- (ceiling((max(df_temp$Upper, na.rm = T)*1.05)*10)/10) #*1.05 adds 5% buffer to top if needed, *10 & /10 rounds up to nearest 0.1
+  # Automatically determine a "pretty" y-axis range
+  y_breaks <- pretty(c(0, max_upper))
+  y_max <- max(y_breaks)
+  #
+  B3_SH_list[[i]] <- df_temp %>% 
+    ggplot(aes(AnalysisDate, Mean, fill = StationID)) + 
+        geom_errorbar(aes(ymin = Mean, ymax = Mean + SD), 
+                  color = "black", position = position_dodge(250), width = 200) +
+    geom_col(position = position_dodge(250, preserve = "single"), width = 200, color = "black") + 
+    scale_x_date("Survey", 
+                 expand= c(0,0), 
+                 labels = (Surveys_all %>% filter(grepl(Working_season, Survey)))$Survey, 
+                 breaks = (Surveys_all %>% filter(grepl(Working_season, Survey)))$AnalysisDate)+
+    scale_y_continuous("Shell height (mm)", 
+                       expand = c(0,0), limits = c(0, y_max), breaks = y_breaks)+
+    ggtitle(paste0(Working_season)) + 
+    scale_fill_manual(values = c(
+    "LWL1" = rgb(0, 0, 228, maxColorValue = 255), 
+    "LWL2" = rgb(245, 0, 0, maxColorValue = 255), 
+    "LWL3" = rgb(0, 118, 0, maxColorValue = 255), 
+    "LWR1" = rgb(66, 135, 245, maxColorValue = 255), 
+    "LWR2" = rgb(240, 98, 129, maxColorValue = 255), 
+    "LWR3" = rgb(98, 240, 105, maxColorValue = 255),  
+    "LWR4" = rgb(102, 0, 102, maxColorValue = 255))) + BaseForm + PlotTitle + 
+    Xnudge + theme(legend.title = element_blank())+
+    guides(fill = guide_legend(nrow = 1), byrow = TRUE)
+}
+rm(i, Working_season, df_temp, max_upper, y_breaks, y_max)
+#
+get_legend <- function(myggplot) {
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+shared_legend <- get_legend(B3_SH_list[[1]])
+#
+B3_SH_fig <- gridExtra::arrangeGrob(
+  textGrob("Shell height (mm)", rot = 90, 
+                  gp = gpar(fontfamily = "serif", col = "black", fontsize = 17)),
+  gridExtra::arrangeGrob(
+    ggplotGrob(B3_SH_list[[1]] + theme(legend.position = "none") + rremove("x.title") + rremove("x.text") + rremove("y.title")), 
+    ggplotGrob(B3_SH_list[[2]] + theme(legend.position = "none") + rremove("x.title") + rremove("y.title")),
+    ncol = 1, heights = c(1.0, 1.2)),
+  ncol = 2,
+  widths = c(2, 20.5)
+  )
+#
+#
+gridExtra::grid.arrange(
+  shared_legend,
+  B3_SH_fig,
   ncol = 1,
   heights = c(0.05, 1)
 )
