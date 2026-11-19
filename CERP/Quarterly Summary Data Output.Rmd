@@ -25,11 +25,11 @@ If Raw_data = TRUE, raw data for updating grant manger data files will also be a
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 Author <- c("E Levine Williams") #Change to your name
-Database <- "Oysters_26-11-02"  #Set the local database to use
+Database <- "Oysters_26-11-19"  #Set the local database to use
 Server = "localhost\\ERICALOCALSQL" #Set the local Server to use
 #######File locations sourced to repo Data folder.
-Start_date <- as.Date("2015-09-01")
-End_date <- as.Date("2023-03-30")
+Start_date <- as.Date("2026-06-01")
+End_date <- as.Date("2026-09-30")
 
 #Packages
 if (!require("pacman")) {install.packages("pacman")}
