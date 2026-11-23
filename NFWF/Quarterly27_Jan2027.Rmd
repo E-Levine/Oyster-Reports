@@ -30,6 +30,9 @@ library(performance) # needed for model diagnostics
 library(AICcmodavg) # needed for model selection
 library(emmeans) # needed to extract modeled means and CI of Fixed effects
 library(ggeffects) # needed to extract means and CI of Random effects 
+library(multcomp) # needed to generate Compact Letter Displays from emmeans objects
+select <- dplyr::select # needed so that select() function is not overridden
+library(multcompView) # Required by multcomp::cld() to generate letters
 ```
 
 ```{r ConfigureChunks, warning=FALSE, include=FALSE}
@@ -384,6 +387,13 @@ ProjectGroupOrder <- c("NFWF-2021", "NFWF-2024", "NFWF-2024 Pilot", "NFWF-2024 G
                        "Pilot HIGH", "Pilot LOW", "General", "General Adjusted")
 QuadStats0 <- Quadrats_ALL %>%
   mutate(NumALLOys = NumLive + NumDead) %>%
+    mutate(Treatment = case_when(
+      ProjectGroup == "NFWF-2021" ~ "NFWF-2021",
+      StationNumber == 525 ~ "NFWF-2024-Cat-Point",
+      StationNumber == 526 ~ "NFWF-2024-Easthole",
+      CultchDensity == 1600 ~ "Low-Relief",
+      CultchDensity == 3200 ~ "High-Relief",
+      TRUE ~ "ERROR")) %>%
   # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
   filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1"))
 ShellHeights_1 <- ShellHeights_ALL %>%
@@ -435,8 +445,7 @@ LegalMeasures <- left_join(QuadStats0, SHMeasures, by = c("QuadratID")) %>%
   select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
 
 QuadStats <- LegalMeasures %>%
-  mutate(
-    NumLegal = round(if_else(is.na(NumLegal), Num_Legal_76_plus, NumLegal))) 
+  mutate(NumLegal = round(if_else(is.na(NumLegal), Num_Legal_76_plus, NumLegal))) 
   
 # Remove intermediate data frames
 rm(LegalMeasures, SHMeasures, QuadStats0)
@@ -564,6 +573,13 @@ print(t_test_welchSH)
 ``` {r TotalWeight Model selection, eval = FALSE}
 # Figure out which data distribution to use
 # ALL
+hist(QuadStats$TotalWeight) 
+# normal, range 0 - 30, strong peak at 12;
+
+# NFWF-2021
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2021"))$TotalWeight) 
+# normal, range 2 - 16, strong peak at 9; 
+
 # NFWF-2024 All
 hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$TotalWeight) 
 # normal, range 0 - 30, strong peak at 12; 
@@ -585,47 +601,47 @@ hist(subset(QuadStats, CultchDensity == 1600)$TotalWeight)
 # normal, range 0 - 30, peak at 12
 
 #############
-##### Distributions, ranges, and peaks are all the same. OK to model together
+##### Distributions are all the same. OK to model together
 #############
 
-### NFWF-2024 ALL Model ###
+### NFWF ALL Model ###
 ## Choose distribution family
-TotalWeight_NFWF_2024_gamma <- glmmTMB(TotalWeight ~ 1, 
+TotalWeight_NFWF_gamma <- glmmTMB(TotalWeight ~ 1, 
                       family = Gamma(link = "log"), 
                       data = QuadStats)
-TotalWeight_NFWF_2024_gaussian <- glmmTMB(TotalWeight ~ 1, 
+TotalWeight_NFWF_gaussian <- glmmTMB(TotalWeight ~ 1, 
                       family = gaussian(link = "identity"), 
                       data = QuadStats)
 # Check goodness of fit
-simulateResiduals(TotalWeight_NFWF_2024_gamma, n = 1000, plot = T)
-simulateResiduals(TotalWeight_NFWF_2024_gaussian, n = 1000, plot = T)
-AIC(TotalWeight_NFWF_2024_gamma, TotalWeight_NFWF_2024_gaussian)
-## Gamma has good fit and AIC
+simulateResiduals(TotalWeight_NFWF_gamma, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_gaussian, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_gamma, TotalWeight_NFWF_gaussian)
+## Gamma has good fit and better AIC (deltaAIC = 5)
 
 ## Add effects
-TotalWeight_NFWF_2024_gamma_CD <- glmmTMB(TotalWeight ~ CultchDensity, 
+TotalWeight_NFWF_gamma_CD <- glmmTMB(TotalWeight ~ Treatment, 
                       family = Gamma(link = "log"), 
                       data = QuadStats)
-TotalWeight_NFWF_2024_gamma_CDfactor <- glmmTMB(TotalWeight ~ factor(CultchDensity), 
+TotalWeight_NFWF_gamma_CDfactor <- glmmTMB(TotalWeight ~ factor(Treatment), 
                       family = Gamma(link = "log"), 
                       data = QuadStats)
-TotalWeight_NFWF_2024_gamma_CD_random <- glmmTMB(TotalWeight ~ CultchDensity + (1 | FixedLocationID), 
+TotalWeight_NFWF_gamma_CD_random <- glmmTMB(TotalWeight ~ Treatment + (1 | FixedLocationID), 
                       family = Gamma(link = "log"), 
                       data = QuadStats)
-TotalWeight_NFWF_2024_gamma_CDfactor_random <- glmmTMB(TotalWeight ~ factor(CultchDensity) + (1 | FixedLocationID), # BEST
+TotalWeight_NFWF_gamma_CDfactor_random <- glmmTMB(TotalWeight ~ factor(Treatment) + (1 | FixedLocationID), # BEST
                       family = Gamma(link = "log"), 
                       data = QuadStats)
 # Check goodness of fit
-simulateResiduals(TotalWeight_NFWF_2024_gamma_CD, n = 1000, plot = T)
-simulateResiduals(TotalWeight_NFWF_2024_gamma_CDfactor, n = 1000, plot = T)
-simulateResiduals(TotalWeight_NFWF_2024_gamma_CD_random, n = 1000, plot = T)
-simulateResiduals(TotalWeight_NFWF_2024_gamma_CDfactor_random, n = 1000, plot = T)
-AIC(TotalWeight_NFWF_2024_gamma_CD, TotalWeight_NFWF_2024_gamma_CDfactor, TotalWeight_NFWF_2024_gamma_CD_random, TotalWeight_NFWF_2024_gamma_CDfactor_random)
-## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Treating CultchDensity as a factor improves fit
+simulateResiduals(TotalWeight_NFWF_gamma_CD, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_gamma_CDfactor, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_gamma_CD_random, n = 1000, plot = T)
+simulateResiduals(TotalWeight_NFWF_gamma_CDfactor_random, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_gamma_CD, TotalWeight_NFWF_gamma_CDfactor, TotalWeight_NFWF_gamma_CD_random, TotalWeight_NFWF_gamma_CDfactor_random)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Treating Treatment as a factor doesn't improves fit
 
 # post-hoc test
 # 1. Get estimated marginal means (on the original response scale)
-em_cultch <- emmeans(TotalWeight_NFWF_2024, ~ factor(CultchDensity), type = "response")
+em_cultch <- emmeans(TotalWeight_NFWF_gamma_CDfactor_random, ~ factor(Treatment), type = "response")
 
 # 2. Perform pairwise comparisons with a Tukey adjustment
 pairwise_comparisons <- pairs(em_cultch, adjust = "tukey")
@@ -634,13 +650,30 @@ pairwise_comparisons <- pairs(em_cultch, adjust = "tukey")
 print(em_cultch)
 print(pairwise_comparisons)
 
+# Generate Compact Letter Display (CLD)
+cld_results <- multcomp::cld(
+  em_cultch,
+  alpha = 0.05,
+  Letters = letters,      # Uses lowercase a, b, ab instead of numbers
+  adjust = "tukey",       # Matches your pairwise Tukey adjustment
+  sort = FALSE            # Keeps your original treatment order (200 to 3200)
+)
+
+# Convert comparisons to a dataframe and display
+cld_results %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of Substrate Density Across Different Treatments")
+
 # Convert comparisons to a dataframe and display
 pairwise_comparisons %>%
   as.data.frame() %>%
   kable(digits = 3, 
         caption = "Comparison of Substrate Density Across Different Treatments")
 
-# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed no statistically significant differences in total oyster weight among any of the tested cultch densities (all p > 0.05). The highest estimated average weight occurred at a cultch density of 1,600 (Mean = 16.3 ± 1.47), followed by 3,200 (Mean = 14.6 ± 1.31) and 800 (Mean = 12.5 ± 1.52). While oysters at a density of 1,600 were approximately 12.2% heavier than those at a density of 3,200 (Ratio = 1.122), this difference was not statistically significant (p = 0.639), suggesting that increasing cultch density beyond 1,600 yields no additional weight accumulation benefit."
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed statistically significant differences in total sample weight among some of the tested treatments. The highest estimated average weight occurred at Low-Relief (Mean = 16.3 [13.6-19.6]), followed by High-Relief (Mean = 14.6 [12.1-17.5]), then Easthole (Mean = 13.9 [9.9-19.5]), then Cat-Point (Mean = 11.0 [7.6-15.8], and finally NFWF-2021 (Mean = 8.1 [6.6-9.9]). 
+# All 2024 Treatments were similar (p>0.30); Cat-Point, Easthole, and NFWF-2021 were similar (p>0.06); High & Low-Relief were different from NFWF-2021 (p>0.001)
+# These results suggest sample weight increases up to 800; but diminishing results above 800. It may also be that rock size is also contributing to the differences
 
 ```
 
@@ -650,12 +683,12 @@ pairwise_comparisons %>%
 ###############
 
 ### NFWF-2024 ALL Model ###
-TotalWeight_NFWF_2024 <- glmmTMB(TotalWeight ~ factor(CultchDensity) + (1 | FixedLocationID), # BEST
+TotalWeight_NFWF <- glmmTMB(TotalWeight ~ factor(Treatment) + (1 | FixedLocationID), # BEST
                       family = Gamma(link = "log"), 
                       data = QuadStats)
 # Check goodness of fit & summary
-simulateResiduals(TotalWeight_NFWF_2024, n = 1000, plot = T)
-summary(TotalWeight_NFWF_2024)
+simulateResiduals(TotalWeight_NFWF, n = 1000, plot = T)
+summary(TotalWeight_NFWF)
 
 
 ###############
@@ -664,7 +697,7 @@ summary(TotalWeight_NFWF_2024)
 
 # Generate Modeled Means, CI, and SE
 # emmeans needed to extract values of Random effects
-TotalWeightStats_Subtidal_modeled <- emmeans(TotalWeight_NFWF_2024, ~ CultchDensity, type = "response") %>%
+TotalWeightStats_Subtidal_modeled <- emmeans(TotalWeight_NFWF, ~ Treatment, type = "response") %>%
   as.data.frame() %>%
   rename(TotalWeightMean_modeled = response,
          TotalWeightLower_modeled = asymp.LCL,
@@ -679,15 +712,15 @@ TotalWeightStats_Subtidal_modeled <- emmeans(TotalWeight_NFWF_2024, ~ CultchDens
 
 # Generate raw mean and SD
 TotalWeightStats_Subtidal_RAW <- QuadStats %>%
-  group_by(CultchDensity) %>%
+  group_by(Treatment) %>%
   summarise_ALL() %>%
-  arrange(CultchDensity) %>%
+  arrange(Treatment) %>%
   select(-matches("Num"))
 
 # Combine into single table and remove intermediate dataframes
 TotalWeightStats_Subtidal_ALL <- left_join(TotalWeightStats_Subtidal_modeled, 
                               TotalWeightStats_Subtidal_RAW, 
-                              by = c("CultchDensity")) 
+                              by = c("Treatment")) 
 
 
 
@@ -697,7 +730,7 @@ TotalWeightStats_Subtidal_ALL <- left_join(TotalWeightStats_Subtidal_modeled,
 ### SUBTIDAL ###
 # By Project Group. For this report we will only show the current year
 TotalWeightStats_FIGURE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
-  ggplot(aes(x = fct_inorder(as.factor(ProjectGroup)), 
+  ggplot(aes(x = fct_inorder(as.factor(Treatment)), 
              y = TotalWeightMeanDensity_modeled)) + 
       geom_bar(stat = "identity", 
                position = position_dodge(width = 0.9)) +
@@ -725,7 +758,7 @@ print(TotalWeightStats_FIGURE_Subtidal)
 
 ### SUBTIDAL
 TotalWeightStats_TABLE_Subtidal <- TotalWeightStats_Subtidal_ALL %>%
-  select(CultchDensity,
+  select(Treatment,
          TotalWeightDensityMean_raw,
          TotalWeightDensitySD_raw,
          TotalWeightMeanDensity_modeled,
@@ -843,13 +876,13 @@ Live_pairwise_comparisons %>%
 ###############
 
 ### NFWF-2024 ALL Model ###
-NumLive_NFWF_2024 <- glmmTMB(NumLive ~ factor(CultchDensity),
+NumLive_NFWF <- glmmTMB(NumLive ~ factor(CultchDensity),
                           dispformula = ~ factor(CultchDensity), # Solves the Levene test variance shift
                           family = nbinom2,
                           data = QuadStats)
 # Check goodness of fit & summary
-simulateResiduals(NumLive_NFWF_2024, n = 1000, plot = T)
-summary(NumLive_NFWF_2024)
+simulateResiduals(NumLive_NFWF, n = 1000, plot = T)
+summary(NumLive_NFWF)
 
 
 ###############
@@ -858,7 +891,7 @@ summary(NumLive_NFWF_2024)
 
 # Generate Modeled Means, CI, and SE
 # emmeans needed to extract values of Random effects
-NumLiveStats_Subtidal_modeled <- emmeans(NumLive_NFWF_2024, ~ CultchDensity, type = "response") %>%
+NumLiveStats_Subtidal_modeled <- emmeans(NumLive_NFWF, ~ CultchDensity, type = "response") %>%
   as.data.frame() %>%
   rename(NumLiveMean_modeled = response,
          NumLiveLower_modeled = asymp.LCL,
