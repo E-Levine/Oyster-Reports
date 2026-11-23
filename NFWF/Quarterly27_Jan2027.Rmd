@@ -6,8 +6,8 @@ output:
 
 ```{r VariableSet, echo = FALSE, warning = FALSE, message = FALSE}
 # Set your variables
-ReportEnd <- as.Date("2026-09-30")  # Report End Date
-Database = "OysterLocalMD20261002"  # Set the local database to use
+ReportEnd <- as.Date("2026-12-31")  # Report End Date
+Database = "OysterLocalMD20261123"  # Set the local database to use
 Server = "localhost\\LOCALSQL" # Set the local Server to use
 ```
 
@@ -157,6 +157,15 @@ hsdbSurveySH <- tbl(con,in_schema("hsdb", "SurveySH")) %>%
   mutate(ShellHeight = as.integer(ShellHeight)) %>%
   filter(substring(QuadratID, 1, 2) %in% Estuaries)
 
+hsdbShellBudgetQuadrat <- tbl(con,in_schema("hsdb", "ShellBudgetQuadrat")) %>%
+  collect() %>%
+  filter(substring(SampleEventID, 1, 2) %in% Estuaries)
+
+hsdbShellBudgetSH <- tbl(con,in_schema("hsdb", "ShellBudgetSH")) %>%
+  collect() %>%
+  mutate(ShellHeight = as.integer(ShellHeight)) %>%
+  filter(substring(QuadratID, 1, 2) %in% Estuaries)
+
 # Disconnect from database
 DBI::dbDisconnect(con)
 
@@ -237,7 +246,7 @@ rm(dboFixedLocations)
 ### Survey Data ###
     ### QUADRATS ###  
     # Survey QUADRATS #
-Quadrats_ALL <- hsdbSurveyQuadrat %>%
+Survey_Quad1 <- hsdbSurveyQuadrat %>%
   select(QuadratID,
          NumLive,
          NumDead,
@@ -268,9 +277,48 @@ Quadrats_ALL <- hsdbSurveyQuadrat %>%
          StationNumber > 500)
     ###
 
+    # Shell Budget QUADRATS #
+SBM_Quad1 <- hsdbShellBudgetQuadrat %>%
+  rename(TotalWeight = TotalSampleWeight, # Must rename the columns so we can union them together
+         NumLive = NumLiveOysters,
+         NumDead = NumDeadOysters) %>%
+  mutate(NumLegal = NA) %>% # This column doesn't occur in that table, but needs to exist to union
+  select(QuadratID,
+         NumLive,
+         NumDead,
+         NumDrills,
+         NumLegal,
+         TotalWeight,
+         Comments) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         CultchDensity,
+         Year,
+         NumLive,
+         NumDead,
+         NumDrills,
+         NumLegal,
+         TotalWeight,
+         Comments) %>%
+  filter(Year == 2023, # filter out all non-NFWF-2021 samples from the correct time frame
+         ProjectGroup == "NFWF-2021",
+         month(TripDate) < 07)
+
+    # ALL Quadrats # 
+Quadrats_ALL <- union(Survey_Quad1, SBM_Quad1)
+
     ### SHELL HEIGHTS ###
     # Survey SHELL HEIGHTS #
-ShellHeights_ALL <- hsdbSurveySH %>%
+Survey_SH1 <- hsdbSurveySH %>%
   select(ShellHeightID, 
          QuadratID, 
          ShellHeight,
@@ -294,19 +342,48 @@ ShellHeights_ALL <- hsdbSurveySH %>%
          StationNumber > 500)
     ###
 
+    # Shell Budget SHELL HEIGHTS #
+SBM_SH1 <- hsdbShellBudgetSH %>%
+  filter(LiveOrDead != "Dead") %>% ### Remove measures of dead
+  select(ShellHeightID, 
+         QuadratID, 
+         ShellHeight,
+         Comments) %>%
+  FilterFunction1() %>%
+  select(QuadratID,
+         FixedLocationID,
+         TripDate,
+         Estuary,
+         StationName,
+         StationNumber,
+         ParcelName,
+         StationNameNumber,
+         ProjectGroup,
+         TimeSinceCultched,
+         CultchDensity,
+         Year,
+         ShellHeight,
+         Comments) %>%
+  filter(Year == 2023, # filter out all non-NFWF-2021 samples from the correct time frame
+         ProjectGroup == "NFWF-2021",
+         month(TripDate) < 07)
+
+    # ALL Shell Heights #
+ShellHeights_ALL <- union(Survey_SH1, SBM_SH1)
+
     ### Remove intermediate data frames
-rm(hsdbSurveyQuadrat, hsdbSurveySH)
+rm(hsdbSurveyQuadrat, hsdbShellBudgetQuadrat, Survey_Quad1, SBM_Quad1,
+   hsdbSurveySH, hsdbShellBudgetSH, Survey_SH1, SBM_SH1)
     ###
 
-######
- 
 ```
 
 ``` {r BasicStats}
 ### Set Project Group order to display
-ProjectGroupOrder <- c("NFWF-2024", "NFWF-2024 Pilot", "NFWF-2024 General", "NFWF-2024 General Adjusted",
+ProjectGroupOrder <- c("NFWF-2021", "NFWF-2024", "NFWF-2024 Pilot", "NFWF-2024 General", "NFWF-2024 General Adjusted",
                        "Pilot HIGH", "Pilot LOW", "General", "General Adjusted")
-QuadStats <- Quadrats_ALL %>%
+QuadStats0 <- Quadrats_ALL %>%
+  mutate(NumALLOys = NumLive + NumDead) %>%
   # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
   filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1"))
 ShellHeights_1 <- ShellHeights_ALL %>%
@@ -317,6 +394,7 @@ ShellHeights_1 <- ShellHeights_ALL %>%
 ShellHeights_2 <- ShellHeights_1 %>%
   filter(!is.na(ShellHeight)) %>%
   mutate(Treatment = case_when(
+      ProjectGroup == "NFWF-2021" ~ "NFWF-2021",
       StationNumber == 525 ~ "NFWF-2024-Cat-Point",
       StationNumber == 526 ~ "NFWF-2024-Easthole",
       CultchDensity == 1600 ~ "Low-Relief",
@@ -340,10 +418,35 @@ maxSH <- max(ShellHeightsReportYr$ShellHeight, na.rm = TRUE)
 
 ```
 
+``` {r NFWF-2021 NumLegal calculation}
+# NumLegal wasn't recorded, so we must extrapolate based on SH measures
+### Provides how many were measured for each size class for each quadrat
+SHMeasures <- ShellHeights_1 %>%
+  filter(ProjectGroup == "NFWF-2021") %>%
+  group_by(QuadratID) %>%
+  summarize(TotalNumMeasured = sum(!is.na(ShellHeight)),
+            Count_Legal_76_plus = sum(ifelse(ShellHeight >= 76, 1, 0), na.rm = TRUE)
+  )
+
+### Provide stats for how many live oysters there were in each quadrat, by size class
+LegalMeasures <- left_join(QuadStats0, SHMeasures, by = c("QuadratID")) %>%
+  mutate(
+    Num_Legal_76_plus = if_else(TotalNumMeasured == 0, 0, (Count_Legal_76_plus * NumLive) / TotalNumMeasured)) %>%
+  select(-starts_with("Count_")) # Remove Count columns as they are no longer needed
+
+QuadStats <- LegalMeasures %>%
+  mutate(
+    NumLegal = round(if_else(is.na(NumLegal), Num_Legal_76_plus, NumLegal))) 
+  
+# Remove intermediate data frames
+rm(LegalMeasures, SHMeasures, QuadStats0)
+```
+
+
 ``` {r NFWF-2024 General Explore, eval = FALSE}
-# Exploring the NFWF-2024 General data to see if TotalWeight, NumLive, and ShellHeight data was affected by the 2026 Easthole Mortality Event.
+# Exploring the NFWF-2024 General data to see if TotalWeight, NumLive, NumALLOys, and ShellHeight data was affected by the 2026 Easthole Mortality Event.
 ### 
-# Findings: TotalWeight differences were significant, but just barely, so will be treated together. NumLive differences were NOT significant, so will be treated together. ShellHeight differences were HIGHLY significant, so will not be treated together.
+# Findings: TotalWeight differences were significant, but just barely, so will be treated together. NumLive differences were NOT significant, so will be treated together. NumALLOys differences were HIGHLY significant, so will not be treated together. ShellHeight differences were HIGHLY significant, so will not be treated together.
 ###
 
 # Filter data frames for basic stats
@@ -352,7 +455,7 @@ Qexplore <- QuadStats %>%
 SHexplore <- ShellHeights_1 %>%
   filter(ProjectGroup == "NFWF-2024 General")
 
-# Total Weight Summary by station name and Overall
+# Weight, Live, ALL Summary by station name and Overall
 TWstation_summary <- Qexplore %>%
   group_by(StationName) %>%
   summarise(
@@ -365,7 +468,12 @@ TWstation_summary <- Qexplore %>%
     sd_NL    = sd(NumLive, na.rm = TRUE),
     medianNL = median(NumLive, na.rm = TRUE),
     maxNL    = max(NumLive, na.rm = TRUE),
-    minNL    = min(NumLive, na.rm = TRUE))
+    minNL    = min(NumLive, na.rm = TRUE),
+        meanALL   = mean(NumALLOys, na.rm = TRUE),
+    sd_ALL    = sd(NumALLOys, na.rm = TRUE),
+    medianALL = median(NumALLOys, na.rm = TRUE),
+    maxALL    = max(NumALLOys, na.rm = TRUE),
+    minALL    = min(NumALLOys, na.rm = TRUE))
               
 TWoverall_summary <- Qexplore %>%
   summarise(
@@ -379,7 +487,12 @@ TWoverall_summary <- Qexplore %>%
     sd_NL    = sd(NumLive, na.rm = TRUE),
     medianNL = median(NumLive, na.rm = TRUE),
     maxNL    = max(NumLive, na.rm = TRUE),
-    minNL    = min(NumLive, na.rm = TRUE))
+    minNL    = min(NumLive, na.rm = TRUE),
+    meanALL   = mean(NumALLOys, na.rm = TRUE),
+    sd_ALL    = sd(NumALLOys, na.rm = TRUE),
+    medianALL = median(NumALLOys, na.rm = TRUE),
+    maxALL    = max(NumALLOys, na.rm = TRUE),
+    minALL    = min(NumALLOys, na.rm = TRUE))
 
 # Combine both summaries into one table
 TW_report <- bind_rows(TWstation_summary, TWoverall_summary)
@@ -429,6 +542,16 @@ t_test_equalNL <- t.test(NumLive ~ StationName, data = Qexplore, var.equal = TRU
 print(t_test_equalNL)
 # p = 0.931, which is NOT statistically significant, no data filtering needed
 
+# NumALLOys
+# Check if variances are equal
+var_testALL <- var.test(NumALLOys ~ StationName, data = Qexplore)
+print(var_testALL)
+# Since variances are equal (p = 0.958), perform t-test
+t_test_equalALL <- t.test(NumALLOys ~ StationName, data = Qexplore, var.equal = TRUE)
+print(t_test_equalALL)
+# p < 0.001, which is HIGHLY statistically significant, These should not be treated together
+
+# SH
 # Check if variances are equal
 var_testSH <- var.test(ShellHeight ~ StationName, data = SHexplore)
 print(var_testSH)
