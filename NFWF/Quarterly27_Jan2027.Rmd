@@ -390,7 +390,8 @@ rm(hsdbSurveyQuadrat, hsdbShellBudgetQuadrat, Survey_Quad1, SBM_Quad1,
 ProjectGroupOrder <- c("NFWF-2021", "NFWF-2024", "NFWF-2024 Pilot", "NFWF-2024 General", "NFWF-2024 General Adjusted",
                        "Pilot HIGH", "Pilot LOW", "General", "General Adjusted")
 QuadStats0 <- Quadrats_ALL %>%
-  mutate(NumALLOys = NumLive + NumDead) %>%
+  mutate(NumALLOys = NumLive + NumDead,
+         DLRatio = NumDead / NumLive) %>%
     mutate(Treatment = case_when(
       ProjectGroup == "NFWF-2021" ~ "NFWF-2021",
       StationNumber == 525 ~ "NFWF-2024-Cat-Point",
@@ -1080,5 +1081,294 @@ pairwise_comparisons_ALLOys %>%
 # "Although a localized mortality event occurred in one 800-density replicate (Easthole) two months prior to sampling, it did not significantly alter final ALL oyster abundance relative to its companion replicate (\(p = 1.00\)). However, the event significantly altered population structure, resulting in radically different size distributions among survivors (\(p < 0.0001\)). This decoupling of abundance and size highlights that while final numerical carrying capacity may be consistently constrained at lower cultch volumes, the underlying biomass, size-frequency distribution, and structural stability of the reef remain highly sensitive to episodic disturbance events."
 
 ```
+
+
+``` {r NumDead Model selection, eval = FALSE}
+# Figure out which data distribution to use
+# ALL
+# ALL
+hist(QuadStats$NumDead) 
+# nbinom, range 0 - 350, strong peak at 25;
+
+# NFWF-2021
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2021"))$NumDead) 
+# normal, range 0 - 70, strong peak at 5; 
+
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$NumDead) 
+# nbinom, range 0 - 350, strong peak at 25; 
+
+# NFWF-2024 General
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$NumDead) 
+# bilobed, range 0 - 200, strong trough at 75; 
+
+# NFWF-2024 Pilot
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$NumDead) 
+# nbinom, range 0 - 350, strong peak at 25;
+
+# Pilot HIGH
+hist(subset(QuadStats, CultchDensity == 3200)$NumDead)
+# nbinom, range 0 - 350, strong peak at 25;
+
+# Pilot LOW
+hist(subset(QuadStats, CultchDensity == 1600)$NumDead)
+# normal skewed to left, range 0 - 120, peak at 30
+
+#############
+##### a variety of distributions, though not strong. Modelling together in order to detect differences
+#############
+
+NumDead_NFWF_nbinom <- glmmTMB(NumDead ~ factor(Treatment), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumDead_NFWF_nbinom_random <- glmmTMB(NumDead ~ factor(Treatment) + (1 | FixedLocationID), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumDead_NFWF_nbinom_random_disp <- glmmTMB(NumDead ~ factor(Treatment) + (1 | FixedLocationID), # BEST
+                 family = nbinom2, 
+                 dispformula = ~ Treatment,
+                 data = QuadStats)
+NumDead_NFWF_nbinom_random_disp_samp <- glmmTMB(NumDead ~ factor(Treatment) + (1 | SampleEventID), 
+                 family = nbinom2, 
+                 dispformula = ~ Treatment,
+                 data = QuadStats)
+simulateResiduals(NumDead_NFWF_nbinom, n = 1000, plot = T)
+simulateResiduals(NumDead_NFWF_nbinom_random, n = 1000, plot = T)
+simulateResiduals(NumDead_NFWF_nbinom_random_disp, n = 1000, plot = T)
+simulateResiduals(NumDead_NFWF_nbinom_random_disp_samp, n = 1000, plot = T)
+# Compared 
+AIC(NumDead_NFWF_nbinom, NumDead_NFWF_nbinom_random, NumDead_NFWF_nbinom_random_disp, NumDead_NFWF_nbinom_random_disp_samp)
+anova(NumDead_NFWF_nbinom, NumDead_NFWF_nbinom_random, NumDead_NFWF_nbinom_random_disp)
+#### Accounting for Treatment, FixedLocationID as a random effect and each Treatment's variance separately yields the best model, no errors, and lower AIC than the other two models
+
+summary(NumDead_NFWF_nbinom_random_disp)
+
+# post-hoc test
+# 1. Get estimated marginal means (on the original response scale)
+emm_NumDead <- emmeans(NumDead_NFWF_nbinom_random_disp, ~ factor(Treatment), type = "response")
+
+# 2. Perform pairwise comparisons with a Tukey adjustment
+pairwise_comparisons_NumDead <- pairs(emm_NumDead, adjust = "tukey")
+
+# View the results
+print(emm_NumDead)
+print(pairwise_comparisons_NumDead)
+
+# Generate Compact Letter Display (CLD)
+cld_result_NumDead <- multcomp::cld(
+  emm_NumDead,
+  alpha = 0.05,
+  Letters = letters,      # Uses lowercase a, b, ab instead of numbers
+  adjust = "tukey",       # Matches your pairwise Tukey adjustment
+  sort = FALSE            # Keeps your original treatment order (200 to 3200)
+)
+
+# Convert comparisons to a dataframe and display
+cld_result_NumDead %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumDead Across Different Treatments")
+
+# Convert comparisons to a dataframe and display
+pairwise_comparisons_NumDead %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumDead Across Different Treatments")
+
+
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed statistically significant differences in number of dead oysters among some of the tested treatments. The highest estimated average Number of Dead oysters occurred at Easthole (Mean = 134 [21-876]), followed by High-Relief (Mean = 45 [17-116]), then Low-Relief (Mean = 31 [12-80]), then NFWF-2021 (Mean = 13 [4-38], and finally Cat-Point (Mean = 9 [1-62]). 
+# All Treatments except Easthole were similar (p>0.07); All 2024 treatments were similar (p>0.07); Easthole & NFWF-2021 were different from each other (p=0.04)
+# These results suggest Easthole had the most Number of Dead oysters, but the high level of variance in all samples exept NFWF-2021 provide enough overlap to make results not significant.  
+
+```
+
+
+``` {r DLRatio Model selection, eval = FALSE}
+#############
+## Choose distribution family
+DLRatio_NFWF_binomial <- glmmTMB(cbind(NumDead, NumLive) ~ 1, 
+                      family = binomial, 
+                      data = QuadStats)
+DLRatio_NFWF_betabinomial <- glmmTMB(cbind(NumDead, NumLive) ~ 1, 
+                      family = betabinomial, 
+                      data = QuadStats)
+DLRatio_NFWF_betabinomial_disp <- glmmTMB(cbind(NumDead, NumLive) ~ 1, # BEST
+                      family = betabinomial, 
+                      dispformula = ~ Treatment,
+                      data = QuadStats)
+# Check goodness of fit
+simulateResiduals(DLRatio_NFWF_binomial, n = 1000, plot = T)
+simulateResiduals(DLRatio_NFWF_betabinomial, n = 1000, plot = T)
+simulateResiduals(DLRatio_NFWF_betabinomial_disp, n = 1000, plot = T)
+AIC(DLRatio_NFWF_binomial, DLRatio_NFWF_betabinomial, DLRatio_NFWF_betabinomial_disp)
+## Gamma has good fit and better AIC (deltaAIC < 40)
+
+DLRatio_NFWF_betabinomial_disp_T <- glmmTMB(cbind(NumDead, NumLive) ~ Treatment, 
+                      family = betabinomial, 
+                      dispformula = ~ Treatment,
+                      data = QuadStats)
+DLRatio_NFWF_betabinomial_disp_T_FLID <- glmmTMB(cbind(NumDead, NumLive) ~ Treatment + (1 | FixedLocationID), # BEST
+                      family = betabinomial, 
+                      dispformula = ~ Treatment,
+                      data = QuadStats)
+DLRatio_NFWF_betabinomial_disp_T_SEID <- glmmTMB(cbind(NumDead, NumLive) ~ Treatment + (1 | SampleEventID), 
+                      family = betabinomial, 
+                      dispformula = ~ Treatment,
+                      data = QuadStats)
+simulateResiduals(DLRatio_NFWF_betabinomial_disp_T, n = 1000, plot = T)
+simulateResiduals(DLRatio_NFWF_betabinomial_disp_T_FLID, n = 1000, plot = T)
+simulateResiduals(DLRatio_NFWF_betabinomial_disp_T_SEID, n = 1000, plot = T)
+# Compared 
+AIC(DLRatio_NFWF_betabinomial_disp, 
+    DLRatio_NFWF_betabinomial_disp_T, DLRatio_NFWF_betabinomial_disp_T_FLID, DLRatio_NFWF_betabinomial_disp_T_SEID)
+#### Accounting for Treatment, FixedLocationID as a random effect and each Treatment's variance separately yields the best model, no errors, and lower AIC than the other two models. Within-group deviation is likely due to the small sample size of Cat-Point
+
+summary(DLRatio_NFWF_nbinom_random_disp)
+
+# 1. Estimated Proportion Dead: NumDead / (NumDead + NumLive)
+emm_DLRatio_prop <- emmeans(DLRatio_NFWF_betabinomial_disp_T_FLID, ~ Treatment, type = "response")
+print(emm_DLRatio_prop)
+
+# 2. Exact dead:live Ratio (back-transformed from logit scale via exp())
+emm_DLRatio_logit <- emmeans(DLRatio_NFWF_betabinomial_disp_T_FLID, ~ Treatment)
+dl_summary_DLRatio <- as.data.frame(emm_DLRatio_logit)
+dl_summary_DLRatio$dead_live_ratio <- exp(dl_summary_DLRatio$emmean)
+dl_summary_DLRatio$ratio_LCL       <- exp(dl_summary_DLRatio$asymp.LCL)
+dl_summary_DLRatio$ratio_UCL       <- exp(dl_summary_DLRatio$asymp.UCL)
+print(dl_summary_DLRatio[, c("Treatment", "dead_live_ratio", "ratio_LCL", "ratio_UCL")])
+
+# 3. Pairwise Comparisons (outputs odds ratios comparing dead:live between treatments)
+pairwise_comparisons_DLRatio <- pairs(emm_DLRatio_prop, adjust = "tukey")
+
+# View the results
+print(emm_DLRatio_prop)
+print(emm_DLRatio_logit)
+print(pairwise_comparisons_DLRatio)
+
+# Generate Compact Letter Display (CLD)
+cld_result_DLRatio <- multcomp::cld(
+  emm_DLRatio_prop,
+  alpha = 0.05,
+  Letters = letters,      # Uses lowercase a, b, ab instead of numbers
+  adjust = "tukey",       # Matches your pairwise Tukey adjustment
+  sort = FALSE            # Keeps your original treatment order (200 to 3200)
+)
+
+# Convert comparisons to a dataframe and display
+cld_result_DLRatio %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of DLRatio Across Different Treatments")
+
+# Convert comparisons to a dataframe and display
+pairwise_comparisons_DLRatio %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of DLRatio Across Different Treatments")
+
+
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed statistically significant differences in ratio of dead:live oysters among all of the tested treatments. The highest estimated average Dead:live ratio occurred at Easthole (Mean = 0.84 [0.37-1.89]), followed by HNFWF-2021 (Mean = 0.20 [0.12-0.34]), then High-Relief (Mean = 0.12 [0.08-0.18]), then Low-Relief (Mean = 0.09 [0.06-0.13], and finally Cat-Point (Mean = 0.06 [0.03-0.14]). 
+# All Treatments except Easthole were similar (p>0.11); Easthole was different from all other treatments (p<0.032)
+# These results suggest Easthole had asignificantly higher ratio of Dead:Live oysters, likely due to the observed mortality event there. Dead:Live ratio does not appear to be affected by the treatments  
+
+```
+
+
+``` {r NumLegal Model selection, eval = FALSE}
+# Figure out which data distribution to use
+# ALL
+# ALL
+hist(QuadStats$NumLegal) 
+# nbinom, range 0 - 120, strong peak at 10;
+
+# NFWF-2021
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2021"))$NumLegal) 
+# normal, range 0 - 50, strong peak at 12; 
+
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$NumLegal) 
+# nbinom, range 0 - 120, strong peak at 10; 
+
+# NFWF-2024 General
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$NumLegal) 
+# normal, range 0 - 60, strong peak at 5; 
+
+# NFWF-2024 Pilot
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$NumLegal) 
+# nbinom, range 0 - 120, strong peak at 10;
+
+# Pilot HIGH
+hist(subset(QuadStats, CultchDensity == 3200)$NumLegal)
+# nbinom, range 0 - 120, strong peak at 10;
+
+# Pilot LOW
+hist(subset(QuadStats, CultchDensity == 1600)$NumLegal)
+# normal, range 0 - 120, peak at 75
+
+#############
+##### a variety of distributions, though not strong. Modelling together in order to detect differences
+#############
+
+NumLegal_NFWF_nbinom <- glmmTMB(NumLegal ~ factor(Treatment), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumLegal_NFWF_nbinom_random <- glmmTMB(NumLegal ~ factor(Treatment) + (1 | FixedLocationID), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumLegal_NFWF_nbinom_random_disp <- glmmTMB(NumLegal ~ factor(Treatment) + (1 | FixedLocationID), # Best
+                 family = nbinom2, 
+                 dispformula = ~ Treatment,
+                 data = QuadStats)
+simulateResiduals(NumLegal_NFWF_nbinom, n = 1000, plot = T)
+simulateResiduals(NumLegal_NFWF_nbinom_random, n = 1000, plot = T)
+simulateResiduals(NumLegal_NFWF_nbinom_random_disp, n = 1000, plot = T)
+# Compared 
+AIC(NumLegal_NFWF_nbinom, NumLegal_NFWF_nbinom_random, NumLegal_NFWF_nbinom_random_disp)
+anova(NumLegal_NFWF_nbinom, NumLegal_NFWF_nbinom_random, NumLegal_NFWF_nbinom_random_disp)
+#### Accounting for Treatment, FixedLocationID as a random effect and each Treatment's variance separately yields the best model, no errors, and lower AIC than the other two models
+
+summary(NumLegal_NFWF_nbinom_random_disp)
+
+# post-hoc test
+# 1. Get estimated marginal means (on the original response scale)
+emm_NumLegal <- emmeans(NumLegal_NFWF_nbinom_random_disp, ~ factor(Treatment), type = "response")
+
+# 2. Perform pairwise comparisons with a Tukey adjustment
+pairwise_comparisons_NumLegal <- pairs(emm_NumLegal, adjust = "tukey")
+
+# View the results
+print(emm_NumLegal)
+print(pairwise_comparisons_NumLegal)
+
+# Generate Compact Letter Display (CLD)
+cld_result_NumLegal <- multcomp::cld(
+  emm_NumLegal,
+  alpha = 0.05,
+  Letters = letters,      # Uses lowercase a, b, ab instead of numbers
+  adjust = "tukey",       # Matches your pairwise Tukey adjustment
+  sort = FALSE            # Keeps your original treatment order (200 to 3200)
+)
+
+# Convert comparisons to a dataframe and display
+cld_result_NumLegal %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumLegal Across Different Treatments")
+
+# Convert comparisons to a dataframe and display
+pairwise_comparisons_NumLegal %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumLegal Across Different Treatments")
+
+
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed statistically significant differences in number of legal-sized oysters among some of the tested treatments. The highest estimated average number of legal-sized occurred at Low-Relief (Mean = 46 [20-109]), followed by Cat-Point (Mean = 30 [6-167]), then NFWF-2021 (Mean = 20 [8-55]), then High-Relief (Mean = 16 [7-37], and finally Easthole (Mean = 1 [0-4]). 
+# All Treatments except Easthole were similar (p>0.41); Easthole was different from all other treatments (p<0.02)
+# These results suggest number of legal-sized oysters on all treatments is highly variable, yet statistically similar. 
+
+# "A localized mortality event occurred in one 800-density replicate (Easthole) two months prior to sampling, it did not significantly alter final live oyster abundance relative to its companion replicate (\(p = 1.00\)). However, the event significantly altered population structure, resulting in radically different size distributions among survivors (\(p < 0.0001\)). This decoupling of abundance and size highlights that while final numerical carrying capacity may be consistently constrained at lower cultch volumes, the underlying biomass, size-frequency distribution, and structural stability of the reef remain highly sensitive to episodic disturbance events."
+
+```
+
 
 
