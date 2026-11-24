@@ -401,20 +401,21 @@ QuadStats0 <- Quadrats_ALL %>%
       TRUE ~ "ERROR")) %>%
   # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
   filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1"))
+
 ShellHeights_1 <- ShellHeights_ALL %>%
   # remove erroneous samples from NFWF-2024 General where sampling occurred where no cultching had occurred
-  filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1")) 
-
-# Prep data frame for creating SH distribution histogram 
-ShellHeights_2 <- ShellHeights_1 %>%
-  filter(!is.na(ShellHeight)) %>%
+  filter(!str_detect(QuadratID, "ABSRVY_20260613_1_0525_1")) %>%
   mutate(Treatment = case_when(
       ProjectGroup == "NFWF-2021" ~ "NFWF-2021",
       StationNumber == 525 ~ "NFWF-2024-Cat-Point",
       StationNumber == 526 ~ "NFWF-2024-Easthole",
       CultchDensity == 1600 ~ "Low-Relief",
       CultchDensity == 3200 ~ "High-Relief",
-      TRUE ~ "ERROR")) %>%
+      TRUE ~ "ERROR")) 
+
+# Prep data frame for creating SH distribution histogram 
+ShellHeights_2 <- ShellHeights_1 %>%
+  filter(!is.na(ShellHeight)) %>%
   mutate(ShellHeightBin = cut(ShellHeight, 
                               breaks = seq(0, ceiling(max(ShellHeight, na.rm = TRUE)) + 5, by = 5),
                               right = TRUE,
@@ -973,6 +974,246 @@ print(SH_Distribution_Report)
 
 
 ```
+
+
+``` {r SizeClass Model selection, eval = FALSE}
+### Compare Ecological Size-Class Proportions (Captures Distribution Shape)
+# 1. Classify individual oysters into ecological size classes
+SH_classified <- ShellHeights_1 %>%
+  mutate(SizeClass = factor(
+    case_when(
+      ShellHeight < 25  ~ "Spat",
+      ShellHeight < 76  ~ "Seed",
+      ShellHeight >= 76 ~ "Market"),
+    levels = c("Spat", "Seed", "Market"))) %>% # Sets biological order for plots/tables
+  count(FixedLocationID, QuadratID, Treatment, SizeClass) %>%
+  complete(nesting(FixedLocationID, QuadratID, Treatment),
+           SizeClass, fill = list(n = 0))
+
+# Sanity check: nrow(SH_classified) should equal (number of unique quadrats) * 3
+nrow(SH_classified)
+sum(SH_classified$n == 0)
+
+# 2. Fit a single Negative Binomial model testing the Treatment x SizeClass interaction
+# A significant interaction proves the size distributions have different shapes across treatments
+# 1. Poisson (baseline)
+size_pois <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID),
+  family = poisson,
+  data = SH_classified)
+# 2. Negative Binomial 2 (your current model: variance = mu + mu^2 / theta)
+size_nb2 <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID),
+  family = nbinom2,
+  data = SH_classified)
+# 2.1. NB2 with dispersion varying by SizeClass (since Spat counts vary much more than Market counts)
+size_nb2_dispSC <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+  family = nbinom2,
+  dispformula = ~ SizeClass,
+  priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+  data = SH_classified)
+# 2.2. NB2 with dispersion varying by Treatment DOESN'T CONVERGE
+# size_nb2_dispT <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+#   family = nbinom2,
+#   dispformula = ~ Treatment,
+#   priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+#   data = SH_classified)
+# 2.3. Zero-inflated nbinom1 with SizeClass-specific dispersion and zero-inflation
+size_nb2_dispSC_zi <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+  family = nbinom2,
+  ziformula = ~ SizeClass,
+  dispformula = ~ SizeClass,
+  priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+  data = SH_classified)
+# 2.4. Zero-inflated nbinom1 with Treatment-specific dispersion and zero-inflation
+size_nb2_dispT_zi <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+  family = nbinom2,
+  ziformula = ~ SizeClass,
+  dispformula = ~ Treatment,
+  priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+  data = SH_classified)
+
+
+
+# 3. Negative Binomial 1 (linear variance = mu * (1 + phi))
+size_nb1 <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID),
+  family = nbinom1,
+  data = SH_classified)
+# 3.1. NB1 with dispersion varying by SizeClass (since Spat counts vary much more than Market counts)
+size_nb1_dispSC <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+  family = nbinom1,
+  dispformula = ~ SizeClass,
+  priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+  data = SH_classified)
+# 3.2. NB1 with dispersion varying by Treatment DOESN'T CONVERGE
+# size_nb1_dispT <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+#   family = nbinom1,
+#   dispformula = ~ Treatment,
+#   priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+#   data = SH_classified)
+# 3.3. Zero-inflated nbinom1 with SizeClass-specific dispersion and zero-inflation
+size_nb1_dispSC_zi <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), # BEST
+  family = nbinom1,
+  ziformula = ~ SizeClass,
+  dispformula = ~ SizeClass,
+  priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+  data = SH_classified)
+# 3.3. Zero-inflated nbinom1 with Treatment-specific dispersion and zero-inflation DOES NOT CONVERGE
+# size_nb1_dispT_zi <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID), 
+#   family = nbinom1,
+#   ziformula = ~ SizeClass,
+#   dispformula = ~ Treatment,
+#   priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+#   data = SH_classified)
+
+# 4. Zero-inflated Generalized Poisson (handles underdispersion < 1 even better than nbinom1)
+size_gp_zi_disp <- glmmTMB(n ~ Treatment * SizeClass + (1 | FixedLocationID / QuadratID),
+  family = genpois,
+  ziformula = ~ SizeClass,
+  dispformula = ~ SizeClass,
+  priors = data.frame(prior = "normal(0, 5)", class = "fixef"),
+  data = SH_classified
+)
+
+AIC(
+  size_pois,
+  size_nb2,
+  size_nb2_dispSC,
+  size_nb2_dispSC_zi,
+  size_nb2_dispT_zi,
+  size_nb1,
+  size_nb1_dispSC,
+  size_nb1_dispSC_zi, 
+  size_gp_zi_disp)
+
+simulateResiduals(  size_pois,n = 1000, plot = T)
+simulateResiduals(  size_nb2,n = 1000, plot = T)
+simulateResiduals(  size_nb2_dispSC,n = 1000, plot = T)
+simulateResiduals(  size_nb2_dispSC_zi,n = 1000, plot = T)
+simulateResiduals(  size_nb2_dispT_zi,n = 1000, plot = T)
+simulateResiduals(  size_nb1,n = 1000, plot = T)
+simulateResiduals(  size_nb1_dispSC,n = 1000, plot = T)
+simulateResiduals(  size_nb1_dispSC_zi,n = 1000, plot = T)
+simulateResiduals(  size_gp_zi_disp, n = 1000, plot = T)
+
+  
+
+
+# Test overall interaction (do size-class profiles differ by treatment?)
+car::Anova(size_nb1_dispSC_zi, type = "III")
+
+# 1. Test overall Treatment x SizeClass interaction (proves distribution shapes differ)
+car::Anova(size_nb1_dispSC_zi, type = "III")
+
+# 2. Extract overall expected counts (combining conditional count + zero-inflation)
+emm_sc <- emmeans(
+  size_nb1_dispSC_zi,
+  ~ Treatment | SizeClass,
+  type = "response"
+)
+print(emm_sc)
+
+# 3. Pairwise treatment comparisons within each SizeClass (Spat, Seed, Market)
+pairs(emm_sc, adjust = "tukey")
+
+# 4. Compact Letter Display (CLD) within each SizeClass
+cld_sc <- multcomp::cld(
+  emm_sc,
+  by = "SizeClass",
+  alpha = 0.05,
+  Letters = letters,
+  adjust = "tukey",
+  sort = FALSE
+)
+cld_sc_df <- as.data.frame(cld_sc)
+cld_sc_df$.group <- trimws(cld_sc_df$.group)
+print(cld_sc_df)
+
+
+# 1. Strong Treatment:SizeClass Interaction (p < 2.2e-16): The relative proportions of Spat, Seed, and Market oysters shift dramatically depending on the restoration treatment/site.
+# 2. Contrasting Trajectories of the Two 2024 Sites:
+# 	• Easthole is heavily skewed toward new recruits (14.7 spat/quadrat, significantly higher than Low-Relief and NFWF-2021) while lacking market-sized oysters (0.32 market/quadrat, group b, significantly lower than all other treatments). (Note: The slight positive estimate of 0.32 instead of exact 0 is simply the weakly informative normal(0, 5) prior keeping the all-zero cell finite.)
+# 	• Cat-Point already supports a balanced size distribution (8.8 Spat, 10.7 Seed, 8.2 Market) that mirrors the mature High-Relief and Low-Relief reefs.
+# 3. NFWF-2021 Bottleneck: NFWF-2021 holds the highest density of Seed oysters (21.9, group b) and strong Market numbers (9.7, group a), but suffers from significantly lower Spat recruitment (2.0, group c) than every other treatment.
+# 4. Interpretation Note on response Units: Keep in mind that response here represents estimated measured oysters per quadrat in your shell-height subsample (rather than total reef density per m²), since shell heights are typically measured on a fixed subsample of oysters per quadrat.
+
+##########################################################################################
+##########################################################################################
+##########################################################################################
+##########################################################################################
+
+### 2. Model Continuous Shell Height & Spread (glmmTMB)
+
+# Filter out any 0 mm entries if present
+SH_clean <- subset(ShellHeights_1, ShellHeight > 0)
+
+# 1. Gamma (log link) - baseline & treatment-specific dispersion
+m_sh_gamma      <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID),
+                           family = Gamma(link = "log"), data = SH_clean)
+m_sh_gamma_disp <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID),
+                           family = Gamma(link = "log"), dispformula = ~ Treatment, data = SH_clean)
+# 2. Lognormal (log link) - baseline & treatment-specific dispersion
+m_sh_lnorm      <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID),
+                           family = lognormal(link = "log"), data = SH_clean)
+m_sh_lnorm_disp <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID),
+                           family = lognormal(link = "log"), dispformula = ~ Treatment, data = SH_clean)
+# 3. Gaussian (identity link) - baseline & treatment-specific dispersion
+m_sh_gaus       <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID), # Doesn't converge
+                           family = gaussian(link = "identity"), data = SH_clean)
+m_sh_gaus_disp  <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID),
+                           family = gaussian(link = "identity"), dispformula = ~ Treatment, data = SH_clean)
+# 4. Gaussian (log link) with treatment-specific dispersion
+m_sh_gaus_log   <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID),
+                           family = gaussian(link = "log"), dispformula = ~ Treatment, data = SH_clean)
+# 5. Tweedie (log link) with treatment-specific dispersion
+m_sh_tw_disp    <- glmmTMB(ShellHeight ~ Treatment + (1 | FixedLocationID / QuadratID), # BEST
+                           family = tweedie(link = "log"), dispformula = ~ Treatment, data = SH_clean)
+
+# Compare AIC across all converging models
+AIC(m_sh_gamma, m_sh_gamma_disp,
+    m_sh_lnorm, m_sh_lnorm_disp,
+    m_sh_gaus,  m_sh_gaus_disp,
+    m_sh_gaus_log, m_sh_tw_disp)
+
+simulateResiduals(  m_sh_gamma,n = 1000, plot = T)
+simulateResiduals(  m_sh_gamma_disp,n = 1000, plot = T)
+simulateResiduals(  m_sh_lnorm,n = 1000, plot = T)
+simulateResiduals(  m_sh_lnorm_disp,n = 1000, plot = T)
+simulateResiduals(  m_sh_gaus,n = 1000, plot = T)
+simulateResiduals(  m_sh_gaus_disp,n = 1000, plot = T)
+simulateResiduals(  m_sh_gaus_log,n = 1000, plot = T)
+simulateResiduals(  m_sh_tw_disp,n = 1000, plot = T)
+
+
+
+emm_sh <- emmeans(m_sh_tw_disp, ~ Treatment, type = "response")
+print(emm_sh)
+
+pairs(emm_sh, adjust = "tukey")
+
+cld_sh <- multcomp::cld(
+  emm_sh,
+  alpha = 0.05,
+  Letters = letters,
+  adjust = "tukey",
+  sort = FALSE
+)
+cld_sh_df <- as.data.frame(cld_sh)
+cld_sh_df$.group <- trimws(cld_sh_df$.group)
+print(cld_sh_df)
+
+
+# How to Frame This in Your Results / Report
+# 
+# Presenting both results together makes your statistical story stronger, not contradictory:
+# • Lead with the Size-Class Composition (size_nb1_dispSC_zi): State clearly that oyster size-frequency distributions differed highly significantly among treatments (Treatment × SizeClass: χ²(8) = 322.2, p < 0.0001), driven by strong recruitment at NFWF-2024-Easthole (lacking market oysters), low recruitment at NFWF-2021 (dominated by seed/market classes), and multi-cohort structure across High-Relief, Low-Relief, and NFWF-2024-Cat-Point.
+# • Use Overall Mean Shell Height (m_sh_tw_disp) to Illustrate Why Composition Matters: Note that although mean shell height trended lowest at recruit-dominated NFWF-2024-Easthole (23.9 ± 7.3 mm) and highest at NFWF-2021 (60.2 ± 10.6 mm), overall mean shell height did not differ significantly among treatments (p > 0.05 after Tukey adjustment) because the simultaneous presence of both new recruits and large market adults in multi-cohort reefs (High-Relief, Low-Relief, Cat-Point) produced intermediate grand means (39.2–52.4 mm) alongside wide among-station variance.
+
+
+```
+
+
+
+
+
 
 
 
