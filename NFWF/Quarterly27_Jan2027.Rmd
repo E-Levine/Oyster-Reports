@@ -251,6 +251,7 @@ rm(dboFixedLocations)
     # Survey QUADRATS #
 Survey_Quad1 <- hsdbSurveyQuadrat %>%
   select(QuadratID,
+         SampleEventID,
          NumLive,
          NumDead,
          NumDrills,
@@ -259,6 +260,7 @@ Survey_Quad1 <- hsdbSurveyQuadrat %>%
          Comments)  %>%
   FilterFunction1() %>%
   select(QuadratID,
+         SampleEventID,
          FixedLocationID,
          TripDate,
          Estuary,
@@ -287,6 +289,7 @@ SBM_Quad1 <- hsdbShellBudgetQuadrat %>%
          NumDead = NumDeadOysters) %>%
   mutate(NumLegal = NA) %>% # This column doesn't occur in that table, but needs to exist to union
   select(QuadratID,
+         SampleEventID,
          NumLive,
          NumDead,
          NumDrills,
@@ -295,6 +298,7 @@ SBM_Quad1 <- hsdbShellBudgetQuadrat %>%
          Comments) %>%
   FilterFunction1() %>%
   select(QuadratID,
+         SampleEventID,
          FixedLocationID,
          TripDate,
          Estuary,
@@ -631,13 +635,18 @@ TotalWeight_NFWF_gamma_CD_random <- glmmTMB(TotalWeight ~ Treatment + (1 | Fixed
 TotalWeight_NFWF_gamma_CDfactor_random <- glmmTMB(TotalWeight ~ factor(Treatment) + (1 | FixedLocationID), # BEST
                       family = Gamma(link = "log"), 
                       data = QuadStats)
+TotalWeight_NFWF_gamma_CDfactor_random_var <- glmmTMB(TotalWeight ~ factor(Treatment) + (1 | FixedLocationID), # add varience
+                      family = Gamma(link = "log"),
+                      dispformula = ~ Treatment,
+                      data = QuadStats)
 # Check goodness of fit
 simulateResiduals(TotalWeight_NFWF_gamma_CD, n = 1000, plot = T)
 simulateResiduals(TotalWeight_NFWF_gamma_CDfactor, n = 1000, plot = T)
 simulateResiduals(TotalWeight_NFWF_gamma_CD_random, n = 1000, plot = T)
 simulateResiduals(TotalWeight_NFWF_gamma_CDfactor_random, n = 1000, plot = T)
-AIC(TotalWeight_NFWF_gamma_CD, TotalWeight_NFWF_gamma_CDfactor, TotalWeight_NFWF_gamma_CD_random, TotalWeight_NFWF_gamma_CDfactor_random)
-## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Treating Treatment as a factor doesn't improves fit
+simulateResiduals(TotalWeight_NFWF_gamma_CDfactor_random_var, n = 1000, plot = T)
+AIC(TotalWeight_NFWF_gamma_CD, TotalWeight_NFWF_gamma_CDfactor, TotalWeight_NFWF_gamma_CD_random, TotalWeight_NFWF_gamma_CDfactor_random, TotalWeight_NFWF_gamma_CDfactor_random_var)
+## Adding FixedLocation as a random (not fixed) effect helps and allows us to make larger generalizations; Treating Treatment as a factor doesn't improves fit; adding seperate variance term does not improve fit
 
 # post-hoc test
 # 1. Get estimated marginal means (on the original response scale)
@@ -780,6 +789,14 @@ kable(TotalWeightStats_TABLE_Subtidal,
 ``` {r NumLive Model selection, eval = FALSE}
 # Figure out which data distribution to use
 # ALL
+# ALL
+hist(QuadStats$NumLive) 
+# nbinom, range 0 - 1000, strong peak at 100;
+
+# NFWF-2021
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2021"))$NumLive) 
+# normal, range 0 - 150, strong peak at 100; 
+
 # NFWF-2024 All
 hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$NumLive) 
 # nbinom, range 0 - 1000, strong peak at 100; 
@@ -801,72 +818,67 @@ hist(subset(QuadStats, CultchDensity == 1600)$NumLive)
 # normal, range 0 - 1000, peak at 400
 
 #############
-##### a variety of distributions, though not strong. Ranges (except General), and peaks are all the same. More info needed to justify modeling together
+##### a variety of distributions, though not strong. Modelling together in order to detect differences
 #############
 
-### Testing pooled vs. cultch density-specific means
-# Model A (pooled)
-m_pooled <- glmmTMB(NumLive ~ 1,
-                    family = nbinom2,
-                    data = QuadStats)
-simulateResiduals(m_pooled, n = 1000, plot = T)
-# Model B (reef-specific means)
-m_CD_Specific <- glmmTMB(NumLive ~ factor(CultchDensity),
-                     family = nbinom2,
-                     data = QuadStats)
-simulateResiduals(m_CD_Specific, n = 1000, plot = T)
-# Model C (ProjectGroup-specific means)
-m_Project_Specific <- glmmTMB(NumLive ~ ProjectGroup,
-                     family = nbinom2,
-                     data = QuadStats)
-simulateResiduals(m_Project_Specific, n = 1000, plot = T)
-# Model D Additive Control
-m_combined <- glmmTMB(NumLive ~ factor(CultchDensity) + ProjectGroup,
-                       family = nbinom2,
-                       data = QuadStats)
-simulateResiduals(m_combined, n = 1000, plot = T)
-# Model E
-m_CD_weighted <- glmmTMB(NumLive ~ factor(CultchDensity),
-                          dispformula = ~ factor(CultchDensity), # Solves the Levene test variance shift
-                          family = nbinom2,
-                          data = QuadStats)
-simulateResiduals(m_CD_weighted, n = 1000, plot = T)
-
+NumLive_NFWF_nbinom <- glmmTMB(NumLive ~ factor(Treatment), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumLive_NFWF_nbinom_random <- glmmTMB(NumLive ~ factor(Treatment) + (1 | FixedLocationID), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumLive_NFWF_nbinom_random_disp <- glmmTMB(NumLive ~ factor(Treatment) + (1 | FixedLocationID), # Best
+                 family = nbinom2, 
+                 dispformula = ~ Treatment,
+                 data = QuadStats)
+simulateResiduals(NumLive_NFWF_nbinom, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_nbinom_random, n = 1000, plot = T)
+simulateResiduals(NumLive_NFWF_nbinom_random_disp, n = 1000, plot = T)
 # Compared 
-anova(m_pooled, m_CD_Specific, m_Project_Specific, m_combined, m_CD_weighted)
-#### "Initial diagnostic plots revealed significant heteroscedasticity across groups (Levene's Test, p < 0.05). To account for this, we updated our negative binomial generalized linear model (m_CD_weighted) to explicitly model the dispersion parameter as a function of cultch density (dispformula = ~ factor(CultchDensity)). A likelihood ratio test confirmed this significantly improved overall model fit (\(\chi ^{2}\) = 18.52, df = 2, p < 0.001), successfully resolving the variance heterogeneity (Levene's Test, p > 0.05) and yielding the most parsimonious model with the lowest overall information criteria (AIC = 1415.2)."
+AIC(NumLive_NFWF_nbinom, NumLive_NFWF_nbinom_random, NumLive_NFWF_nbinom_random_disp)
+anova(NumLive_NFWF_nbinom, NumLive_NFWF_nbinom_random, NumLive_NFWF_nbinom_random_disp)
+#### Accounting for Treatment, FixedLocationID as a random effect and each Treatment's variance seperately yields the best model, no errors, and lower AIC than the other two models
 
-summary(m_CD_weighted)
+summary(NumLive_NFWF_nbinom_random_disp)
 
 # post-hoc test
 # 1. Get estimated marginal means (on the original response scale)
-Live_em_cultch <- emmeans(m_CD_weighted, ~ factor(CultchDensity), type = "response")
+emm_Live <- emmeans(NumLive_NFWF_nbinom_random_disp, ~ factor(Treatment), type = "response")
 
 # 2. Perform pairwise comparisons with a Tukey adjustment
-Live_pairwise_comparisons <- pairs(Live_em_cultch, adjust = "tukey")
+pairwise_comparisons_live <- pairs(emm_Live, adjust = "tukey")
 
 # View the results
-print(Live_em_cultch)
-print(Live_pairwise_comparisons)
+print(emm_Live)
+print(pairwise_comparisons_live)
+
+# Generate Compact Letter Display (CLD)
+cld_result_live <- multcomp::cld(
+  emm_Live,
+  alpha = 0.05,
+  Letters = letters,      # Uses lowercase a, b, ab instead of numbers
+  adjust = "tukey",       # Matches your pairwise Tukey adjustment
+  sort = FALSE            # Keeps your original treatment order (200 to 3200)
+)
 
 # Convert comparisons to a dataframe and display
-Live_pairwise_comparisons %>%
+cld_result_live %>%
   as.data.frame() %>%
-  kable(digits = 3, caption = "omparison of Live Counts Across Different Treatments")
+  kable(digits = 3, 
+        caption = "Comparison of NumLive Across Different Treatments")
 
-# "The final weighted negative binomial model revealed that cultch density exerts a profound effect on both the abundance and the spatial distribution of live oysters (\(NumLive\)). Increasing cultch density from 800 to 1,600 resulted in a highly significant, 2.6-fold increase in live oyster abundance (\(p < 0.001\)), elevating the estimated mean count from 159 (95% CI: 143–177) to 414 (95% CI: 340–505) oysters per quadrat.
-# However, doubling the cultch density further to 3,200 yielded diminishing returns, resulting in an estimated mean of 430 oysters (95% CI: 364–507)—a value statistically indistinguishable from the 1,600 treatment (Ratio = 0.965, \(p = 0.960\)).
-# Concurrently, the dispersion sub-model indicated that higher cultch densities significantly increased environmental overdispersion (\(p < 0.001\) for both 1,600 and 3,200 treatments). This indicates that while higher cultch availability drastically expands overall settlement capacity, it promotes a highly clustered, patchy spatial distribution of live oysters across the reef matrix compared to the more uniform, low-density baseline."
-
-
-# "Although a localized mortality event occurred in one 800-density replicate two months prior to sampling, it did not significantly alter final live oyster abundance relative to its companion replicate (\(p = 0.93\)). However, the event significantly altered population structure, resulting in radically different size distributions among survivors (\(p < 0.0001\)). This decoupling of abundance and size highlights that while final numerical carrying capacity may be consistently constrained at lower cultch volumes, the underlying biomass, size-frequency distribution, and structural stability of the reef remain highly sensitive to episodic disturbance events."
-
-
+# Convert comparisons to a dataframe and display
+pairwise_comparisons_live %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumLive Across Different Treatments")
 
 
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed statistically significant differences in number of live oysters among some of the tested treatments. The highest estimated average NumLive occurred at High-Relief (Mean = 383 [235-623]), followed by Low-Relief (Mean = 377 [226-631]), then Easthole (Mean = 160 [61-418]), then Cat-Point (Mean = 159 [58-434], and finally NFWF-2021 (Mean = 76 [43-135]). 
+# All 2024 Treatments were similar (p>0.23); Cat-Point, Easthole, and NFWF-2021 were similar (p>0.43); High & Low-Relief were different from NFWF-2021 (p>0.001)
+# These results suggest NumLive increases up to 800; but diminishing results above 800. 
 
-
-
+# "Although a localized mortality event occurred in one 800-density replicate (Easthole) two months prior to sampling, it did not significantly alter final live oyster abundance relative to its companion replicate (\(p = 1.00\)). However, the event significantly altered population structure, resulting in radically different size distributions among survivors (\(p < 0.0001\)). This decoupling of abundance and size highlights that while final numerical carrying capacity may be consistently constrained at lower cultch volumes, the underlying biomass, size-frequency distribution, and structural stability of the reef remain highly sensitive to episodic disturbance events."
 
 ```
 
@@ -876,10 +888,10 @@ Live_pairwise_comparisons %>%
 ###############
 
 ### NFWF-2024 ALL Model ###
-NumLive_NFWF <- glmmTMB(NumLive ~ factor(CultchDensity),
-                          dispformula = ~ factor(CultchDensity), # Solves the Levene test variance shift
-                          family = nbinom2,
-                          data = QuadStats)
+NumLive_NFWF <- glmmTMB(NumLive ~ factor(Treatment) + (1 | FixedLocationID), # Best
+                        family = nbinom2, 
+                        dispformula = ~ Treatment,
+                        data = QuadStats)
 # Check goodness of fit & summary
 simulateResiduals(NumLive_NFWF, n = 1000, plot = T)
 summary(NumLive_NFWF)
@@ -891,7 +903,7 @@ summary(NumLive_NFWF)
 
 # Generate Modeled Means, CI, and SE
 # emmeans needed to extract values of Random effects
-NumLiveStats_Subtidal_modeled <- emmeans(NumLive_NFWF, ~ CultchDensity, type = "response") %>%
+NumLiveStats_Subtidal_modeled <- emmeans(NumLive_NFWF, ~ Treatment, type = "response") %>%
   as.data.frame() %>%
   rename(NumLiveMean_modeled = response,
          NumLiveLower_modeled = asymp.LCL,
@@ -906,9 +918,9 @@ NumLiveStats_Subtidal_modeled <- emmeans(NumLive_NFWF, ~ CultchDensity, type = "
 
 # Generate raw mean and SD
 NumLiveStats_Subtidal_RAW <- QuadStats %>%
-  group_by(CultchDensity) %>%
+  group_by(Treatment) %>%
   summarise_ALL() %>%
-  arrange(CultchDensity) %>%
+  arrange(Treatment) %>%
   select(-matches("NumDrill"),
          -matches("Total"),
          -matches("Legal"))
@@ -916,7 +928,7 @@ NumLiveStats_Subtidal_RAW <- QuadStats %>%
 # Combine into single table and remove intermediate dataframes
 NumLiveStats_Subtidal_ALL <- left_join(NumLiveStats_Subtidal_modeled, 
                               NumLiveStats_Subtidal_RAW, 
-                              by = c("CultchDensity")) 
+                              by = c("Treatment")) 
 
 
 
@@ -925,7 +937,7 @@ NumLiveStats_Subtidal_ALL <- left_join(NumLiveStats_Subtidal_modeled,
 ``` {r NumLive Figures and Tables}
 ### SUBTIDAL
 NumLiveStats_TABLE_Subtidal <- NumLiveStats_Subtidal_ALL %>%
-  select(CultchDensity,
+  select(Treatment,
          NumLiveDensityMean_raw,
          NumLiveDensitySD_raw,
          NumLiveMeanDensity_modeled,
@@ -951,7 +963,7 @@ SH_Distribution_Report <- ggplot(ShellHeights_2, aes(x = ShellHeightBin, y = Per
   scale_x_discrete(
     breaks = levels(ShellHeights_2$ShellHeightBin)[seq(1, length(levels(ShellHeights_2$ShellHeightBin)), by = 3)]
   ) +
-  labs(title = paste0("Shell Height Distribution of Oysters Measured During 2026 Survey"), 
+  labs(title = paste0("Shell Height Distribution of Oysters"), 
        x = "Shell Height (mm)", 
        y = "Percent of Measurements Within Groups")  +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -960,3 +972,113 @@ print(SH_Distribution_Report)
 
 
 ```
+
+
+
+
+``` {r NumALLOys Model selection, eval = FALSE}
+# Figure out which data distribution to use
+# ALL
+# ALL
+hist(QuadStats$NumALLOys) 
+# nbinom, range 0 - 1400, strong peak at 200;
+
+# NFWF-2021
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2021"))$NumALLOys) 
+# normal, range 0 - 170, strong peak at 100; 
+
+# NFWF-2024 All
+hist(subset(QuadStats, str_detect(ProjectGroup, "NFWF-2024"))$NumALLOys) 
+# nbinom, range 0 - 1400, strong peak at 300; 
+
+# NFWF-2024 General
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 General")$NumALLOys) 
+# normal, range 50 - 450, strong peak at 250; 
+
+# NFWF-2024 Pilot
+hist(subset(QuadStats, ProjectGroup == "NFWF-2024 Pilot")$NumALLOys) 
+# nbinom, range 0 - 1400, strong peak at 300;
+
+# Pilot HIGH
+hist(subset(QuadStats, CultchDensity == 3200)$NumALLOys)
+# nbinom, range 0 - 1400, strong peak at 300;
+
+# Pilot LOW
+hist(subset(QuadStats, CultchDensity == 1600)$NumALLOys)
+# normal, range 0 - 1200, peak at 500
+
+#############
+##### a variety of distributions, though not strong. Modelling together in order to detect differences
+#############
+
+NumALLOys_NFWF_nbinom <- glmmTMB(NumALLOys ~ factor(Treatment), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumALLOys_NFWF_nbinom_random <- glmmTMB(NumALLOys ~ factor(Treatment) + (1 | FixedLocationID), 
+                 family = nbinom2, 
+                 data = QuadStats)
+NumALLOys_NFWF_nbinom_random_disp <- glmmTMB(NumALLOys ~ factor(Treatment) + (1 | FixedLocationID), # Best
+                 family = nbinom2, 
+                 dispformula = ~ Treatment,
+                 data = QuadStats)
+NumALLOys_NFWF_nbinom_random_disp_samp <- glmmTMB(NumALLOys ~ factor(Treatment) + (1 | SampleEventID), 
+                 family = nbinom2, 
+                 dispformula = ~ Treatment,
+                 data = QuadStats)
+simulateResiduals(NumALLOys_NFWF_nbinom, n = 1000, plot = T)
+simulateResiduals(NumALLOys_NFWF_nbinom_random, n = 1000, plot = T)
+simulateResiduals(NumALLOys_NFWF_nbinom_random_disp, n = 1000, plot = T)
+simulateResiduals(NumALLOys_NFWF_nbinom_random_disp_samp, n = 1000, plot = T)
+# Compared 
+AIC(NumALLOys_NFWF_nbinom, NumALLOys_NFWF_nbinom_random, NumALLOys_NFWF_nbinom_random_disp, NumALLOys_NFWF_nbinom_random_disp_samp)
+anova(NumALLOys_NFWF_nbinom, NumALLOys_NFWF_nbinom_random, NumALLOys_NFWF_nbinom_random_disp)
+#### Accounting for Treatment, FixedLocationID as a random effect and each Treatment's variance separately yields the best model, no errors, and lower AIC than the other two models
+
+summary(NumALLOys_NFWF_nbinom_random_disp)
+
+# post-hoc test
+# 1. Get estimated marginal means (on the original response scale)
+emm_ALLOys <- emmeans(NumALLOys_NFWF_nbinom_random_disp, ~ factor(Treatment), type = "response")
+
+# 2. Perform pairwise comparisons with a Tukey adjustment
+pairwise_comparisons_ALLOys <- pairs(emm_ALLOys, adjust = "tukey")
+
+# View the results
+print(emm_ALLOys)
+print(pairwise_comparisons_ALLOys)
+
+# Generate Compact Letter Display (CLD)
+cld_result_ALLOys <- multcomp::cld(
+  emm_ALLOys,
+  alpha = 0.05,
+  Letters = letters,      # Uses lowercase a, b, ab instead of numbers
+  adjust = "tukey",       # Matches your pairwise Tukey adjustment
+  sort = FALSE            # Keeps your original treatment order (200 to 3200)
+)
+
+# Convert comparisons to a dataframe and display
+cld_result_ALLOys %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumALLOys Across Different Treatments")
+
+# Convert comparisons to a dataframe and display
+pairwise_comparisons_ALLOys %>%
+  as.data.frame() %>%
+  kable(digits = 3, 
+        caption = "Comparison of NumALLOys Across Different Treatments")
+
+
+# "Post-hoc pairwise comparisons using Tukey's honest significant difference (HSD) adjustment revealed statistically significant differences in number of ALL oysters among some of the tested treatments. The highest estimated average NumALLOys occurred at High-Relief (Mean = 438 [291-658]), followed by Low-Relief (Mean = 409 [267-626]), then Easthole (Mean = 294 [131-659]), then Cat-Point (Mean = 169 [73-389], and finally NFWF-2021 (Mean = 90 [56-144]). 
+# All 2024 Treatments were similar (p>0.26); Cat-Point, Easthole, and NFWF-2021 were similar (p>0.09); High & Low-Relief were different from NFWF-2021 (p>0.001)
+# These results suggest NumALLOys increases up to 800; but diminishing results above 800. 
+
+
+
+
+
+# "Although a localized mortality event occurred in one 800-density replicate (Easthole) two months prior to sampling, it did not significantly alter final ALL oyster abundance relative to its companion replicate (\(p = 1.00\)). However, the event significantly altered population structure, resulting in radically different size distributions among survivors (\(p < 0.0001\)). This decoupling of abundance and size highlights that while final numerical carrying capacity may be consistently constrained at lower cultch volumes, the underlying biomass, size-frequency distribution, and structural stability of the reef remain highly sensitive to episodic disturbance events."
+
+```
+
+
